@@ -1,0 +1,81 @@
+{
+  "name": "@aubrio/minotor",
+  "version": "0.0.0-development",
+  "description": "A simple transit planner.",
+  "keywords": [
+    "raptor",
+    "transit",
+    "planner",
+    "transport"
+  ],
+  "homepage": "https://github.com/aubryio/minotor",
+  "private": true,
+  "bugs": "https://github.com/aubryio/minotor/issues",
+  "author": "Aubry Cholleton <aubry.cholleton@gmail.com>",
+  "repository": "aubryio/",
+  "type": "module",
+  "exports": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "license": "MIT",
+  "engines": {
+    "node": "^21.1.0",
+    "npm": "^10.2.0"
+  },
+  "volta": {
+    "node": "21.1.0",
+    "npm": "10.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "setup": "tsx ./scripts/setup.ts",
+    "build": "npm run clean && npm run type:dts && npm run build:src",
+    "build:src": "tsx ./scripts/build.ts",
+    "clean": "rimraf build coverage",
+    "type:dts": "tsc --emitDeclarationOnly --project tsconfig.build.json",
+    "type:check": "tsc --noEmit",
+    "format": "prettier \"src/**/*.ts\" --write",
+    "format:check": "prettier \"src/**/*.ts\" --check",
+    "lint": "eslint src --ext .ts --fix",
+    "lint:check": "eslint src --ext .ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "test:watch": "tsx --watch --test src/**/*.test.ts",
+    "test:coverage": "npm run clean && npm run build:src -- --tests && NODE_V8_COVERAGE=./coverage c8 -r html node --experimental-test-coverage --test build/**/*.test.js",
+    "test:setup": "tsx ./scripts/test-setup.ts",
+    "spell:check": "cspell \"{README.md,.github/*.md,src/**/*.ts}\"",
+    "cz": "cz",
+    "semantic-release": "semantic-release"
+  },
+  "devDependencies": {
+    "@ryansonshine/commitizen": "^4.2.8",
+    "@ryansonshine/cz-conventional-changelog": "^3.3.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^11.1.0",
+    "@semantic-release/github": "^9.2.2",
+    "@semantic-release/npm": "^11.0.1",
+    "@semantic-release/release-notes-generator": "^12.1.0",
+    "@types/node": "^20.9.0",
+    "@types/prompts": "^2.4.8",
+    "@typescript-eslint/eslint-plugin": "^6.10.0",
+    "@typescript-eslint/parser": "^6.10.0",
+    "c8": "^8.0.1",
+    "cspell": "^8.0.0",
+    "esbuild": "^0.19.5",
+    "eslint": "^8.53.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-eslint-comments": "^3.2.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-simple-import-sort": "^10.0.0",
+    "globby": "^13.2.2",
+    "prettier": "^3.0.3",
+    "prompts": "^2.4.2",
+    "rimraf": "^5.0.5",
+    "semantic-release": "^22.0.7",
+    "slugify": "^1.6.6",
+    "source-map-support": "^0.5.21",
+    "tsx": "^4.0.0",
+    "typescript": "^5.2.2"
+  }
+}

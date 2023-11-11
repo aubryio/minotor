@@ -1,0 +1,22 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "degit",
+    "esbuild",
+    "aubryio",
+    "octocat",
+    "minotor",
+    "rmrf",
+    "socio",
+    "ryansonshine"
+  ],
+  "flagWords": [],
+  "ignorePaths": [
+    "package.json",
+    "package-lock.json",
+    "yarn.lock",
+    "tsconfig.json",
+    "node_modules/**"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Current Test File",
+      "type": "shell",
+      "command": "${workspaceRoot}/node_modules/tsx/dist/cli.mjs",
+      "args": ["--test", "${relativeFile}"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    }
+  ]
+}
