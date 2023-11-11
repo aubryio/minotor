@@ -27,3 +27,6 @@ A fast and memory efficient transit planner for nodejs, the browser and react-na
 
 - `cz`: interactive CLI that helps you generate a proper git commit message, using [Commitizen](https://github.com/commitizen/cz-cli)
 
+## Credits
+
+Typescript library boilerplate based on [typescript-library-starter](https://github.com/gjuchault/typescript-library-starter)

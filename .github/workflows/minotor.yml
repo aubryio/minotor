@@ -64,20 +64,9 @@ jobs:
       - uses: bahmutov/npm-install@v1
       - name: ⚡ Tests
         run: npm run test:coverage
-
-  test-setup:
-    name: ⚡ Setup tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - uses: bahmutov/npm-install@v1
-      - name: ⚡ Tests
-        run: npm run test:setup
-
 #  build-and-release:
 #    name: 🚀 Build & release
-#    needs: [lint, audit, format, spell, type, test, test-setup]
+#    needs: [lint, audit, format, spell, type, test]
 #    runs-on: ubuntu-latest
 #    steps:
 #      - uses: actions/checkout@v3

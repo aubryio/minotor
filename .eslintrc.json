@@ -35,5 +35,13 @@
     "import/no-mutable-exports": "error",
     "import/no-unused-modules": "error",
     "import/consistent-type-specifier-style": ["error", "prefer-top-level"]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["*.test.ts"],
+      "rules": {
+        "@typescript-eslint/no-floating-promises": "off"
+      }
+    }
+  ]
 }

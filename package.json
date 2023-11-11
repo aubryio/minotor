@@ -29,7 +29,6 @@
     "access": "public"
   },
   "scripts": {
-    "setup": "tsx ./scripts/setup.ts",
     "build": "npm run clean && npm run type:dts && npm run build:src",
     "build:src": "tsx ./scripts/build.ts",
     "clean": "rimraf build coverage",
@@ -42,7 +41,6 @@
     "test": "tsx --test src/**/*.test.ts",
     "test:watch": "tsx --watch --test src/**/*.test.ts",
     "test:coverage": "npm run clean && npm run build:src -- --tests && NODE_V8_COVERAGE=./coverage c8 -r html node --experimental-test-coverage --test build/**/*.test.js",
-    "test:setup": "tsx ./scripts/test-setup.ts",
     "spell:check": "cspell \"{README.md,.github/*.md,src/**/*.ts}\"",
     "cz": "cz",
     "semantic-release": "semantic-release"
