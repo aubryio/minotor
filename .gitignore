@@ -1,4 +1,9 @@
-build/
 node_modules/
 coverage/
 .DS_Store
+data/
+.zed/
+.vscode/
+dist/
+*.dot
+*.svg

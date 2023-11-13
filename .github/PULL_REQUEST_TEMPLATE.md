@@ -1,7 +1,4 @@
-Fixes #
+Fixes # (issue)
 
-## Description of the changes
-
--
--
--
+Please provide a concise description of your changes, and the motivation for making them.
+If relevant, include links to related issues or pull requests.

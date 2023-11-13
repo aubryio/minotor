@@ -1,21 +1,21 @@
 {
   "include": ["./src/**/*.ts"],
   "compilerOptions": {
-    "lib": ["es2023"],
-    "module": "nodenext",
-    "target": "es2022",
-    "moduleResolution": "nodenext",
-
+    "target": "es2015",
+    "lib": ["es2019"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "rootDir": "./src",
-    "outDir": "build",
-
+    "outDir": "dist",
     "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "sourceMap": true,
+    "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "noUncheckedIndexedAccess": true,
+    "sourceMap": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
-    "resolveJsonModule": true
+    "noImplicitReturns": true,
+    "noUnusedLocals": true
   }
 }

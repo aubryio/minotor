@@ -2,14 +2,33 @@
   "version": "0.2",
   "language": "en",
   "words": [
-    "degit",
-    "esbuild",
-    "aubryio",
-    "octocat",
+    "Minotor",
+    "gtfs",
     "minotor",
-    "rmrf",
-    "socio",
-    "ryansonshine"
+    "luxon",
+    "Gtfs",
+    "GTFS",
+    "Tilleul",
+    "Cathédrale",
+    "tcrqn",
+    "tcrqo",
+    "lswfbh",
+    "Neuveville",
+    "Cathedrale",
+    "bufbuild",
+    "protoc",
+    "geokdbush",
+    "kdbush",
+    "slimsearch",
+    "geospatial",
+    "NeTEx",
+    "Ksfdp",
+    "Tsvg",
+    "Landquart",
+    "Davos",
+    "moleson",
+    "Klosters",
+    "Engadin"
   ],
   "flagWords": [],
   "ignorePaths": [
@@ -17,6 +36,8 @@
     "package-lock.json",
     "yarn.lock",
     "tsconfig.json",
-    "node_modules/**"
+    "node_modules/**",
+    "src/gtfs/__tests__/gtfs.test.ts",
+    "parser.test.ts"
   ]
 }

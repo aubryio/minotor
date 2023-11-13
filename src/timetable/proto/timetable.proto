@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package minotor.timetable;
+
+enum PickUpDropOffType {
+  NOT_AVAILABLE = 0;
+  MUST_PHONE_AGENCY = 1;
+  MUST_COORDINATE_WITH_DRIVER = 2;
+}
+
+message StopTimes {
+  int32 arrival = 1;
+  int32 departure = 2;
+  optional PickUpDropOffType pickUpType = 3;
+  optional PickUpDropOffType dropOffType = 4;
+}
+
+message Route {
+  repeated StopTimes stopTimes = 1;
+  repeated string stops = 2;
+  string serviceRouteId = 3;
+}
+
+message RoutesAdjacency {
+  map<string, Route> routes = 1;
+}
+
+enum TransferType {
+  RECOMMENDED_TRANSFER_POINT = 0;
+  TIMED_TRANSFER = 1;
+  REQUIRES_MINIMAL_TIME = 2;
+  IN_SEAT_TRANSFER = 3;
+}
+
+message Transfer {
+  string destination = 1;
+  TransferType type = 2;
+  optional int32 minTransferTime = 3;
+}
+
+message StopsAdjacency {
+  message StopAdjacency {
+    repeated Transfer transfers = 1;
+    repeated string routes = 2;
+  }
+  map<string, StopAdjacency> stops = 1;
+}
+
+enum RouteType {
+  TRAM = 0;
+  SUBWAY = 1;
+  RAIL = 2;
+  BUS = 3;
+  FERRY = 4;
+  CABLE_TRAM = 5;
+  AERIAL_LIFT = 6;
+  FUNICULAR = 7;
+  TROLLEYBUS = 8;
+  MONORAIL = 9;
+}
+
+message ServiceRoute {
+  RouteType type = 1;
+  string name = 2;
+}
+
+message ServiceRoutesMap {
+  map<string, ServiceRoute> routes = 1;
+}
+
+message Timetable {
+  string version = 1;
+  StopsAdjacency stopsAdjacency = 2;
+  RoutesAdjacency routesAdjacency = 3;
+  ServiceRoutesMap routes = 4;
+}

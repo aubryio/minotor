@@ -1,4 +1,4 @@
-name: Minotor
+name: minotor
 
 on: [push]
 
@@ -6,6 +6,16 @@ env:
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
 jobs:
+  format:
+    name: 💅 Prettier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - uses: bahmutov/npm-install@v1
+      - name: 💅 Prettier
+        run: npm run format:check
+
   lint:
     name: ⬣ ESLint
     runs-on: ubuntu-latest
@@ -24,16 +34,6 @@ jobs:
       - uses: actions/setup-node@v3
       - name: 🛡️ Audit
         run: npm audit --audit-level=high
-
-  format:
-    name: 🔬 Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - uses: bahmutov/npm-install@v1
-      - name: 🔬 Format
-        run: npm run format:check
 
   spell:
     name: 🈸 Spellcheck
@@ -61,6 +61,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
+        with:
+          node-version: '21.1.0'
       - uses: bahmutov/npm-install@v1
       - name: ⚡ Tests
         run: npm run test:coverage

@@ -2,4 +2,4 @@ blank_issues_enabled: false
 contact_links:
   - name: GitHub Discussions
     url: https://github.com/aubryio/minotor/discussions
-    about: Please discuss non bug-related topics there
+    about: To discuss topics which are not suited for being discussed in issues

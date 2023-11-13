@@ -1,20 +1,20 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Create a report to help us improve @aubrio/minotor
 title: ''
-labels: ''
+labels: 'bug'
 assignees: ''
-
 ---
 
 **Describe the bug**
-A clear and concise description of what the bug is.
+A clear and concise description of the bug.
 
 **To Reproduce**
 Steps to reproduce the behavior:
-1. 
-2. 
-3. 
+
+1.
+2.
+3.
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
@@ -22,10 +22,11 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. Ubuntu 22.04, macOS 11.4]
- - Node version [e.g 16.4.2]
- - Code Version [e.g. 1.1.0]
+**Environment**
+
+- OS version:
+- Node version / Browser version:
+- Minotor Version:
 
 **Additional context**
 Add any other context about the problem here.
