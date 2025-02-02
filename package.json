@@ -1,6 +1,6 @@
 {
   "name": "minotor",
-  "version": "0.0.1-development",
+  "version": "0.0.1-beta",
   "description": "A lightweight client-side transit router.",
   "keywords": [
     "minotor",
@@ -10,14 +10,17 @@
     "transport",
     "router",
     "gtfs",
-    "trains"
+    "trains",
+    "netex"
   ],
   "homepage": "https://github.com/aubryio/minotor",
-  "private": true,
   "bugs": "https://github.com/aubryio/minotor/issues",
   "author": "Aubry Cholleton <aubry.cholleton@gmail.com>",
   "license": "MIT",
-  "repository": "aubryio/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aubryio/minotor.git"
+  },
   "type": "module",
   "main": "dist/bundle.cjs.js",
   "module": "dist/bundle.esm.js",

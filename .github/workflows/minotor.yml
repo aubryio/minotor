@@ -17,7 +17,7 @@ jobs:
         run: npm run format:check
 
   lint:
-    name: ⬣ ESLint
+    name: 🔍 ESLint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -36,7 +36,7 @@ jobs:
         run: npm audit --audit-level=high
 
   spell:
-    name: 🈸 Spellcheck
+    name: 🔠 Spellcheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -66,18 +66,19 @@ jobs:
       - uses: bahmutov/npm-install@v1
       - name: ⚡ Tests
         run: npm run test:coverage
-#  build-and-release:
-#    name: 🚀 Build & release
-#    needs: [lint, audit, format, spell, type, test]
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: actions/setup-node@v3
-#      - uses: bahmutov/npm-install@v1
-#      - name: 🔨 Build
-#        run: npm run build
-#      - name: 🚀 Release
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-#        run: npm run semantic-release
+
+  build-and-release:
+    name: 🚀 Build & release
+    needs: [format, lint, audit, spell, type, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - uses: bahmutov/npm-install@v1
+      - name: 🔨 Build
+        run: npm run build
+      - name: 🚀 Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run semantic-release
