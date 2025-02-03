@@ -31,7 +31,8 @@
   "exports": {
     ".": {
       "import": "./dist/bundle.esm.js",
-      "require": "./dist/bundle.cjs.js"
+      "require": "./dist/bundle.cjs.js",
+      "types": "./dist/index.d.ts"
     }
   },
   "types": "./dist/index.d.ts",

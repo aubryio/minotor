@@ -4,7 +4,7 @@
 
 A lightweight and easy to use public transit router primarily targeting client-side usage for research, data visualization, dynamic web and mobile apps.
 
-Unlike most transit planners out there, **minotor** allows to store all the transit data for a given day in memory on the client, allowing for fast runtime queries using only local data.
+Unlike most transit planners out there, **minotor** can store all the transit data for a given day in memory on the client, allowing for fast runtime queries using only local data.
 This is particularly useful for highly dynamic applications or complex visualizations for research purposes where the user needs to query the data in real-time.
 Privacy-conscious applications where the user does not want to share their location data with a server can also benefit from this model.
 
@@ -140,16 +140,6 @@ Make sure you have a working node setup as well as a protobuf compiler.
 - `cz`: generates a valid git commit message (See [Commitizen](https://github.com/commitizen/cz-cli))
 
 Releases are automatically published to npm when merging to the `main` or `beta` (pre-release) branch.
-
-## Known issues
-
-### \[Work in Progress\] Train splits in Switzerland
-
-In the swiss GTFS feed, some transfers are missing for proper handling of trains that splits in two and diverge route at a given station.
-They are modeled as 2 routes, one covering the full route of the first variant and the other covering the route for the other variant but only from the split station (on the platforms where the part of train splitting is located) to the destination.
-The challenge is that no transfer indicates that it's possible to continue from the platform where the train arrives to the part of the platform where the other part of the train splits and continues on the other route.
-This is for example the case with the train starting from Landquart splitting in Klosters to reach lower Engadin or Davos. A transfer between 8509068:0:3 and 8509068:0:3AB is missing to understand that it's possible to continue on the way to Davos.
-While these transfers should ideally be handled at a route/trip level (the swiss feed contains only stop level transfers for now), artificially adding transfers between a station platform and its corresponding "sub-platforms" would be enough to tackle the issue in a minimal way.
 
 ## Roadmap
 
