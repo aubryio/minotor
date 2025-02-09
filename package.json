@@ -22,20 +22,25 @@
     "url": "https://github.com/aubryio/minotor.git"
   },
   "type": "module",
-  "main": "dist/bundle.cjs.js",
-  "module": "dist/bundle.esm.js",
-  "browser": "dist/bundle.umd.js",
+  "main": "dist/router.cjs.js",
+  "module": "dist/router.esm.js",
+  "browser": "dist/router.umd.js",
+  "types": "./dist/router.d.ts",
   "bin": {
     "minotor": "./dist/cli.mjs"
   },
   "exports": {
     ".": {
-      "import": "./dist/bundle.esm.js",
-      "require": "./dist/bundle.cjs.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/router.esm.js",
+      "require": "./dist/router.cjs.js",
+      "types": "./dist/router.d.ts"
+    },
+    "./parser.js": {
+      "import": "./dist/parser.esm.js",
+      "require": "./dist/parser.cjs.js",
+      "types": "./dist/parser.d.ts"
     }
   },
-  "types": "./dist/index.d.ts",
   "engines": {
     "node": ">=21.1.0",
     "npm": ">=10.9.1"

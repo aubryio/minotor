@@ -5,26 +5,37 @@ import terser from '@rollup/plugin-terser';
 
 export default [
   {
-    input: 'src/umdIndex.ts',
-    output: {
-      file: 'dist/bundle.umd.js',
-      format: 'umd',
-      name: 'minotor',
-      sourcemap: true,
-    },
-    plugins: [resolve(), commonjs(), typescript(), terser()],
-  },
-  // CommonJS and ES module builds for Node.js and bundlers
-  {
-    input: 'src/index.ts',
+    input: 'src/router.ts',
     output: [
       {
-        file: 'dist/bundle.esm.js',
+        file: 'dist/router.umd.js',
+        format: 'umd',
+        name: 'minotor',
+        sourcemap: true,
+      },
+      {
+        file: 'dist/router.esm.js',
         format: 'es',
         sourcemap: true,
       },
       {
-        file: 'dist/bundle.cjs.js',
+        file: 'dist/router.cjs.js',
+        format: 'cjs',
+        sourcemap: true,
+      },
+    ],
+    plugins: [resolve(), commonjs(), typescript(), terser()],
+  },
+  {
+    input: 'src/parser.ts',
+    output: [
+      {
+        file: 'dist/parser.esm.js',
+        format: 'es',
+        sourcemap: true,
+      },
+      {
+        file: 'dist/parser.cjs.js',
         format: 'cjs',
         sourcemap: true,
       },

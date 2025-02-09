@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { Plotter, Result, Route } from '../index.js';
+import { Plotter, Result, Route } from '../router.js';
 
 export const prettyPrintRoute = (route: Route): void => {
   route.legs.forEach((leg, index) => {

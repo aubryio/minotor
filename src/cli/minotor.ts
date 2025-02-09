@@ -3,7 +3,7 @@ import fs from 'fs';
 import log from 'loglevel';
 import { DateTime } from 'luxon';
 
-import { chGtfsProfile, GtfsParser, GtfsProfile } from '../index.js';
+import { chGtfsProfile, GtfsParser, GtfsProfile } from '../parser.js';
 import { startRepl } from './repl.js';
 
 const program = new Command();

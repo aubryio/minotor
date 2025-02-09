@@ -2,7 +2,7 @@ import repl from 'node:repl';
 
 import fs from 'fs';
 
-import { Query, Router, StopsIndex, Time, Timetable } from '../index.js';
+import { Query, Router, StopsIndex, Time, Timetable } from '../router.js';
 import { plotGraphToDotFile, prettyPrintRoute } from './utils.js';
 
 export const startRepl = (stopsPath: string, timetablePath: string) => {

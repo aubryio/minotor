@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
+import { StopsIndex } from '../stops/stopsIndex.js';
 import { Duration } from '../timetable/duration.js';
 import { Time } from '../timetable/time.js';
 import { Timetable } from '../timetable/timetable.js';
-import { StopsIndex } from '../umdIndex.js';
 import { Query } from './query.js';
 import { Result } from './result.js';
 import { Leg } from './route.js';

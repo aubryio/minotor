@@ -1,5 +1,5 @@
 import { StopId } from '../stops/stops.js';
-import { StopsIndex } from '../umdIndex.js';
+import { StopsIndex } from '../stops/stopsIndex.js';
 import { Query } from './query.js';
 import { Leg, Route } from './route.js';
 import { ReachingTime, TripLeg } from './router.js';

@@ -1,7 +1,3 @@
-/*
- * An index containing only browser compatible modules for the UMD build.
- */
-
 import { Plotter } from './routing/plotter.js';
 import { Query } from './routing/query.js';
 import { Result } from './routing/result.js';

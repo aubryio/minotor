@@ -5,9 +5,9 @@
 // source: src/timetable/proto/timetable.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = 'minotor.timetable';
+export const protobufPackage = "minotor.timetable";
 
 export enum PickUpDropOffType {
   NOT_AVAILABLE = 0,
@@ -19,16 +19,16 @@ export enum PickUpDropOffType {
 export function pickUpDropOffTypeFromJSON(object: any): PickUpDropOffType {
   switch (object) {
     case 0:
-    case 'NOT_AVAILABLE':
+    case "NOT_AVAILABLE":
       return PickUpDropOffType.NOT_AVAILABLE;
     case 1:
-    case 'MUST_PHONE_AGENCY':
+    case "MUST_PHONE_AGENCY":
       return PickUpDropOffType.MUST_PHONE_AGENCY;
     case 2:
-    case 'MUST_COORDINATE_WITH_DRIVER':
+    case "MUST_COORDINATE_WITH_DRIVER":
       return PickUpDropOffType.MUST_COORDINATE_WITH_DRIVER;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return PickUpDropOffType.UNRECOGNIZED;
   }
@@ -37,14 +37,14 @@ export function pickUpDropOffTypeFromJSON(object: any): PickUpDropOffType {
 export function pickUpDropOffTypeToJSON(object: PickUpDropOffType): string {
   switch (object) {
     case PickUpDropOffType.NOT_AVAILABLE:
-      return 'NOT_AVAILABLE';
+      return "NOT_AVAILABLE";
     case PickUpDropOffType.MUST_PHONE_AGENCY:
-      return 'MUST_PHONE_AGENCY';
+      return "MUST_PHONE_AGENCY";
     case PickUpDropOffType.MUST_COORDINATE_WITH_DRIVER:
-      return 'MUST_COORDINATE_WITH_DRIVER';
+      return "MUST_COORDINATE_WITH_DRIVER";
     case PickUpDropOffType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -59,19 +59,19 @@ export enum TransferType {
 export function transferTypeFromJSON(object: any): TransferType {
   switch (object) {
     case 0:
-    case 'RECOMMENDED_TRANSFER_POINT':
+    case "RECOMMENDED_TRANSFER_POINT":
       return TransferType.RECOMMENDED_TRANSFER_POINT;
     case 1:
-    case 'TIMED_TRANSFER':
+    case "TIMED_TRANSFER":
       return TransferType.TIMED_TRANSFER;
     case 2:
-    case 'REQUIRES_MINIMAL_TIME':
+    case "REQUIRES_MINIMAL_TIME":
       return TransferType.REQUIRES_MINIMAL_TIME;
     case 3:
-    case 'IN_SEAT_TRANSFER':
+    case "IN_SEAT_TRANSFER":
       return TransferType.IN_SEAT_TRANSFER;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return TransferType.UNRECOGNIZED;
   }
@@ -80,16 +80,16 @@ export function transferTypeFromJSON(object: any): TransferType {
 export function transferTypeToJSON(object: TransferType): string {
   switch (object) {
     case TransferType.RECOMMENDED_TRANSFER_POINT:
-      return 'RECOMMENDED_TRANSFER_POINT';
+      return "RECOMMENDED_TRANSFER_POINT";
     case TransferType.TIMED_TRANSFER:
-      return 'TIMED_TRANSFER';
+      return "TIMED_TRANSFER";
     case TransferType.REQUIRES_MINIMAL_TIME:
-      return 'REQUIRES_MINIMAL_TIME';
+      return "REQUIRES_MINIMAL_TIME";
     case TransferType.IN_SEAT_TRANSFER:
-      return 'IN_SEAT_TRANSFER';
+      return "IN_SEAT_TRANSFER";
     case TransferType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -110,37 +110,37 @@ export enum RouteType {
 export function routeTypeFromJSON(object: any): RouteType {
   switch (object) {
     case 0:
-    case 'TRAM':
+    case "TRAM":
       return RouteType.TRAM;
     case 1:
-    case 'SUBWAY':
+    case "SUBWAY":
       return RouteType.SUBWAY;
     case 2:
-    case 'RAIL':
+    case "RAIL":
       return RouteType.RAIL;
     case 3:
-    case 'BUS':
+    case "BUS":
       return RouteType.BUS;
     case 4:
-    case 'FERRY':
+    case "FERRY":
       return RouteType.FERRY;
     case 5:
-    case 'CABLE_TRAM':
+    case "CABLE_TRAM":
       return RouteType.CABLE_TRAM;
     case 6:
-    case 'AERIAL_LIFT':
+    case "AERIAL_LIFT":
       return RouteType.AERIAL_LIFT;
     case 7:
-    case 'FUNICULAR':
+    case "FUNICULAR":
       return RouteType.FUNICULAR;
     case 8:
-    case 'TROLLEYBUS':
+    case "TROLLEYBUS":
       return RouteType.TROLLEYBUS;
     case 9:
-    case 'MONORAIL':
+    case "MONORAIL":
       return RouteType.MONORAIL;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return RouteType.UNRECOGNIZED;
   }
@@ -149,28 +149,28 @@ export function routeTypeFromJSON(object: any): RouteType {
 export function routeTypeToJSON(object: RouteType): string {
   switch (object) {
     case RouteType.TRAM:
-      return 'TRAM';
+      return "TRAM";
     case RouteType.SUBWAY:
-      return 'SUBWAY';
+      return "SUBWAY";
     case RouteType.RAIL:
-      return 'RAIL';
+      return "RAIL";
     case RouteType.BUS:
-      return 'BUS';
+      return "BUS";
     case RouteType.FERRY:
-      return 'FERRY';
+      return "FERRY";
     case RouteType.CABLE_TRAM:
-      return 'CABLE_TRAM';
+      return "CABLE_TRAM";
     case RouteType.AERIAL_LIFT:
-      return 'AERIAL_LIFT';
+      return "AERIAL_LIFT";
     case RouteType.FUNICULAR:
-      return 'FUNICULAR';
+      return "FUNICULAR";
     case RouteType.TROLLEYBUS:
-      return 'TROLLEYBUS';
+      return "TROLLEYBUS";
     case RouteType.MONORAIL:
-      return 'MONORAIL';
+      return "MONORAIL";
     case RouteType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -238,19 +238,11 @@ export interface Timetable {
 }
 
 function createBaseStopTimes(): StopTimes {
-  return {
-    arrival: 0,
-    departure: 0,
-    pickUpType: undefined,
-    dropOffType: undefined,
-  };
+  return { arrival: 0, departure: 0, pickUpType: undefined, dropOffType: undefined };
 }
 
 export const StopTimes: MessageFns<StopTimes> = {
-  encode(
-    message: StopTimes,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
+  encode(message: StopTimes, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.arrival !== 0) {
       writer.uint32(8).int32(message.arrival);
     }
@@ -267,8 +259,7 @@ export const StopTimes: MessageFns<StopTimes> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): StopTimes {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseStopTimes();
     while (reader.pos < end) {
@@ -318,15 +309,9 @@ export const StopTimes: MessageFns<StopTimes> = {
   fromJSON(object: any): StopTimes {
     return {
       arrival: isSet(object.arrival) ? globalThis.Number(object.arrival) : 0,
-      departure: isSet(object.departure)
-        ? globalThis.Number(object.departure)
-        : 0,
-      pickUpType: isSet(object.pickUpType)
-        ? pickUpDropOffTypeFromJSON(object.pickUpType)
-        : undefined,
-      dropOffType: isSet(object.dropOffType)
-        ? pickUpDropOffTypeFromJSON(object.dropOffType)
-        : undefined,
+      departure: isSet(object.departure) ? globalThis.Number(object.departure) : 0,
+      pickUpType: isSet(object.pickUpType) ? pickUpDropOffTypeFromJSON(object.pickUpType) : undefined,
+      dropOffType: isSet(object.dropOffType) ? pickUpDropOffTypeFromJSON(object.dropOffType) : undefined,
     };
   },
 
@@ -350,9 +335,7 @@ export const StopTimes: MessageFns<StopTimes> = {
   create<I extends Exact<DeepPartial<StopTimes>, I>>(base?: I): StopTimes {
     return StopTimes.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<StopTimes>, I>>(
-    object: I,
-  ): StopTimes {
+  fromPartial<I extends Exact<DeepPartial<StopTimes>, I>>(object: I): StopTimes {
     const message = createBaseStopTimes();
     message.arrival = object.arrival ?? 0;
     message.departure = object.departure ?? 0;
@@ -363,29 +346,25 @@ export const StopTimes: MessageFns<StopTimes> = {
 };
 
 function createBaseRoute(): Route {
-  return { stopTimes: [], stops: [], serviceRouteId: '' };
+  return { stopTimes: [], stops: [], serviceRouteId: "" };
 }
 
 export const Route: MessageFns<Route> = {
-  encode(
-    message: Route,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
+  encode(message: Route, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.stopTimes) {
       StopTimes.encode(v!, writer.uint32(10).fork()).join();
     }
     for (const v of message.stops) {
       writer.uint32(18).string(v!);
     }
-    if (message.serviceRouteId !== '') {
+    if (message.serviceRouteId !== "") {
       writer.uint32(26).string(message.serviceRouteId);
     }
     return writer;
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): Route {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRoute();
     while (reader.pos < end) {
@@ -429,12 +408,8 @@ export const Route: MessageFns<Route> = {
       stopTimes: globalThis.Array.isArray(object?.stopTimes)
         ? object.stopTimes.map((e: any) => StopTimes.fromJSON(e))
         : [],
-      stops: globalThis.Array.isArray(object?.stops)
-        ? object.stops.map((e: any) => globalThis.String(e))
-        : [],
-      serviceRouteId: isSet(object.serviceRouteId)
-        ? globalThis.String(object.serviceRouteId)
-        : '',
+      stops: globalThis.Array.isArray(object?.stops) ? object.stops.map((e: any) => globalThis.String(e)) : [],
+      serviceRouteId: isSet(object.serviceRouteId) ? globalThis.String(object.serviceRouteId) : "",
     };
   },
 
@@ -446,7 +421,7 @@ export const Route: MessageFns<Route> = {
     if (message.stops?.length) {
       obj.stops = message.stops;
     }
-    if (message.serviceRouteId !== '') {
+    if (message.serviceRouteId !== "") {
       obj.serviceRouteId = message.serviceRouteId;
     }
     return obj;
@@ -457,10 +432,9 @@ export const Route: MessageFns<Route> = {
   },
   fromPartial<I extends Exact<DeepPartial<Route>, I>>(object: I): Route {
     const message = createBaseRoute();
-    message.stopTimes =
-      object.stopTimes?.map((e) => StopTimes.fromPartial(e)) || [];
+    message.stopTimes = object.stopTimes?.map((e) => StopTimes.fromPartial(e)) || [];
     message.stops = object.stops?.map((e) => e) || [];
-    message.serviceRouteId = object.serviceRouteId ?? '';
+    message.serviceRouteId = object.serviceRouteId ?? "";
     return message;
   },
 };
@@ -470,22 +444,15 @@ function createBaseRoutesAdjacency(): RoutesAdjacency {
 }
 
 export const RoutesAdjacency: MessageFns<RoutesAdjacency> = {
-  encode(
-    message: RoutesAdjacency,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
+  encode(message: RoutesAdjacency, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     Object.entries(message.routes).forEach(([key, value]) => {
-      RoutesAdjacency_RoutesEntry.encode(
-        { key: key as any, value },
-        writer.uint32(10).fork(),
-      ).join();
+      RoutesAdjacency_RoutesEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
     });
     return writer;
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): RoutesAdjacency {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRoutesAdjacency();
     while (reader.pos < end) {
@@ -496,10 +463,7 @@ export const RoutesAdjacency: MessageFns<RoutesAdjacency> = {
             break;
           }
 
-          const entry1 = RoutesAdjacency_RoutesEntry.decode(
-            reader,
-            reader.uint32(),
-          );
+          const entry1 = RoutesAdjacency_RoutesEntry.decode(reader, reader.uint32());
           if (entry1.value !== undefined) {
             message.routes[entry1.key] = entry1.value;
           }
@@ -517,13 +481,10 @@ export const RoutesAdjacency: MessageFns<RoutesAdjacency> = {
   fromJSON(object: any): RoutesAdjacency {
     return {
       routes: isObject(object.routes)
-        ? Object.entries(object.routes).reduce<{ [key: string]: Route }>(
-            (acc, [key, value]) => {
-              acc[key] = Route.fromJSON(value);
-              return acc;
-            },
-            {},
-          )
+        ? Object.entries(object.routes).reduce<{ [key: string]: Route }>((acc, [key, value]) => {
+          acc[key] = Route.fromJSON(value);
+          return acc;
+        }, {})
         : {},
     };
   },
@@ -542,18 +503,12 @@ export const RoutesAdjacency: MessageFns<RoutesAdjacency> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<RoutesAdjacency>, I>>(
-    base?: I,
-  ): RoutesAdjacency {
+  create<I extends Exact<DeepPartial<RoutesAdjacency>, I>>(base?: I): RoutesAdjacency {
     return RoutesAdjacency.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<RoutesAdjacency>, I>>(
-    object: I,
-  ): RoutesAdjacency {
+  fromPartial<I extends Exact<DeepPartial<RoutesAdjacency>, I>>(object: I): RoutesAdjacency {
     const message = createBaseRoutesAdjacency();
-    message.routes = Object.entries(object.routes ?? {}).reduce<{
-      [key: string]: Route;
-    }>((acc, [key, value]) => {
+    message.routes = Object.entries(object.routes ?? {}).reduce<{ [key: string]: Route }>((acc, [key, value]) => {
       if (value !== undefined) {
         acc[key] = Route.fromPartial(value);
       }
@@ -564,106 +519,88 @@ export const RoutesAdjacency: MessageFns<RoutesAdjacency> = {
 };
 
 function createBaseRoutesAdjacency_RoutesEntry(): RoutesAdjacency_RoutesEntry {
-  return { key: '', value: undefined };
+  return { key: "", value: undefined };
 }
 
-export const RoutesAdjacency_RoutesEntry: MessageFns<RoutesAdjacency_RoutesEntry> =
-  {
-    encode(
-      message: RoutesAdjacency_RoutesEntry,
-      writer: BinaryWriter = new BinaryWriter(),
-    ): BinaryWriter {
-      if (message.key !== '') {
-        writer.uint32(10).string(message.key);
-      }
-      if (message.value !== undefined) {
-        Route.encode(message.value, writer.uint32(18).fork()).join();
-      }
-      return writer;
-    },
+export const RoutesAdjacency_RoutesEntry: MessageFns<RoutesAdjacency_RoutesEntry> = {
+  encode(message: RoutesAdjacency_RoutesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      Route.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
 
-    decode(
-      input: BinaryReader | Uint8Array,
-      length?: number,
-    ): RoutesAdjacency_RoutesEntry {
-      const reader =
-        input instanceof BinaryReader ? input : new BinaryReader(input);
-      let end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseRoutesAdjacency_RoutesEntry();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.key = reader.string();
-            continue;
+  decode(input: BinaryReader | Uint8Array, length?: number): RoutesAdjacency_RoutesEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRoutesAdjacency_RoutesEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
           }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
 
-            message.value = Route.decode(reader, reader.uint32());
-            continue;
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
           }
+
+          message.value = Route.decode(reader, reader.uint32());
+          continue;
         }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
       }
-      return message;
-    },
-
-    fromJSON(object: any): RoutesAdjacency_RoutesEntry {
-      return {
-        key: isSet(object.key) ? globalThis.String(object.key) : '',
-        value: isSet(object.value) ? Route.fromJSON(object.value) : undefined,
-      };
-    },
-
-    toJSON(message: RoutesAdjacency_RoutesEntry): unknown {
-      const obj: any = {};
-      if (message.key !== '') {
-        obj.key = message.key;
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
       }
-      if (message.value !== undefined) {
-        obj.value = Route.toJSON(message.value);
-      }
-      return obj;
-    },
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-    create<I extends Exact<DeepPartial<RoutesAdjacency_RoutesEntry>, I>>(
-      base?: I,
-    ): RoutesAdjacency_RoutesEntry {
-      return RoutesAdjacency_RoutesEntry.fromPartial(base ?? ({} as any));
-    },
-    fromPartial<I extends Exact<DeepPartial<RoutesAdjacency_RoutesEntry>, I>>(
-      object: I,
-    ): RoutesAdjacency_RoutesEntry {
-      const message = createBaseRoutesAdjacency_RoutesEntry();
-      message.key = object.key ?? '';
-      message.value =
-        object.value !== undefined && object.value !== null
-          ? Route.fromPartial(object.value)
-          : undefined;
-      return message;
-    },
-  };
+  fromJSON(object: any): RoutesAdjacency_RoutesEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? Route.fromJSON(object.value) : undefined,
+    };
+  },
+
+  toJSON(message: RoutesAdjacency_RoutesEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== undefined) {
+      obj.value = Route.toJSON(message.value);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RoutesAdjacency_RoutesEntry>, I>>(base?: I): RoutesAdjacency_RoutesEntry {
+    return RoutesAdjacency_RoutesEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RoutesAdjacency_RoutesEntry>, I>>(object: I): RoutesAdjacency_RoutesEntry {
+    const message = createBaseRoutesAdjacency_RoutesEntry();
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null) ? Route.fromPartial(object.value) : undefined;
+    return message;
+  },
+};
 
 function createBaseTransfer(): Transfer {
-  return { destination: '', type: 0, minTransferTime: undefined };
+  return { destination: "", type: 0, minTransferTime: undefined };
 }
 
 export const Transfer: MessageFns<Transfer> = {
-  encode(
-    message: Transfer,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
-    if (message.destination !== '') {
+  encode(message: Transfer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.destination !== "") {
       writer.uint32(10).string(message.destination);
     }
     if (message.type !== 0) {
@@ -676,8 +613,7 @@ export const Transfer: MessageFns<Transfer> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): Transfer {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTransfer();
     while (reader.pos < end) {
@@ -718,19 +654,15 @@ export const Transfer: MessageFns<Transfer> = {
 
   fromJSON(object: any): Transfer {
     return {
-      destination: isSet(object.destination)
-        ? globalThis.String(object.destination)
-        : '',
+      destination: isSet(object.destination) ? globalThis.String(object.destination) : "",
       type: isSet(object.type) ? transferTypeFromJSON(object.type) : 0,
-      minTransferTime: isSet(object.minTransferTime)
-        ? globalThis.Number(object.minTransferTime)
-        : undefined,
+      minTransferTime: isSet(object.minTransferTime) ? globalThis.Number(object.minTransferTime) : undefined,
     };
   },
 
   toJSON(message: Transfer): unknown {
     const obj: any = {};
-    if (message.destination !== '') {
+    if (message.destination !== "") {
       obj.destination = message.destination;
     }
     if (message.type !== 0) {
@@ -747,7 +679,7 @@ export const Transfer: MessageFns<Transfer> = {
   },
   fromPartial<I extends Exact<DeepPartial<Transfer>, I>>(object: I): Transfer {
     const message = createBaseTransfer();
-    message.destination = object.destination ?? '';
+    message.destination = object.destination ?? "";
     message.type = object.type ?? 0;
     message.minTransferTime = object.minTransferTime ?? undefined;
     return message;
@@ -759,22 +691,15 @@ function createBaseStopsAdjacency(): StopsAdjacency {
 }
 
 export const StopsAdjacency: MessageFns<StopsAdjacency> = {
-  encode(
-    message: StopsAdjacency,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
+  encode(message: StopsAdjacency, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     Object.entries(message.stops).forEach(([key, value]) => {
-      StopsAdjacency_StopsEntry.encode(
-        { key: key as any, value },
-        writer.uint32(10).fork(),
-      ).join();
+      StopsAdjacency_StopsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
     });
     return writer;
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): StopsAdjacency {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseStopsAdjacency();
     while (reader.pos < end) {
@@ -785,10 +710,7 @@ export const StopsAdjacency: MessageFns<StopsAdjacency> = {
             break;
           }
 
-          const entry1 = StopsAdjacency_StopsEntry.decode(
-            reader,
-            reader.uint32(),
-          );
+          const entry1 = StopsAdjacency_StopsEntry.decode(reader, reader.uint32());
           if (entry1.value !== undefined) {
             message.stops[entry1.key] = entry1.value;
           }
@@ -806,12 +728,10 @@ export const StopsAdjacency: MessageFns<StopsAdjacency> = {
   fromJSON(object: any): StopsAdjacency {
     return {
       stops: isObject(object.stops)
-        ? Object.entries(object.stops).reduce<{
-            [key: string]: StopsAdjacency_StopAdjacency;
-          }>((acc, [key, value]) => {
-            acc[key] = StopsAdjacency_StopAdjacency.fromJSON(value);
-            return acc;
-          }, {})
+        ? Object.entries(object.stops).reduce<{ [key: string]: StopsAdjacency_StopAdjacency }>((acc, [key, value]) => {
+          acc[key] = StopsAdjacency_StopAdjacency.fromJSON(value);
+          return acc;
+        }, {})
         : {},
     };
   },
@@ -830,23 +750,20 @@ export const StopsAdjacency: MessageFns<StopsAdjacency> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<StopsAdjacency>, I>>(
-    base?: I,
-  ): StopsAdjacency {
+  create<I extends Exact<DeepPartial<StopsAdjacency>, I>>(base?: I): StopsAdjacency {
     return StopsAdjacency.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<StopsAdjacency>, I>>(
-    object: I,
-  ): StopsAdjacency {
+  fromPartial<I extends Exact<DeepPartial<StopsAdjacency>, I>>(object: I): StopsAdjacency {
     const message = createBaseStopsAdjacency();
-    message.stops = Object.entries(object.stops ?? {}).reduce<{
-      [key: string]: StopsAdjacency_StopAdjacency;
-    }>((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = StopsAdjacency_StopAdjacency.fromPartial(value);
-      }
-      return acc;
-    }, {});
+    message.stops = Object.entries(object.stops ?? {}).reduce<{ [key: string]: StopsAdjacency_StopAdjacency }>(
+      (acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = StopsAdjacency_StopAdjacency.fromPartial(value);
+        }
+        return acc;
+      },
+      {},
+    );
     return message;
   },
 };
@@ -855,215 +772,175 @@ function createBaseStopsAdjacency_StopAdjacency(): StopsAdjacency_StopAdjacency 
   return { transfers: [], routes: [] };
 }
 
-export const StopsAdjacency_StopAdjacency: MessageFns<StopsAdjacency_StopAdjacency> =
-  {
-    encode(
-      message: StopsAdjacency_StopAdjacency,
-      writer: BinaryWriter = new BinaryWriter(),
-    ): BinaryWriter {
-      for (const v of message.transfers) {
-        Transfer.encode(v!, writer.uint32(10).fork()).join();
-      }
-      for (const v of message.routes) {
-        writer.uint32(18).string(v!);
-      }
-      return writer;
-    },
+export const StopsAdjacency_StopAdjacency: MessageFns<StopsAdjacency_StopAdjacency> = {
+  encode(message: StopsAdjacency_StopAdjacency, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.transfers) {
+      Transfer.encode(v!, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.routes) {
+      writer.uint32(18).string(v!);
+    }
+    return writer;
+  },
 
-    decode(
-      input: BinaryReader | Uint8Array,
-      length?: number,
-    ): StopsAdjacency_StopAdjacency {
-      const reader =
-        input instanceof BinaryReader ? input : new BinaryReader(input);
-      let end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseStopsAdjacency_StopAdjacency();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.transfers.push(Transfer.decode(reader, reader.uint32()));
-            continue;
+  decode(input: BinaryReader | Uint8Array, length?: number): StopsAdjacency_StopAdjacency {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStopsAdjacency_StopAdjacency();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
           }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
 
-            message.routes.push(reader.string());
-            continue;
+          message.transfers.push(Transfer.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
           }
+
+          message.routes.push(reader.string());
+          continue;
         }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
       }
-      return message;
-    },
-
-    fromJSON(object: any): StopsAdjacency_StopAdjacency {
-      return {
-        transfers: globalThis.Array.isArray(object?.transfers)
-          ? object.transfers.map((e: any) => Transfer.fromJSON(e))
-          : [],
-        routes: globalThis.Array.isArray(object?.routes)
-          ? object.routes.map((e: any) => globalThis.String(e))
-          : [],
-      };
-    },
-
-    toJSON(message: StopsAdjacency_StopAdjacency): unknown {
-      const obj: any = {};
-      if (message.transfers?.length) {
-        obj.transfers = message.transfers.map((e) => Transfer.toJSON(e));
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
       }
-      if (message.routes?.length) {
-        obj.routes = message.routes;
-      }
-      return obj;
-    },
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-    create<I extends Exact<DeepPartial<StopsAdjacency_StopAdjacency>, I>>(
-      base?: I,
-    ): StopsAdjacency_StopAdjacency {
-      return StopsAdjacency_StopAdjacency.fromPartial(base ?? ({} as any));
-    },
-    fromPartial<I extends Exact<DeepPartial<StopsAdjacency_StopAdjacency>, I>>(
-      object: I,
-    ): StopsAdjacency_StopAdjacency {
-      const message = createBaseStopsAdjacency_StopAdjacency();
-      message.transfers =
-        object.transfers?.map((e) => Transfer.fromPartial(e)) || [];
-      message.routes = object.routes?.map((e) => e) || [];
-      return message;
-    },
-  };
+  fromJSON(object: any): StopsAdjacency_StopAdjacency {
+    return {
+      transfers: globalThis.Array.isArray(object?.transfers)
+        ? object.transfers.map((e: any) => Transfer.fromJSON(e))
+        : [],
+      routes: globalThis.Array.isArray(object?.routes) ? object.routes.map((e: any) => globalThis.String(e)) : [],
+    };
+  },
+
+  toJSON(message: StopsAdjacency_StopAdjacency): unknown {
+    const obj: any = {};
+    if (message.transfers?.length) {
+      obj.transfers = message.transfers.map((e) => Transfer.toJSON(e));
+    }
+    if (message.routes?.length) {
+      obj.routes = message.routes;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<StopsAdjacency_StopAdjacency>, I>>(base?: I): StopsAdjacency_StopAdjacency {
+    return StopsAdjacency_StopAdjacency.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<StopsAdjacency_StopAdjacency>, I>>(object: I): StopsAdjacency_StopAdjacency {
+    const message = createBaseStopsAdjacency_StopAdjacency();
+    message.transfers = object.transfers?.map((e) => Transfer.fromPartial(e)) || [];
+    message.routes = object.routes?.map((e) => e) || [];
+    return message;
+  },
+};
 
 function createBaseStopsAdjacency_StopsEntry(): StopsAdjacency_StopsEntry {
-  return { key: '', value: undefined };
+  return { key: "", value: undefined };
 }
 
-export const StopsAdjacency_StopsEntry: MessageFns<StopsAdjacency_StopsEntry> =
-  {
-    encode(
-      message: StopsAdjacency_StopsEntry,
-      writer: BinaryWriter = new BinaryWriter(),
-    ): BinaryWriter {
-      if (message.key !== '') {
-        writer.uint32(10).string(message.key);
-      }
-      if (message.value !== undefined) {
-        StopsAdjacency_StopAdjacency.encode(
-          message.value,
-          writer.uint32(18).fork(),
-        ).join();
-      }
-      return writer;
-    },
+export const StopsAdjacency_StopsEntry: MessageFns<StopsAdjacency_StopsEntry> = {
+  encode(message: StopsAdjacency_StopsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      StopsAdjacency_StopAdjacency.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
 
-    decode(
-      input: BinaryReader | Uint8Array,
-      length?: number,
-    ): StopsAdjacency_StopsEntry {
-      const reader =
-        input instanceof BinaryReader ? input : new BinaryReader(input);
-      let end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseStopsAdjacency_StopsEntry();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.key = reader.string();
-            continue;
+  decode(input: BinaryReader | Uint8Array, length?: number): StopsAdjacency_StopsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStopsAdjacency_StopsEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
           }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
 
-            message.value = StopsAdjacency_StopAdjacency.decode(
-              reader,
-              reader.uint32(),
-            );
-            continue;
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
           }
+
+          message.value = StopsAdjacency_StopAdjacency.decode(reader, reader.uint32());
+          continue;
         }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
       }
-      return message;
-    },
-
-    fromJSON(object: any): StopsAdjacency_StopsEntry {
-      return {
-        key: isSet(object.key) ? globalThis.String(object.key) : '',
-        value: isSet(object.value)
-          ? StopsAdjacency_StopAdjacency.fromJSON(object.value)
-          : undefined,
-      };
-    },
-
-    toJSON(message: StopsAdjacency_StopsEntry): unknown {
-      const obj: any = {};
-      if (message.key !== '') {
-        obj.key = message.key;
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
       }
-      if (message.value !== undefined) {
-        obj.value = StopsAdjacency_StopAdjacency.toJSON(message.value);
-      }
-      return obj;
-    },
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-    create<I extends Exact<DeepPartial<StopsAdjacency_StopsEntry>, I>>(
-      base?: I,
-    ): StopsAdjacency_StopsEntry {
-      return StopsAdjacency_StopsEntry.fromPartial(base ?? ({} as any));
-    },
-    fromPartial<I extends Exact<DeepPartial<StopsAdjacency_StopsEntry>, I>>(
-      object: I,
-    ): StopsAdjacency_StopsEntry {
-      const message = createBaseStopsAdjacency_StopsEntry();
-      message.key = object.key ?? '';
-      message.value =
-        object.value !== undefined && object.value !== null
-          ? StopsAdjacency_StopAdjacency.fromPartial(object.value)
-          : undefined;
-      return message;
-    },
-  };
+  fromJSON(object: any): StopsAdjacency_StopsEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? StopsAdjacency_StopAdjacency.fromJSON(object.value) : undefined,
+    };
+  },
+
+  toJSON(message: StopsAdjacency_StopsEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== undefined) {
+      obj.value = StopsAdjacency_StopAdjacency.toJSON(message.value);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<StopsAdjacency_StopsEntry>, I>>(base?: I): StopsAdjacency_StopsEntry {
+    return StopsAdjacency_StopsEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<StopsAdjacency_StopsEntry>, I>>(object: I): StopsAdjacency_StopsEntry {
+    const message = createBaseStopsAdjacency_StopsEntry();
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null)
+      ? StopsAdjacency_StopAdjacency.fromPartial(object.value)
+      : undefined;
+    return message;
+  },
+};
 
 function createBaseServiceRoute(): ServiceRoute {
-  return { type: 0, name: '' };
+  return { type: 0, name: "" };
 }
 
 export const ServiceRoute: MessageFns<ServiceRoute> = {
-  encode(
-    message: ServiceRoute,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
+  encode(message: ServiceRoute, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.type !== 0) {
       writer.uint32(8).int32(message.type);
     }
-    if (message.name !== '') {
+    if (message.name !== "") {
       writer.uint32(18).string(message.name);
     }
     return writer;
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): ServiceRoute {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseServiceRoute();
     while (reader.pos < end) {
@@ -1097,7 +974,7 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
   fromJSON(object: any): ServiceRoute {
     return {
       type: isSet(object.type) ? routeTypeFromJSON(object.type) : 0,
-      name: isSet(object.name) ? globalThis.String(object.name) : '',
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
     };
   },
 
@@ -1106,23 +983,19 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
     if (message.type !== 0) {
       obj.type = routeTypeToJSON(message.type);
     }
-    if (message.name !== '') {
+    if (message.name !== "") {
       obj.name = message.name;
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ServiceRoute>, I>>(
-    base?: I,
-  ): ServiceRoute {
+  create<I extends Exact<DeepPartial<ServiceRoute>, I>>(base?: I): ServiceRoute {
     return ServiceRoute.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ServiceRoute>, I>>(
-    object: I,
-  ): ServiceRoute {
+  fromPartial<I extends Exact<DeepPartial<ServiceRoute>, I>>(object: I): ServiceRoute {
     const message = createBaseServiceRoute();
     message.type = object.type ?? 0;
-    message.name = object.name ?? '';
+    message.name = object.name ?? "";
     return message;
   },
 };
@@ -1132,22 +1005,15 @@ function createBaseServiceRoutesMap(): ServiceRoutesMap {
 }
 
 export const ServiceRoutesMap: MessageFns<ServiceRoutesMap> = {
-  encode(
-    message: ServiceRoutesMap,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
+  encode(message: ServiceRoutesMap, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     Object.entries(message.routes).forEach(([key, value]) => {
-      ServiceRoutesMap_RoutesEntry.encode(
-        { key: key as any, value },
-        writer.uint32(10).fork(),
-      ).join();
+      ServiceRoutesMap_RoutesEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
     });
     return writer;
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): ServiceRoutesMap {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseServiceRoutesMap();
     while (reader.pos < end) {
@@ -1158,10 +1024,7 @@ export const ServiceRoutesMap: MessageFns<ServiceRoutesMap> = {
             break;
           }
 
-          const entry1 = ServiceRoutesMap_RoutesEntry.decode(
-            reader,
-            reader.uint32(),
-          );
+          const entry1 = ServiceRoutesMap_RoutesEntry.decode(reader, reader.uint32());
           if (entry1.value !== undefined) {
             message.routes[entry1.key] = entry1.value;
           }
@@ -1179,13 +1042,10 @@ export const ServiceRoutesMap: MessageFns<ServiceRoutesMap> = {
   fromJSON(object: any): ServiceRoutesMap {
     return {
       routes: isObject(object.routes)
-        ? Object.entries(object.routes).reduce<{ [key: string]: ServiceRoute }>(
-            (acc, [key, value]) => {
-              acc[key] = ServiceRoute.fromJSON(value);
-              return acc;
-            },
-            {},
-          )
+        ? Object.entries(object.routes).reduce<{ [key: string]: ServiceRoute }>((acc, [key, value]) => {
+          acc[key] = ServiceRoute.fromJSON(value);
+          return acc;
+        }, {})
         : {},
     };
   },
@@ -1204,148 +1064,116 @@ export const ServiceRoutesMap: MessageFns<ServiceRoutesMap> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ServiceRoutesMap>, I>>(
-    base?: I,
-  ): ServiceRoutesMap {
+  create<I extends Exact<DeepPartial<ServiceRoutesMap>, I>>(base?: I): ServiceRoutesMap {
     return ServiceRoutesMap.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ServiceRoutesMap>, I>>(
-    object: I,
-  ): ServiceRoutesMap {
+  fromPartial<I extends Exact<DeepPartial<ServiceRoutesMap>, I>>(object: I): ServiceRoutesMap {
     const message = createBaseServiceRoutesMap();
-    message.routes = Object.entries(object.routes ?? {}).reduce<{
-      [key: string]: ServiceRoute;
-    }>((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = ServiceRoute.fromPartial(value);
-      }
-      return acc;
-    }, {});
+    message.routes = Object.entries(object.routes ?? {}).reduce<{ [key: string]: ServiceRoute }>(
+      (acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = ServiceRoute.fromPartial(value);
+        }
+        return acc;
+      },
+      {},
+    );
     return message;
   },
 };
 
 function createBaseServiceRoutesMap_RoutesEntry(): ServiceRoutesMap_RoutesEntry {
-  return { key: '', value: undefined };
+  return { key: "", value: undefined };
 }
 
-export const ServiceRoutesMap_RoutesEntry: MessageFns<ServiceRoutesMap_RoutesEntry> =
-  {
-    encode(
-      message: ServiceRoutesMap_RoutesEntry,
-      writer: BinaryWriter = new BinaryWriter(),
-    ): BinaryWriter {
-      if (message.key !== '') {
-        writer.uint32(10).string(message.key);
-      }
-      if (message.value !== undefined) {
-        ServiceRoute.encode(message.value, writer.uint32(18).fork()).join();
-      }
-      return writer;
-    },
+export const ServiceRoutesMap_RoutesEntry: MessageFns<ServiceRoutesMap_RoutesEntry> = {
+  encode(message: ServiceRoutesMap_RoutesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      ServiceRoute.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
 
-    decode(
-      input: BinaryReader | Uint8Array,
-      length?: number,
-    ): ServiceRoutesMap_RoutesEntry {
-      const reader =
-        input instanceof BinaryReader ? input : new BinaryReader(input);
-      let end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseServiceRoutesMap_RoutesEntry();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.key = reader.string();
-            continue;
+  decode(input: BinaryReader | Uint8Array, length?: number): ServiceRoutesMap_RoutesEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseServiceRoutesMap_RoutesEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
           }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
 
-            message.value = ServiceRoute.decode(reader, reader.uint32());
-            continue;
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
           }
+
+          message.value = ServiceRoute.decode(reader, reader.uint32());
+          continue;
         }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
       }
-      return message;
-    },
-
-    fromJSON(object: any): ServiceRoutesMap_RoutesEntry {
-      return {
-        key: isSet(object.key) ? globalThis.String(object.key) : '',
-        value: isSet(object.value)
-          ? ServiceRoute.fromJSON(object.value)
-          : undefined,
-      };
-    },
-
-    toJSON(message: ServiceRoutesMap_RoutesEntry): unknown {
-      const obj: any = {};
-      if (message.key !== '') {
-        obj.key = message.key;
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
       }
-      if (message.value !== undefined) {
-        obj.value = ServiceRoute.toJSON(message.value);
-      }
-      return obj;
-    },
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
 
-    create<I extends Exact<DeepPartial<ServiceRoutesMap_RoutesEntry>, I>>(
-      base?: I,
-    ): ServiceRoutesMap_RoutesEntry {
-      return ServiceRoutesMap_RoutesEntry.fromPartial(base ?? ({} as any));
-    },
-    fromPartial<I extends Exact<DeepPartial<ServiceRoutesMap_RoutesEntry>, I>>(
-      object: I,
-    ): ServiceRoutesMap_RoutesEntry {
-      const message = createBaseServiceRoutesMap_RoutesEntry();
-      message.key = object.key ?? '';
-      message.value =
-        object.value !== undefined && object.value !== null
-          ? ServiceRoute.fromPartial(object.value)
-          : undefined;
-      return message;
-    },
-  };
+  fromJSON(object: any): ServiceRoutesMap_RoutesEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? ServiceRoute.fromJSON(object.value) : undefined,
+    };
+  },
+
+  toJSON(message: ServiceRoutesMap_RoutesEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== undefined) {
+      obj.value = ServiceRoute.toJSON(message.value);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ServiceRoutesMap_RoutesEntry>, I>>(base?: I): ServiceRoutesMap_RoutesEntry {
+    return ServiceRoutesMap_RoutesEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ServiceRoutesMap_RoutesEntry>, I>>(object: I): ServiceRoutesMap_RoutesEntry {
+    const message = createBaseServiceRoutesMap_RoutesEntry();
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null)
+      ? ServiceRoute.fromPartial(object.value)
+      : undefined;
+    return message;
+  },
+};
 
 function createBaseTimetable(): Timetable {
-  return {
-    version: '',
-    stopsAdjacency: undefined,
-    routesAdjacency: undefined,
-    routes: undefined,
-  };
+  return { version: "", stopsAdjacency: undefined, routesAdjacency: undefined, routes: undefined };
 }
 
 export const Timetable: MessageFns<Timetable> = {
-  encode(
-    message: Timetable,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
-    if (message.version !== '') {
+  encode(message: Timetable, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.version !== "") {
       writer.uint32(10).string(message.version);
     }
     if (message.stopsAdjacency !== undefined) {
-      StopsAdjacency.encode(
-        message.stopsAdjacency,
-        writer.uint32(18).fork(),
-      ).join();
+      StopsAdjacency.encode(message.stopsAdjacency, writer.uint32(18).fork()).join();
     }
     if (message.routesAdjacency !== undefined) {
-      RoutesAdjacency.encode(
-        message.routesAdjacency,
-        writer.uint32(26).fork(),
-      ).join();
+      RoutesAdjacency.encode(message.routesAdjacency, writer.uint32(26).fork()).join();
     }
     if (message.routes !== undefined) {
       ServiceRoutesMap.encode(message.routes, writer.uint32(34).fork()).join();
@@ -1354,8 +1182,7 @@ export const Timetable: MessageFns<Timetable> = {
   },
 
   decode(input: BinaryReader | Uint8Array, length?: number): Timetable {
-    const reader =
-      input instanceof BinaryReader ? input : new BinaryReader(input);
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTimetable();
     while (reader.pos < end) {
@@ -1374,10 +1201,7 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.stopsAdjacency = StopsAdjacency.decode(
-            reader,
-            reader.uint32(),
-          );
+          message.stopsAdjacency = StopsAdjacency.decode(reader, reader.uint32());
           continue;
         }
         case 3: {
@@ -1385,10 +1209,7 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.routesAdjacency = RoutesAdjacency.decode(
-            reader,
-            reader.uint32(),
-          );
+          message.routesAdjacency = RoutesAdjacency.decode(reader, reader.uint32());
           continue;
         }
         case 4: {
@@ -1410,22 +1231,16 @@ export const Timetable: MessageFns<Timetable> = {
 
   fromJSON(object: any): Timetable {
     return {
-      version: isSet(object.version) ? globalThis.String(object.version) : '',
-      stopsAdjacency: isSet(object.stopsAdjacency)
-        ? StopsAdjacency.fromJSON(object.stopsAdjacency)
-        : undefined,
-      routesAdjacency: isSet(object.routesAdjacency)
-        ? RoutesAdjacency.fromJSON(object.routesAdjacency)
-        : undefined,
-      routes: isSet(object.routes)
-        ? ServiceRoutesMap.fromJSON(object.routes)
-        : undefined,
+      version: isSet(object.version) ? globalThis.String(object.version) : "",
+      stopsAdjacency: isSet(object.stopsAdjacency) ? StopsAdjacency.fromJSON(object.stopsAdjacency) : undefined,
+      routesAdjacency: isSet(object.routesAdjacency) ? RoutesAdjacency.fromJSON(object.routesAdjacency) : undefined,
+      routes: isSet(object.routes) ? ServiceRoutesMap.fromJSON(object.routes) : undefined,
     };
   },
 
   toJSON(message: Timetable): unknown {
     const obj: any = {};
-    if (message.version !== '') {
+    if (message.version !== "") {
       obj.version = message.version;
     }
     if (message.stopsAdjacency !== undefined) {
@@ -1443,55 +1258,36 @@ export const Timetable: MessageFns<Timetable> = {
   create<I extends Exact<DeepPartial<Timetable>, I>>(base?: I): Timetable {
     return Timetable.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<Timetable>, I>>(
-    object: I,
-  ): Timetable {
+  fromPartial<I extends Exact<DeepPartial<Timetable>, I>>(object: I): Timetable {
     const message = createBaseTimetable();
-    message.version = object.version ?? '';
-    message.stopsAdjacency =
-      object.stopsAdjacency !== undefined && object.stopsAdjacency !== null
-        ? StopsAdjacency.fromPartial(object.stopsAdjacency)
-        : undefined;
-    message.routesAdjacency =
-      object.routesAdjacency !== undefined && object.routesAdjacency !== null
-        ? RoutesAdjacency.fromPartial(object.routesAdjacency)
-        : undefined;
-    message.routes =
-      object.routes !== undefined && object.routes !== null
-        ? ServiceRoutesMap.fromPartial(object.routes)
-        : undefined;
+    message.version = object.version ?? "";
+    message.stopsAdjacency = (object.stopsAdjacency !== undefined && object.stopsAdjacency !== null)
+      ? StopsAdjacency.fromPartial(object.stopsAdjacency)
+      : undefined;
+    message.routesAdjacency = (object.routesAdjacency !== undefined && object.routesAdjacency !== null)
+      ? RoutesAdjacency.fromPartial(object.routesAdjacency)
+      : undefined;
+    message.routes = (object.routes !== undefined && object.routes !== null)
+      ? ServiceRoutesMap.fromPartial(object.routes)
+      : undefined;
     return message;
   },
 };
 
-type Builtin =
-  | Date
-  | Function
-  | Uint8Array
-  | string
-  | number
-  | boolean
-  | undefined;
+type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-  ? T
-  : T extends globalThis.Array<infer U>
-    ? globalThis.Array<DeepPartial<U>>
-    : T extends ReadonlyArray<infer U>
-      ? ReadonlyArray<DeepPartial<U>>
-      : T extends {}
-        ? { [K in keyof T]?: DeepPartial<T[K]> }
-        : Partial<T>;
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
+export type Exact<P, I extends P> = P extends Builtin ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function isObject(value: any): boolean {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }
 
 function isSet(value: any): boolean {
