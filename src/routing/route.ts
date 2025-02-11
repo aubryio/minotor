@@ -1,7 +1,7 @@
 import { Stop } from '../stops/stops.js';
 import { Duration } from '../timetable/duration.js';
 import { Time } from '../timetable/time.js';
-import { ServiceRoute } from '../timetable/timetable.js';
+import { ServiceRoute, TransferType } from '../timetable/timetable.js';
 
 export type BaseLeg = {
   from: Stop;
@@ -10,6 +10,7 @@ export type BaseLeg = {
 
 export type Transfer = BaseLeg & {
   minTransferTime?: Duration;
+  type: TransferType;
 };
 
 export type VehicleLeg = BaseLeg & {

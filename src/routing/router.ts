@@ -74,6 +74,7 @@ export class Router {
               from: this.stopsIndex.findStopById(stop)!,
               to: this.stopsIndex.findStopById(transfer.destination)!,
               minTransferTime: transfer.minTransferTime,
+              type: transfer.type,
             },
           });
           earliestArrivals.set(transfer.destination, {
@@ -201,7 +202,7 @@ export class Router {
                   to: this.stopsIndex.findStopById(currentStop)!,
                   departureTime: bestHopOnStopTimes.departure,
                   arrivalTime: currentStopTimes.arrival,
-                  route: this.timetable.getServiceRoute(route.serviceRouteId),
+                  route: this.timetable.getServiceRoute(route.serviceRouteId)!,
                 },
               });
               earliestArrivals.set(currentStop, {

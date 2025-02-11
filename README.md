@@ -35,7 +35,7 @@ Transit data (GTFS) parsing runs on Node.js, and the resulting data is serialize
 #### GTFS Feed parsing (Node.js only)
 
 ```
-import { GtfsParser, chGtfsProfile } from 'minotor';
+import { GtfsParser, chGtfsProfile } from 'minotor/parser';
 
 const parser = new GtfsParser('gtfs-feed.zip', chGtfsProfile);
 const { timetable, stopsIndex } = await parser.parse(new Date());

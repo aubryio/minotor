@@ -35,7 +35,7 @@
       "require": "./dist/router.cjs.js",
       "types": "./dist/router.d.ts"
     },
-    "./parser.js": {
+    "./parser": {
       "import": "./dist/parser.esm.js",
       "require": "./dist/parser.cjs.js",
       "types": "./dist/parser.d.ts"

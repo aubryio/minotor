@@ -9,6 +9,7 @@ import { Time } from './timetable/time.js';
 import {
   PickUpDropOffType,
   RouteType,
+  ServiceRoute,
   Timetable,
   TransferType,
 } from './timetable/timetable.js';
@@ -23,6 +24,7 @@ export {
   Route,
   Router,
   RouteType,
+  ServiceRoute,
   StopId,
   StopsIndex,
   Time,
