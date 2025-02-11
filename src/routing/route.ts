@@ -24,9 +24,6 @@ export class Route {
   legs: Leg[];
 
   constructor(legs: Leg[]) {
-    if (legs.length === 0) {
-      throw new Error('There must be at least one leg in a route');
-    }
     this.legs = legs;
   }
 

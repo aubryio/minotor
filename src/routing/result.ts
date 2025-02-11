@@ -6,7 +6,7 @@ import { ReachingTime, TripLeg } from './router.js';
 
 export class Result {
   private readonly query: Query;
-  private readonly earliestArrivals: Map<StopId, ReachingTime>;
+  public readonly earliestArrivals: Map<StopId, ReachingTime>;
   public readonly earliestArrivalsPerRound: Map<StopId, TripLeg>[];
   private readonly stopsIndex: StopsIndex;
 
