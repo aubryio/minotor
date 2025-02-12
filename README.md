@@ -2,6 +2,8 @@
 
 ![GitHub Workflow Status](https://github.com/aubryio/minotor/actions/workflows/minotor.yml/badge.svg?branch=main)
 
+[Documentation and examples](https://minotor.dev)
+
 A lightweight and easy to use public transit router primarily targeting client-side usage for research, data visualization, dynamic web and mobile apps.
 
 Unlike most transit planners out there, **minotor** can store all the transit data for a given day in memory on the client, allowing for fast runtime queries using only local data.
@@ -10,6 +12,14 @@ Privacy-conscious applications where the user does not want to share their locat
 
 The transit router and the stops index of **minotor** can run in the browser, on react-native or in a Node.js environment.
 Transit data (GTFS) parsing runs on Node.js, and the resulting data is serialized as a protobuf binary that can be loaded from the router.
+
+## Examples
+
+### In-browser transit router
+
+An example client-side transit router running in the browser with a web worker.
+
+[Demo](https://www.minotor.dev/#example-usage) | [Code](https://github.com/aubryio/minotor.dev/tree/main/app/examples/router)
 
 ## Features
 

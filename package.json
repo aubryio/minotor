@@ -1,7 +1,7 @@
 {
   "name": "minotor",
   "version": "0.0.1-beta",
-  "description": "A lightweight client-side transit router.",
+  "description": "A lightweight client-side transit routing library.",
   "keywords": [
     "minotor",
     "raptor",
@@ -13,7 +13,7 @@
     "trains",
     "netex"
   ],
-  "homepage": "https://github.com/aubryio/minotor",
+  "homepage": "https://minotor.dev",
   "bugs": "https://github.com/aubryio/minotor/issues",
   "author": "Aubry Cholleton <aubry.cholleton@gmail.com>",
   "license": "MIT",
