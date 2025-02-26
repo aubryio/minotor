@@ -23,7 +23,7 @@ export class Query {
 
   static Builder = class {
     fromValue!: StopId;
-    toValue!: StopId[];
+    toValue: StopId[] = [];
     departureTimeValue!: Time;
     // lastDepartureTimeValue?: Date;
     // via: StopId[] = [];
