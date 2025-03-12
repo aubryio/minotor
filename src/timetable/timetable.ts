@@ -251,7 +251,7 @@ export class Timetable {
         const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
         const stopTime = route.stopTimes[stopTimeIndex]!;
         if (
-          stopTime.departure > after &&
+          stopTime.departure >= after &&
           stopTime.pickUpType !== 'NOT_AVAILABLE'
         ) {
           return tripIndex;
@@ -268,7 +268,7 @@ export class Timetable {
       ) {
         const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
         const stopTime = route.stopTimes[stopTimeIndex]!;
-        if (stopTime.departure <= after) {
+        if (stopTime.departure < after) {
           break;
         }
         if (
