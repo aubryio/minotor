@@ -15,7 +15,7 @@
   ],
   "homepage": "https://minotor.dev",
   "bugs": "https://github.com/aubryio/minotor/issues",
-  "author": "Aubry Cholleton <aubry.cholleton@gmail.com>",
+  "author": "Aubry Cholleton <aubry@cholleton.com> (https://aubry.io)",
   "license": "MIT",
   "repository": {
     "type": "git",
