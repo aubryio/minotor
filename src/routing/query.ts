@@ -1,11 +1,11 @@
-import { StopId } from '../stops/stops.js';
+import { SourceStopId } from '../stops/stops.js';
 import { Duration } from '../timetable/duration.js';
 import { Time } from '../timetable/time.js';
 import { ALL_TRANSPORT_MODES, RouteType } from '../timetable/timetable.js';
 
 export class Query {
-  from: StopId;
-  to: StopId[];
+  from: SourceStopId;
+  to: SourceStopId[];
   departureTime: Time;
   lastDepartureTime?: Time;
   options: {
@@ -22,8 +22,8 @@ export class Query {
   }
 
   static Builder = class {
-    fromValue!: StopId;
-    toValue: StopId[] = [];
+    fromValue!: SourceStopId;
+    toValue: SourceStopId[] = [];
     departureTimeValue!: Time;
     // lastDepartureTimeValue?: Date;
     // via: StopId[] = [];
@@ -37,12 +37,12 @@ export class Query {
       transportModes: ALL_TRANSPORT_MODES,
     };
 
-    from(from: StopId): this {
+    from(from: SourceStopId): this {
       this.fromValue = from;
       return this;
     }
 
-    to(to: StopId | StopId[]): this {
+    to(to: SourceStopId | SourceStopId[]): this {
       this.toValue = Array.isArray(to) ? to : [to];
       return this;
     }

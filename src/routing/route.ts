@@ -3,6 +3,12 @@ import { Duration } from '../timetable/duration.js';
 import { Time } from '../timetable/time.js';
 import { ServiceRoute, TransferType } from '../timetable/timetable.js';
 
+export type PickUpDropOffType =
+  | 'REGULAR'
+  | 'NOT_AVAILABLE'
+  | 'MUST_PHONE_AGENCY'
+  | 'MUST_COORDINATE_WITH_DRIVER';
+
 export type BaseLeg = {
   from: Stop;
   to: Stop;
@@ -17,6 +23,11 @@ export type VehicleLeg = BaseLeg & {
   route: ServiceRoute;
   departureTime: Time;
   arrivalTime: Time;
+  // TODO support pick up and drop off types
+  /*
+  pickUpType: PickUpDropOffType;
+  dropOffType: PickUpDropOffType;
+  */
 };
 
 export type Leg = Transfer | VehicleLeg;

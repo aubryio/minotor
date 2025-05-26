@@ -8,6 +8,7 @@ import { plotGraphToDotFile, prettyPrintRoute } from './utils.js';
 export const startRepl = (stopsPath: string, timetablePath: string) => {
   const stopsIndex = StopsIndex.fromData(fs.readFileSync(stopsPath));
   const timetable = Timetable.fromData(fs.readFileSync(timetablePath));
+  console.log(`Minotor Transit Router CLI`);
   console.log(
     'Enter your stop (.find) or routing (.route) queries. Type ".exit" to quit.',
   );
@@ -64,10 +65,11 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       }
 
       const fromStop =
-        stopsIndex.findStopById(fromId) ||
+        stopsIndex.findStopBySourceStopId(fromId) ||
         stopsIndex.findStopsByName(fromId)[0];
       const toStop =
-        stopsIndex.findStopById(toId) || stopsIndex.findStopsByName(toId)[0];
+        stopsIndex.findStopBySourceStopId(toId) ||
+        stopsIndex.findStopsByName(toId)[0];
 
       if (!fromStop) {
         console.log(`No stop found for 'from' ID or name: ${fromId}`);
@@ -85,8 +87,8 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
       try {
         const query = new Query.Builder()
-          .from(fromStop.id)
-          .to([toStop.id])
+          .from(fromStop.sourceStopId)
+          .to([toStop.sourceStopId])
           .departureTime(departureTime)
           .maxTransfers(maxTransfers)
           .build();
@@ -94,7 +96,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         const router = new Router(timetable, stopsIndex);
 
         const result = router.route(query);
-        const arrivalTime = result.arrivalAt(toStop.id);
+        const arrivalTime = result.arrivalAt(toStop.sourceStopId);
         if (arrivalTime === undefined) {
           console.log(`Destination not reachable`);
         } else {
@@ -102,7 +104,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
             `Arriving to ${toStop.name} at ${arrivalTime.time.toString()} with ${arrivalTime.legNumber - 1} transfers from ${stopsIndex.findStopById(arrivalTime.origin)?.name}.`,
           );
         }
-        const bestRoute = result.bestRoute(toStop.id);
+        const bestRoute = result.bestRoute(toStop.sourceStopId);
 
         if (bestRoute) {
           console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
@@ -160,10 +162,11 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       }
 
       const fromStop =
-        stopsIndex.findStopById(fromId) ||
+        stopsIndex.findStopBySourceStopId(fromId) ||
         stopsIndex.findStopsByName(fromId)[0];
       const toStop =
-        stopsIndex.findStopById(toId) || stopsIndex.findStopsByName(toId)[0];
+        stopsIndex.findStopBySourceStopId(toId) ||
+        stopsIndex.findStopsByName(toId)[0];
 
       if (!fromStop) {
         console.log(`No stop found for 'from' ID or name: ${fromId}`);
@@ -180,8 +183,8 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       const departureTime = Time.fromString(atTime);
       try {
         const query = new Query.Builder()
-          .from(fromStop.id)
-          .to([toStop.id])
+          .from(fromStop.sourceStopId)
+          .to([toStop.sourceStopId])
           .departureTime(departureTime)
           .maxTransfers(maxTransfers)
           .build();

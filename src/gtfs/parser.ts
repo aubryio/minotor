@@ -2,13 +2,13 @@ import log from 'loglevel';
 import { DateTime } from 'luxon';
 import StreamZip from 'node-stream-zip';
 
-import { Platform } from '../stops/stops.js';
+import { Platform, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { standardProfile } from './profiles/standard.js';
 import { parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
-import { parseStops, StopEntry, StopIds } from './stops.js';
+import { indexStops, parseStops, StopEntry } from './stops.js';
 import { parseTransfers, TransfersMap } from './transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -56,7 +56,15 @@ export class GtfsParser {
     const datetime = DateTime.fromJSDate(date);
 
     const validServiceIds: ServiceIds = new Set();
-    const validStopIds: StopIds = new Set();
+    const validStopIds = new Set<StopId>();
+
+    log.info(`Parsing ${STOPS_FILE}`);
+    const stopsStream = await zip.stream(STOPS_FILE);
+    const parsedStops = await parseStops(
+      stopsStream,
+      this.profile.platformParser,
+    );
+    log.info(`${parsedStops.size} parsed stops.`);
 
     if (entries[CALENDAR_FILE]) {
       log.info(`Parsing ${CALENDAR_FILE}`);
@@ -90,7 +98,7 @@ export class GtfsParser {
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStream = await zip.stream(TRANSFERS_FILE);
-      transfers = await parseTransfers(transfersStream);
+      transfers = await parseTransfers(transfersStream, parsedStops);
       log.info(`${transfers.size} valid transfers.`);
     }
 
@@ -98,6 +106,7 @@ export class GtfsParser {
     const stopTimesStream = await zip.stream(STOP_TIMES_FILE);
     const routesAdjacency = await parseStopTimes(
       stopTimesStream,
+      parsedStops,
       trips,
       validStopIds,
     );
@@ -108,14 +117,11 @@ export class GtfsParser {
     );
     log.info(`${routesAdjacency.size} valid unique routes.`);
 
-    log.info(`Parsing ${STOPS_FILE}`);
-    const stopsStream = await zip.stream(STOPS_FILE);
-    const stops = await parseStops(
-      stopsStream,
-      this.profile.platformParser,
-      validStopIds,
+    log.info(`Removing unused stops.`);
+    const stops = indexStops(parsedStops, validStopIds);
+    log.info(
+      `${stops.size} used stop stops, ${parsedStops.size - stops.size} unused.`,
     );
-    log.info(`${stops.size} valid stops.`);
 
     await zip.close();
 
@@ -144,8 +150,11 @@ export class GtfsParser {
 
     log.info(`Parsing ${STOPS_FILE}`);
     const stopsStream = await zip.stream(STOPS_FILE);
-    const stops = await parseStops(stopsStream, this.profile.platformParser);
-    log.info(`${stops.size} valid stops.`);
+    const stops = indexStops(
+      await parseStops(stopsStream, this.profile.platformParser),
+    );
+
+    log.info(`${stops.size} parsed stops.`);
 
     await zip.close();
 

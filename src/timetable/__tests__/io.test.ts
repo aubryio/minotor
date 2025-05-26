@@ -20,18 +20,18 @@ import {
 describe('timetable io', () => {
   const stopsAdjacency: StopsAdjacency = new Map([
     [
-      'stop1',
+      1,
       {
-        transfers: [{ destination: 'stop2', type: 'RECOMMENDED' }],
+        transfers: [{ destination: 2, type: 'RECOMMENDED' }],
         routes: ['route1'],
       },
     ],
     [
-      'stop2',
+      2,
       {
         transfers: [
           {
-            destination: 'stop1',
+            destination: 1,
             type: 'GUARANTEED',
             minTransferTime: Duration.fromMinutes(3),
           },
@@ -44,18 +44,15 @@ describe('timetable io', () => {
     [
       'route1',
       {
-        stopTimes: [
-          {
-            arrival: Time.fromSeconds(1000),
-            departure: Time.fromSeconds(1010),
-            pickUpType: 'REGULAR',
-            dropOffType: 'REGULAR',
-          },
-        ],
-        stops: ['stop1', 'stop2'],
+        stopTimes: new Uint32Array([
+          Time.fromHMS(0, 16, 40).toSeconds(),
+          Time.fromHMS(0, 16, 50).toSeconds(),
+        ]),
+        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
+        stops: new Uint32Array([1, 2]),
         stopIndices: new Map([
-          ['stop1', 0],
-          ['stop2', 1],
+          [1, 0],
+          [2, 1],
         ]),
         serviceRouteId: 'gtfs1',
       },
@@ -63,18 +60,15 @@ describe('timetable io', () => {
     [
       'route2',
       {
-        stopTimes: [
-          {
-            arrival: Time.fromSeconds(2000),
-            departure: Time.fromSeconds(2010),
-            pickUpType: 'REGULAR',
-            dropOffType: 'REGULAR',
-          },
-        ],
-        stops: ['stop2', 'stop1'],
+        stopTimes: new Uint32Array([
+          Time.fromHMS(0, 33, 20).toSeconds(),
+          Time.fromHMS(0, 33, 30).toSeconds(),
+        ]),
+        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
+        stops: new Uint32Array([2, 1]),
         stopIndices: new Map([
-          ['stop2', 0],
-          ['stop1', 1],
+          [2, 0],
+          [1, 1],
         ]),
         serviceRouteId: 'gtfs2',
       },
@@ -84,17 +78,16 @@ describe('timetable io', () => {
     ['gtfs1', { type: 'RAIL', name: 'Route 1' }],
     ['gtfs2', { type: 'RAIL', name: 'Route 2' }],
   ]);
-
   const stopsAdjacencyProto = {
     stops: {
-      stop1: {
-        transfers: [{ destination: 'stop2', type: 0 }],
+      '1': {
+        transfers: [{ destination: 2, type: 0 }],
         routes: ['route1'],
       },
-      stop2: {
+      '2': {
         transfers: [
           {
-            destination: 'stop1',
+            destination: 1,
             type: 1,
             minTransferTime: 180,
           },
@@ -107,27 +100,25 @@ describe('timetable io', () => {
   const routesAdjacencyProto = {
     routes: {
       route1: {
-        stopTimes: [
-          {
-            arrival: 1000,
-            departure: 1010,
-            pickUpType: undefined,
-            dropOffType: undefined,
-          },
-        ],
-        stops: ['stop1', 'stop2'],
+        stopTimes: new Uint8Array(
+          new Uint32Array([
+            Time.fromHMS(0, 16, 40).toSeconds(),
+            Time.fromHMS(0, 16, 50).toSeconds(),
+          ]).buffer,
+        ),
+        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
+        stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
         serviceRouteId: 'gtfs1',
       },
       route2: {
-        stopTimes: [
-          {
-            arrival: 2000,
-            departure: 2010,
-            pickUpType: undefined,
-            dropOffType: undefined,
-          },
-        ],
-        stops: ['stop2', 'stop1'],
+        stopTimes: new Uint8Array(
+          new Uint32Array([
+            Time.fromHMS(0, 33, 20).toSeconds(),
+            Time.fromHMS(0, 33, 30).toSeconds(),
+          ]).buffer,
+        ),
+        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
+        stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
         serviceRouteId: 'gtfs2',
       },
     },

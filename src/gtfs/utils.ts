@@ -3,23 +3,23 @@ import { parse, Parser } from 'csv-parse';
 export type Maybe<T> = T | undefined;
 
 /**
- * Generates a simple hash from a string.
+ * Generates a simple hash from an array of numeric IDs.
  *
- * This function computes a hash for a given string by iterating over each
- * character and applying bitwise operations to accumulate a hash value.
- * The final hash is then converted to a base-36 string and padded to
- * ensure a minimum length of 6 characters.
+ * This function computes a hash for a given array of numbers by iterating over each
+ * ID and applying bitwise operations to accumulate a hash value.
+ * The final hash is then converted to a base-36 string.
  *
- * @param str - The input string to hash.
- * @returns A hashed string representation of the input.
+ * @param ids - The array of numeric IDs to hash.
+ * @returns A hashed string representation of the input array.
  */
-export const hash = (str: string): string => {
+export const hashIds = (ids: number[]): string => {
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
+  for (let i = 0; i < ids.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    hash = (hash << 5) - hash + ids[i]!;
     hash &= hash;
   }
-  return (hash >>> 0).toString(36).padStart(6, '0');
+  return (hash >>> 0).toString(36);
 };
 
 /**

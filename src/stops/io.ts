@@ -3,12 +3,13 @@ import {
   Stop as ProtoStop,
   StopsMap as ProtoStopsMap,
 } from './proto/stops.js';
-import { LocationType, Stop, StopId, StopsMap } from './stops.js';
+import { LocationType, Stop, StopsMap } from './stops.js';
 
-const CURRENT_VERSION = '0.0.1';
+const CURRENT_VERSION = '0.0.2';
 const serializeStop = (stop: Stop): ProtoStop => {
   return {
     name: stop.name,
+    sourceStopId: stop.sourceStopId,
     lat: stop.lat,
     lon: stop.lon,
     children: stop.children,
@@ -24,16 +25,17 @@ export const serializeStopsMap = (stopsMap: StopsMap): ProtoStopsMap => {
     stops: {},
   };
 
-  stopsMap.forEach((value: Stop, key: string) => {
+  stopsMap.forEach((value: Stop, key: number) => {
     protoStopsMap.stops[key] = serializeStop(value);
   });
 
   return protoStopsMap;
 };
 
-const deserializeStop = (stopId: StopId, protoStop: ProtoStop): Stop => {
+const deserializeStop = (stopId: number, protoStop: ProtoStop): Stop => {
   return {
     id: stopId,
+    sourceStopId: protoStop.sourceStopId,
     name: protoStop.name,
     lat: protoStop.lat,
     lon: protoStop.lon,
@@ -51,7 +53,8 @@ export const deserializeStopsMap = (protoStopsMap: ProtoStopsMap): StopsMap => {
   const stopsMap: StopsMap = new Map();
 
   Object.entries(protoStopsMap.stops).forEach(([key, value]) => {
-    stopsMap.set(key, deserializeStop(key, value));
+    const intKey = parseInt(key, 10);
+    stopsMap.set(intKey, deserializeStop(intKey, value));
   });
 
   return stopsMap;

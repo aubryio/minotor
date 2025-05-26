@@ -1,4 +1,4 @@
-import { StopId } from '../stops/stops.js';
+import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { Query } from './query.js';
 import { Leg, Route } from './route.js';
@@ -29,7 +29,7 @@ export class Result {
    * @param to The destination stop. Defaults to the destination of the original query.
    * @returns a route to the destination stop if it exists.
    */
-  bestRoute(to?: StopId | StopId[]): Route | undefined {
+  bestRoute(to?: SourceStopId | SourceStopId[]): Route | undefined {
     const destinationList = Array.isArray(to) ? to : to ? [to] : this.query.to;
     const destinations = destinationList.flatMap((destination) =>
       this.stopsIndex.equivalentStops(destination),
@@ -38,13 +38,13 @@ export class Result {
     let fastestDestination: StopId | undefined = undefined;
     let fastestTime: ReachingTime | undefined = undefined;
     for (const destination of destinations) {
-      const arrivalTime = this.earliestArrivals.get(destination);
+      const arrivalTime = this.earliestArrivals.get(destination.id);
       if (arrivalTime !== undefined) {
         if (
           fastestTime === undefined ||
           arrivalTime.time.toSeconds() < fastestTime.time.toSeconds()
         ) {
-          fastestDestination = destination;
+          fastestDestination = destination.id;
           fastestTime = arrivalTime;
         }
       }
@@ -81,7 +81,10 @@ export class Result {
    * @param maxTransfers The optional maximum number of transfers allowed.
    * @returns The arrival time if the target stop is reachable, otherwise undefined.
    */
-  arrivalAt(stop: StopId, maxTransfers?: number): ReachingTime | undefined {
+  arrivalAt(
+    stop: SourceStopId,
+    maxTransfers?: number,
+  ): ReachingTime | undefined {
     const equivalentStops = this.stopsIndex.equivalentStops(stop);
     let earliestArrival: ReachingTime | undefined = undefined;
 
@@ -92,7 +95,7 @@ export class Result {
         : this.earliestArrivals;
 
     for (const equivalentStop of equivalentStops) {
-      const arrivalTime = relevantArrivals.get(equivalentStop);
+      const arrivalTime = relevantArrivals.get(equivalentStop.id);
       if (arrivalTime !== undefined) {
         if (
           earliestArrival === undefined ||

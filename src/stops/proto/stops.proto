@@ -12,15 +12,16 @@ enum LocationType {
 
 message Stop {
   string name = 1;
-  optional double lat = 2;
-  optional double lon = 3;
-  repeated string children = 4;
-  optional string parent = 5;
-  LocationType locationType = 6;
-  optional string platform = 7;
+  string sourceStopId = 2;
+  optional double lat = 3;
+  optional double lon = 4;
+  repeated uint32 children = 5;
+  optional uint32 parent = 6;
+  LocationType locationType = 7;
+  optional string platform = 8;
 }
 
 message StopsMap {
   string version = 1;
-  map<string, Stop> stops = 2;
+  map<uint32, Stop> stops = 2;
 }

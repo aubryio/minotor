@@ -2,13 +2,14 @@ import assert from 'node:assert';
 import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
+import { StopId } from '../../stops/stops.js';
 import { Time } from '../../timetable/time.js';
 import {
   RoutesAdjacency,
   ServiceRoutesMap,
 } from '../../timetable/timetable.js';
 import { ServiceIds } from '../services.js';
-import { StopIds } from '../stops.js';
+import { ParsedStopsMap } from '../stops.js';
 import { TransfersMap } from '../transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -19,23 +20,24 @@ import {
 
 describe('buildStopsAdjacencyStructure', () => {
   it('should correctly build stops adjacency for valid routes and transfers', () => {
-    const validStops: StopIds = new Set(['stop1']);
+    const validStops: Set<StopId> = new Set([0]);
     const routesAdjacency: RoutesAdjacency = new Map([
       [
         'routeA',
         {
           serviceRouteId: 'service1',
-          stops: ['stop1', 'stop2'],
+          stops: new Uint32Array([0, 1]),
           stopIndices: new Map([
-            ['stop1', 0],
-            ['stop2', 1],
+            [0, 0],
+            [1, 1],
           ]),
-          stopTimes: [],
+          stopTimes: new Uint32Array(),
+          pickUpDropOffTypes: new Uint8Array(),
         },
       ],
     ]);
     const transfersMap: TransfersMap = new Map([
-      ['stop1', [{ destination: 'stop2', type: 'RECOMMENDED' }]],
+      [0, [{ destination: 1, type: 'RECOMMENDED' }]],
     ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -46,7 +48,7 @@ describe('buildStopsAdjacencyStructure', () => {
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
-        'stop1',
+        0,
         {
           routes: ['routeA'],
           transfers: [],
@@ -56,23 +58,24 @@ describe('buildStopsAdjacencyStructure', () => {
   });
 
   it('should ignore transfers to invalid stops', () => {
-    const validStops: StopIds = new Set(['stop1', 'stop2']);
+    const validStops: Set<StopId> = new Set([0, 1]);
     const routesAdjacency: RoutesAdjacency = new Map([
       [
         'routeA',
         {
           serviceRouteId: 'service1',
-          stops: ['stop1', 'stop2'],
+          stops: new Uint32Array([0, 1]),
           stopIndices: new Map([
-            ['stop1', 0],
-            ['stop2', 1],
+            [0, 0],
+            [1, 1],
           ]),
-          stopTimes: [],
+          stopTimes: new Uint32Array(),
+          pickUpDropOffTypes: new Uint8Array(),
         },
       ],
     ]);
     const transfersMap: TransfersMap = new Map([
-      ['stop1', [{ destination: 'stop3', type: 'RECOMMENDED' }]],
+      [0, [{ destination: 2, type: 'RECOMMENDED' }]],
     ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -83,14 +86,14 @@ describe('buildStopsAdjacencyStructure', () => {
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
-        'stop1',
+        0,
         {
           routes: ['routeA'],
           transfers: [],
         },
       ],
       [
-        'stop2',
+        1,
         {
           routes: ['routeA'],
           transfers: [],
@@ -181,10 +184,36 @@ describe('GTFS stop times parser', () => {
     mockedStream.push(null);
 
     const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
-    const validStopIds: StopIds = new Set(['stop1', 'stop2']);
-
+    const validStopIds: Set<StopId> = new Set([0, 1]);
+    const stopsMap: ParsedStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          lat: 36.425288,
+          lon: -117.133162,
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          lat: 36.868446,
+          lon: -116.784582,
+        },
+      ],
+    ]);
     const routes = await parseStopTimes(
       mockedStream,
+      stopsMap,
       validTripIds,
       validStopIds,
     );
@@ -192,28 +221,21 @@ describe('GTFS stop times parser', () => {
       routes,
       new Map([
         [
-          'routeA_1e0e4u3',
+          'routeA_1',
           {
             serviceRouteId: 'routeA',
-            stops: ['stop1', 'stop2'],
+            stops: new Uint32Array([0, 1]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
+              [0, 0],
+              [1, 1],
             ]),
-            stopTimes: [
-              {
-                arrival: Time.fromHMS(8, 0, 0),
-                departure: Time.fromHMS(8, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(8, 10, 0),
-                departure: Time.fromHMS(8, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
+            stopTimes: new Uint32Array([
+              Time.fromHMS(8, 0, 0).toSeconds(),
+              Time.fromHMS(8, 5, 0).toSeconds(),
+              Time.fromHMS(8, 10, 0).toSeconds(),
+              Time.fromHMS(8, 15, 0).toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([0, 0, 0, 0]),
           },
         ],
       ]),
@@ -235,10 +257,33 @@ describe('GTFS stop times parser', () => {
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
-    const validStopIds: StopIds = new Set(['stop1', 'stop2']);
+    const validStopIds: Set<StopId> = new Set([0, 1]);
+    const stopsMap: ParsedStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
 
     const routes = await parseStopTimes(
       mockedStream,
+      stopsMap,
       validTripIds,
       validStopIds,
     );
@@ -246,40 +291,25 @@ describe('GTFS stop times parser', () => {
       routes,
       new Map([
         [
-          'routeA_1e0e4u3',
+          'routeA_1',
           {
             serviceRouteId: 'routeA',
-            stops: ['stop1', 'stop2'],
+            stops: new Uint32Array([0, 1]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
+              [0, 0],
+              [1, 1],
             ]),
-            stopTimes: [
-              {
-                arrival: Time.fromHMS(8, 0, 0),
-                departure: Time.fromHMS(8, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(8, 10, 0),
-                departure: Time.fromHMS(8, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(9, 0, 0),
-                departure: Time.fromHMS(9, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(9, 10, 0),
-                departure: Time.fromHMS(9, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
+            stopTimes: new Uint32Array([
+              Time.fromHMS(8, 0, 0).toSeconds(),
+              Time.fromHMS(8, 5, 0).toSeconds(),
+              Time.fromHMS(8, 10, 0).toSeconds(),
+              Time.fromHMS(8, 15, 0).toSeconds(),
+              Time.fromHMS(9, 0, 0).toSeconds(),
+              Time.fromHMS(9, 5, 0).toSeconds(),
+              Time.fromHMS(9, 10, 0).toSeconds(),
+              Time.fromHMS(9, 15, 0).toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]),
           },
         ],
       ]),
@@ -301,10 +331,33 @@ describe('GTFS stop times parser', () => {
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
-    const validStopIds: StopIds = new Set(['stop1', 'stop2']);
+    const validStopIds: Set<StopId> = new Set([0, 1]);
+    const stopsMap: ParsedStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
 
     const routes = await parseStopTimes(
       mockedStream,
+      stopsMap,
       validTripIds,
       validStopIds,
     );
@@ -312,40 +365,25 @@ describe('GTFS stop times parser', () => {
       routes,
       new Map([
         [
-          'routeA_1e0e4u3',
+          'routeA_1',
           {
             serviceRouteId: 'routeA',
-            stops: ['stop1', 'stop2'],
+            stops: new Uint32Array([0, 1]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
+              [0, 0],
+              [1, 1],
             ]),
-            stopTimes: [
-              {
-                arrival: Time.fromHMS(8, 0, 0),
-                departure: Time.fromHMS(8, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(8, 10, 0),
-                departure: Time.fromHMS(8, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(9, 0, 0),
-                departure: Time.fromHMS(9, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(9, 10, 0),
-                departure: Time.fromHMS(9, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
+            stopTimes: new Uint32Array([
+              Time.fromHMS(8, 0, 0).toSeconds(),
+              Time.fromHMS(8, 5, 0).toSeconds(),
+              Time.fromHMS(8, 10, 0).toSeconds(),
+              Time.fromHMS(8, 15, 0).toSeconds(),
+              Time.fromHMS(9, 0, 0).toSeconds(),
+              Time.fromHMS(9, 5, 0).toSeconds(),
+              Time.fromHMS(9, 10, 0).toSeconds(),
+              Time.fromHMS(9, 15, 0).toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]),
           },
         ],
       ]),
@@ -366,10 +404,33 @@ describe('GTFS stop times parser', () => {
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
-    const validStopIds: StopIds = new Set(['stop1', 'stop2']);
+    const validStopIds: Set<StopId> = new Set([0, 1]);
+    const stopsMap: ParsedStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
 
     const routes = await parseStopTimes(
       mockedStream,
+      stopsMap,
       validTripIds,
       validStopIds,
     );
@@ -377,51 +438,41 @@ describe('GTFS stop times parser', () => {
       routes,
       new Map([
         [
-          'routeA_1e0e4u3',
+          'routeA_1',
           {
             serviceRouteId: 'routeA',
-            stops: ['stop1', 'stop2'],
+            stops: new Uint32Array([0, 1]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
+              [0, 0],
+              [1, 1],
             ]),
-            stopTimes: [
-              {
-                arrival: Time.fromHMS(8, 0, 0),
-                departure: Time.fromHMS(8, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromHMS(8, 10, 0),
-                departure: Time.fromHMS(8, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
+            stopTimes: new Uint32Array([
+              Time.fromHMS(8, 0, 0).toSeconds(),
+              Time.fromHMS(8, 5, 0).toSeconds(),
+              Time.fromHMS(8, 10, 0).toSeconds(),
+              Time.fromHMS(8, 15, 0).toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([0, 0, 0, 0]),
           },
         ],
         [
-          'routeA_1tcrqn',
+          'routeA_0',
           {
             serviceRouteId: 'routeA',
-            stops: ['stop1'],
-            stopIndices: new Map([['stop1', 0]]),
-            stopTimes: [
-              {
-                arrival: Time.fromHMS(9, 0, 0),
-                departure: Time.fromHMS(9, 15, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
+            stops: new Uint32Array([0]),
+            stopIndices: new Map([[0, 0]]),
+            stopTimes: new Uint32Array([
+              Time.fromHMS(9, 0, 0).toSeconds(),
+              Time.fromHMS(9, 15, 0).toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([0, 0]),
           },
         ],
       ]),
     );
   });
 
-  it('should throw an error for non-increasing stop sequences', async () => {
+  it('should ignore non-increasing stop sequences', async () => {
     const mockedStream = new Readable();
     mockedStream.push(
       'trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type\n',
@@ -431,10 +482,33 @@ describe('GTFS stop times parser', () => {
     mockedStream.push(null);
 
     const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
-    const validStopIds: StopIds = new Set(['stop1', 'stop2']);
+    const validStopIds: Set<StopId> = new Set([0, 1]);
+    const stopsMap: ParsedStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
 
     const routes = await parseStopTimes(
       mockedStream,
+      stopsMap,
       validTripIds,
       validStopIds,
     );
@@ -442,19 +516,16 @@ describe('GTFS stop times parser', () => {
       routes,
       new Map([
         [
-          'routeA_1tcrqn',
+          'routeA_0',
           {
             serviceRouteId: 'routeA',
-            stops: ['stop1'],
-            stopIndices: new Map([['stop1', 0]]),
-            stopTimes: [
-              {
-                arrival: Time.fromHMS(8, 0, 0),
-                departure: Time.fromHMS(8, 5, 0),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
+            stops: new Uint32Array([0]),
+            stopIndices: new Map([[0, 0]]),
+            stopTimes: new Uint32Array([
+              Time.fromHMS(8, 0, 0).toSeconds(),
+              Time.fromHMS(8, 5, 0).toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([0, 0]),
           },
         ],
       ]),

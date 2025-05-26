@@ -9,45 +9,6 @@ import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
 export const protobufPackage = "minotor.timetable";
 
-export enum PickUpDropOffType {
-  NOT_AVAILABLE = 0,
-  MUST_PHONE_AGENCY = 1,
-  MUST_COORDINATE_WITH_DRIVER = 2,
-  UNRECOGNIZED = -1,
-}
-
-export function pickUpDropOffTypeFromJSON(object: any): PickUpDropOffType {
-  switch (object) {
-    case 0:
-    case "NOT_AVAILABLE":
-      return PickUpDropOffType.NOT_AVAILABLE;
-    case 1:
-    case "MUST_PHONE_AGENCY":
-      return PickUpDropOffType.MUST_PHONE_AGENCY;
-    case 2:
-    case "MUST_COORDINATE_WITH_DRIVER":
-      return PickUpDropOffType.MUST_COORDINATE_WITH_DRIVER;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return PickUpDropOffType.UNRECOGNIZED;
-  }
-}
-
-export function pickUpDropOffTypeToJSON(object: PickUpDropOffType): string {
-  switch (object) {
-    case PickUpDropOffType.NOT_AVAILABLE:
-      return "NOT_AVAILABLE";
-    case PickUpDropOffType.MUST_PHONE_AGENCY:
-      return "MUST_PHONE_AGENCY";
-    case PickUpDropOffType.MUST_COORDINATE_WITH_DRIVER:
-      return "MUST_COORDINATE_WITH_DRIVER";
-    case PickUpDropOffType.UNRECOGNIZED:
-    default:
-      return "UNRECOGNIZED";
-  }
-}
-
 export enum TransferType {
   RECOMMENDED_TRANSFER_POINT = 0,
   TIMED_TRANSFER = 1,
@@ -174,16 +135,27 @@ export function routeTypeToJSON(object: RouteType): string {
   }
 }
 
-export interface StopTimes {
-  arrival: number;
-  departure: number;
-  pickUpType?: PickUpDropOffType | undefined;
-  dropOffType?: PickUpDropOffType | undefined;
-}
-
 export interface Route {
-  stopTimes: StopTimes[];
-  stops: string[];
+  /**
+   * Arrivals and departures encoded as a 32 bit uint array.
+   * Format: [arrival1, departure1, arrival2, departure2, etc.]
+   */
+  stopTimes: Uint8Array;
+  /**
+   * PickUp and DropOff types represented as an 8 bit uint array.
+   * Values:
+   *   0: REGULAR
+   *   1: NOT_AVAILABLE
+   *   2: MUST_PHONE_AGENCY
+   *   3: MUST_COORDINATE_WITH_DRIVER
+   * Format: [pickupTypeStop1, dropOffTypeStop1, pickupTypeStop2, dropOffTypeStop2, etc.]
+   */
+  pickUpDropOffTypes: Uint8Array;
+  /**
+   * Stops encoded as a 32 bit uint array.
+   * Format: [stop1, stop2, stop3, etc.]
+   */
+  stops: Uint8Array;
   serviceRouteId: string;
 }
 
@@ -197,7 +169,7 @@ export interface RoutesAdjacency_RoutesEntry {
 }
 
 export interface Transfer {
-  destination: string;
+  destination: number;
   type: TransferType;
   minTransferTime?: number | undefined;
 }
@@ -237,128 +209,28 @@ export interface Timetable {
   routes: ServiceRoutesMap | undefined;
 }
 
-function createBaseStopTimes(): StopTimes {
-  return { arrival: 0, departure: 0, pickUpType: undefined, dropOffType: undefined };
-}
-
-export const StopTimes: MessageFns<StopTimes> = {
-  encode(message: StopTimes, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.arrival !== 0) {
-      writer.uint32(8).int32(message.arrival);
-    }
-    if (message.departure !== 0) {
-      writer.uint32(16).int32(message.departure);
-    }
-    if (message.pickUpType !== undefined) {
-      writer.uint32(24).int32(message.pickUpType);
-    }
-    if (message.dropOffType !== undefined) {
-      writer.uint32(32).int32(message.dropOffType);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): StopTimes {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseStopTimes();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.arrival = reader.int32();
-          continue;
-        }
-        case 2: {
-          if (tag !== 16) {
-            break;
-          }
-
-          message.departure = reader.int32();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.pickUpType = reader.int32() as any;
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.dropOffType = reader.int32() as any;
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): StopTimes {
-    return {
-      arrival: isSet(object.arrival) ? globalThis.Number(object.arrival) : 0,
-      departure: isSet(object.departure) ? globalThis.Number(object.departure) : 0,
-      pickUpType: isSet(object.pickUpType) ? pickUpDropOffTypeFromJSON(object.pickUpType) : undefined,
-      dropOffType: isSet(object.dropOffType) ? pickUpDropOffTypeFromJSON(object.dropOffType) : undefined,
-    };
-  },
-
-  toJSON(message: StopTimes): unknown {
-    const obj: any = {};
-    if (message.arrival !== 0) {
-      obj.arrival = Math.round(message.arrival);
-    }
-    if (message.departure !== 0) {
-      obj.departure = Math.round(message.departure);
-    }
-    if (message.pickUpType !== undefined) {
-      obj.pickUpType = pickUpDropOffTypeToJSON(message.pickUpType);
-    }
-    if (message.dropOffType !== undefined) {
-      obj.dropOffType = pickUpDropOffTypeToJSON(message.dropOffType);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<StopTimes>, I>>(base?: I): StopTimes {
-    return StopTimes.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<StopTimes>, I>>(object: I): StopTimes {
-    const message = createBaseStopTimes();
-    message.arrival = object.arrival ?? 0;
-    message.departure = object.departure ?? 0;
-    message.pickUpType = object.pickUpType ?? undefined;
-    message.dropOffType = object.dropOffType ?? undefined;
-    return message;
-  },
-};
-
 function createBaseRoute(): Route {
-  return { stopTimes: [], stops: [], serviceRouteId: "" };
+  return {
+    stopTimes: new Uint8Array(0),
+    pickUpDropOffTypes: new Uint8Array(0),
+    stops: new Uint8Array(0),
+    serviceRouteId: "",
+  };
 }
 
 export const Route: MessageFns<Route> = {
   encode(message: Route, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.stopTimes) {
-      StopTimes.encode(v!, writer.uint32(10).fork()).join();
+    if (message.stopTimes.length !== 0) {
+      writer.uint32(10).bytes(message.stopTimes);
     }
-    for (const v of message.stops) {
-      writer.uint32(18).string(v!);
+    if (message.pickUpDropOffTypes.length !== 0) {
+      writer.uint32(18).bytes(message.pickUpDropOffTypes);
+    }
+    if (message.stops.length !== 0) {
+      writer.uint32(26).bytes(message.stops);
     }
     if (message.serviceRouteId !== "") {
-      writer.uint32(26).string(message.serviceRouteId);
+      writer.uint32(34).string(message.serviceRouteId);
     }
     return writer;
   },
@@ -375,7 +247,7 @@ export const Route: MessageFns<Route> = {
             break;
           }
 
-          message.stopTimes.push(StopTimes.decode(reader, reader.uint32()));
+          message.stopTimes = reader.bytes();
           continue;
         }
         case 2: {
@@ -383,11 +255,19 @@ export const Route: MessageFns<Route> = {
             break;
           }
 
-          message.stops.push(reader.string());
+          message.pickUpDropOffTypes = reader.bytes();
           continue;
         }
         case 3: {
           if (tag !== 26) {
+            break;
+          }
+
+          message.stops = reader.bytes();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
             break;
           }
 
@@ -405,21 +285,25 @@ export const Route: MessageFns<Route> = {
 
   fromJSON(object: any): Route {
     return {
-      stopTimes: globalThis.Array.isArray(object?.stopTimes)
-        ? object.stopTimes.map((e: any) => StopTimes.fromJSON(e))
-        : [],
-      stops: globalThis.Array.isArray(object?.stops) ? object.stops.map((e: any) => globalThis.String(e)) : [],
+      stopTimes: isSet(object.stopTimes) ? bytesFromBase64(object.stopTimes) : new Uint8Array(0),
+      pickUpDropOffTypes: isSet(object.pickUpDropOffTypes)
+        ? bytesFromBase64(object.pickUpDropOffTypes)
+        : new Uint8Array(0),
+      stops: isSet(object.stops) ? bytesFromBase64(object.stops) : new Uint8Array(0),
       serviceRouteId: isSet(object.serviceRouteId) ? globalThis.String(object.serviceRouteId) : "",
     };
   },
 
   toJSON(message: Route): unknown {
     const obj: any = {};
-    if (message.stopTimes?.length) {
-      obj.stopTimes = message.stopTimes.map((e) => StopTimes.toJSON(e));
+    if (message.stopTimes.length !== 0) {
+      obj.stopTimes = base64FromBytes(message.stopTimes);
     }
-    if (message.stops?.length) {
-      obj.stops = message.stops;
+    if (message.pickUpDropOffTypes.length !== 0) {
+      obj.pickUpDropOffTypes = base64FromBytes(message.pickUpDropOffTypes);
+    }
+    if (message.stops.length !== 0) {
+      obj.stops = base64FromBytes(message.stops);
     }
     if (message.serviceRouteId !== "") {
       obj.serviceRouteId = message.serviceRouteId;
@@ -432,8 +316,9 @@ export const Route: MessageFns<Route> = {
   },
   fromPartial<I extends Exact<DeepPartial<Route>, I>>(object: I): Route {
     const message = createBaseRoute();
-    message.stopTimes = object.stopTimes?.map((e) => StopTimes.fromPartial(e)) || [];
-    message.stops = object.stops?.map((e) => e) || [];
+    message.stopTimes = object.stopTimes ?? new Uint8Array(0);
+    message.pickUpDropOffTypes = object.pickUpDropOffTypes ?? new Uint8Array(0);
+    message.stops = object.stops ?? new Uint8Array(0);
     message.serviceRouteId = object.serviceRouteId ?? "";
     return message;
   },
@@ -595,13 +480,13 @@ export const RoutesAdjacency_RoutesEntry: MessageFns<RoutesAdjacency_RoutesEntry
 };
 
 function createBaseTransfer(): Transfer {
-  return { destination: "", type: 0, minTransferTime: undefined };
+  return { destination: 0, type: 0, minTransferTime: undefined };
 }
 
 export const Transfer: MessageFns<Transfer> = {
   encode(message: Transfer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.destination !== "") {
-      writer.uint32(10).string(message.destination);
+    if (message.destination !== 0) {
+      writer.uint32(8).uint32(message.destination);
     }
     if (message.type !== 0) {
       writer.uint32(16).int32(message.type);
@@ -620,11 +505,11 @@ export const Transfer: MessageFns<Transfer> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 10) {
+          if (tag !== 8) {
             break;
           }
 
-          message.destination = reader.string();
+          message.destination = reader.uint32();
           continue;
         }
         case 2: {
@@ -654,7 +539,7 @@ export const Transfer: MessageFns<Transfer> = {
 
   fromJSON(object: any): Transfer {
     return {
-      destination: isSet(object.destination) ? globalThis.String(object.destination) : "",
+      destination: isSet(object.destination) ? globalThis.Number(object.destination) : 0,
       type: isSet(object.type) ? transferTypeFromJSON(object.type) : 0,
       minTransferTime: isSet(object.minTransferTime) ? globalThis.Number(object.minTransferTime) : undefined,
     };
@@ -662,8 +547,8 @@ export const Transfer: MessageFns<Transfer> = {
 
   toJSON(message: Transfer): unknown {
     const obj: any = {};
-    if (message.destination !== "") {
-      obj.destination = message.destination;
+    if (message.destination !== 0) {
+      obj.destination = Math.round(message.destination);
     }
     if (message.type !== 0) {
       obj.type = transferTypeToJSON(message.type);
@@ -679,7 +564,7 @@ export const Transfer: MessageFns<Transfer> = {
   },
   fromPartial<I extends Exact<DeepPartial<Transfer>, I>>(object: I): Transfer {
     const message = createBaseTransfer();
-    message.destination = object.destination ?? "";
+    message.destination = object.destination ?? 0;
     message.type = object.type ?? 0;
     message.minTransferTime = object.minTransferTime ?? undefined;
     return message;
@@ -1273,6 +1158,31 @@ export const Timetable: MessageFns<Timetable> = {
     return message;
   },
 };
+
+function bytesFromBase64(b64: string): Uint8Array {
+  if ((globalThis as any).Buffer) {
+    return Uint8Array.from(globalThis.Buffer.from(b64, "base64"));
+  } else {
+    const bin = globalThis.atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; ++i) {
+      arr[i] = bin.charCodeAt(i);
+    }
+    return arr;
+  }
+}
+
+function base64FromBytes(arr: Uint8Array): string {
+  if ((globalThis as any).Buffer) {
+    return globalThis.Buffer.from(arr).toString("base64");
+  } else {
+    const bin: string[] = [];
+    arr.forEach((byte) => {
+      bin.push(globalThis.String.fromCharCode(byte));
+    });
+    return globalThis.btoa(bin.join(""));
+  }
+}
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 

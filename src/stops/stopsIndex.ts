@@ -6,7 +6,13 @@ import { addAll, createIndex, search, SearchResult } from 'slimsearch';
 import { generateAccentVariants } from './i18n.js';
 import { deserializeStopsMap, serializeStopsMap } from './io.js';
 import { StopsMap as ProtoStopsMap } from './proto/stops.js';
-import { Stop, StopId, StopsMap } from './stops.js';
+import {
+  SourceStopId,
+  SourceStopsMap,
+  Stop,
+  StopId,
+  StopsMap,
+} from './stops.js';
 
 type StopPoint = { id: StopId; lat: number; lon: number };
 
@@ -17,19 +23,24 @@ type StopPoint = { id: StopId; lat: number; lon: number };
  */
 export class StopsIndex {
   private readonly stopsMap: StopsMap;
+  private readonly sourceStopsMap: SourceStopsMap;
   private readonly textIndex;
   private readonly geoIndex: KDTree;
   private readonly stopPoints: StopPoint[];
 
   constructor(stopsMap: StopsMap) {
     this.stopsMap = stopsMap;
+    this.sourceStopsMap = new Map<SourceStopId, StopId>();
+    for (const [id, stop] of stopsMap.entries()) {
+      this.sourceStopsMap.set(stop.sourceStopId, id);
+    }
     this.textIndex = createIndex({
       fields: ['name'],
       storeFields: ['id'],
       searchOptions: { prefix: true, fuzzy: 0.2 },
       processTerm: generateAccentVariants,
     });
-    const stopsSet = new Map<string, { id: StopId; name: string }>();
+    const stopsSet = new Map<StopId, { id: StopId; name: string }>();
     for (const [id, stop] of stopsMap.entries()) {
       const effectiveStopId = stop.parent ?? id;
       if (!stopsSet.has(effectiveStopId)) {
@@ -87,6 +98,15 @@ export class StopsIndex {
   }
 
   /**
+   * Returns the number of stops in the index.
+   *
+   * @returns The total number of stops.
+   */
+  size(): number {
+    return this.stopsMap.size;
+  }
+
+  /**
    * Finds stops by their name using a text search.
    *
    * @param query - The name or partial name of the stop to search for.
@@ -95,7 +115,7 @@ export class StopsIndex {
    */
   findStopsByName(query: string, maxResults = 5): Stop[] {
     const results = search(this.textIndex, query).map(
-      (result: SearchResult) => this.stopsMap.get(result.id as string) as Stop,
+      (result: SearchResult) => this.stopsMap.get(result.id as number) as Stop,
     );
     return results.slice(0, maxResults);
   }
@@ -129,16 +149,37 @@ export class StopsIndex {
   }
 
   /**
-   * Finds a stop by its ID.
+   * Finds a stop by its internal ID.
    *
-   * @param id - The ID of the stop to search for.
+   * @param id - The internal ID of the stop to search for.
    * @returns The Stop object that matches the specified ID, or undefined if not found.
    */
   findStopById(id: StopId): Stop | undefined {
     return this.stopsMap.get(id);
   }
 
-  equivalentStops(id: StopId): StopId[] {
+  /**
+   * Finds a stop by its ID in the transit data source (e.g. GTFS).
+   *
+   * @param id - The source ID of the stop to search for.
+   * @returns The Stop object that matches the specified ID, or undefined if not found.
+   */
+  findStopBySourceStopId(sourceStopId: SourceStopId): Stop | undefined {
+    const stopId = this.sourceStopsMap.get(sourceStopId);
+    if (stopId === undefined) {
+      return;
+    }
+    return this.findStopById(stopId);
+  }
+
+  /**
+   * Find ids of all sibling stops.
+   */
+  equivalentStops(sourceId: SourceStopId): Stop[] {
+    const id = this.sourceStopsMap.get(sourceId);
+    if (id === undefined) {
+      return [];
+    }
     const stop = this.stopsMap.get(id);
     if (!stop) {
       return [];
@@ -146,6 +187,8 @@ export class StopsIndex {
     const equivalentStops = stop.parent
       ? (this.stopsMap.get(stop.parent)?.children ?? [])
       : stop.children;
-    return Array.from(new Set([id, ...equivalentStops]));
+    return Array.from(new Set([id, ...equivalentStops])).map(
+      (stopId) => this.stopsMap.get(stopId) as Stop,
+    );
   }
 }

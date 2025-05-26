@@ -1,6 +1,5 @@
 import { Duration } from './duration.js';
 import {
-  PickUpDropOffType as ProtoPickUpDropOffType,
   RoutesAdjacency as ProtoRoutesAdjacency,
   RouteType as ProtoRouteType,
   ServiceRoutesMap as ProtoServiceRoutesMap,
@@ -8,9 +7,7 @@ import {
   Transfer as ProtoTransfer,
   TransferType as ProtoTransferType,
 } from './proto/timetable.js';
-import { Time } from './time.js';
 import {
-  PickUpDropOffType,
   Route,
   RoutesAdjacency,
   RouteType,
@@ -20,6 +17,59 @@ import {
   TransferType,
 } from './timetable.js';
 
+const isLittleEndian = (() => {
+  const buffer = new ArrayBuffer(4);
+  const view = new DataView(buffer);
+  view.setUint32(0, 0x12345678);
+  return new Uint8Array(buffer)[0] === 0x78;
+})();
+
+const STANDARD_ENDIANNESS = true; // true = little-endian
+
+function uint32ArrayToBytes(array: Uint32Array): Uint8Array {
+  if (isLittleEndian === STANDARD_ENDIANNESS) {
+    return new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
+  }
+
+  // If endianness doesn't match, we need to swap byte order
+  const result = new Uint8Array(array.length * 4);
+  const view = new DataView(result.buffer);
+
+  for (let i = 0; i < array.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    view.setUint32(i * 4, array[i]!, STANDARD_ENDIANNESS);
+  }
+
+  return result;
+}
+
+function bytesToUint32Array(bytes: Uint8Array): Uint32Array {
+  if (bytes.byteLength % 4 !== 0) {
+    throw new Error(
+      'Byte array length must be a multiple of 4 to convert to Uint32Array',
+    );
+  }
+
+  // If system endianness matches our standard, we can create a view directly
+  if (isLittleEndian === STANDARD_ENDIANNESS) {
+    return new Uint32Array(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength / 4,
+    );
+  }
+
+  // If endianness doesn't match, we need to swap byte order
+  const result = new Uint32Array(bytes.byteLength / 4);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  for (let i = 0; i < result.length; i++) {
+    result[i] = view.getUint32(i * 4, STANDARD_ENDIANNESS);
+  }
+
+  return result;
+}
+
 export const serializeStopsAdjacency = (
   stopsAdjacency: StopsAdjacency,
 ): ProtoStopsAdjacency => {
@@ -28,7 +78,7 @@ export const serializeStopsAdjacency = (
   };
 
   stopsAdjacency.forEach(
-    (value: { transfers: Transfer[]; routes: string[] }, key: string) => {
+    (value: { transfers: Transfer[]; routes: string[] }, key: number) => {
       protoStopsAdjacency.stops[key] = {
         transfers: value.transfers.map((transfer) => ({
           destination: transfer.destination,
@@ -54,13 +104,9 @@ export const serializeRoutesAdjacency = (
 
   routesAdjacency.forEach((value: Route, key: string) => {
     protoRoutesAdjacency.routes[key] = {
-      stopTimes: value.stopTimes.map((stopTimes) => ({
-        arrival: stopTimes.arrival.toSeconds(),
-        departure: stopTimes.departure.toSeconds(),
-        pickUpType: serializePickUpDropOffType(stopTimes.pickUpType),
-        dropOffType: serializePickUpDropOffType(stopTimes.dropOffType),
-      })),
-      stops: value.stops,
+      stopTimes: uint32ArrayToBytes(value.stopTimes),
+      pickUpDropOffTypes: value.pickUpDropOffTypes,
+      stops: uint32ArrayToBytes(value.stops),
       serviceRouteId: value.serviceRouteId,
     };
   });
@@ -92,7 +138,8 @@ export const deserializeStopsAdjacency = (
 ): StopsAdjacency => {
   const stopsAdjacency: StopsAdjacency = new Map();
 
-  Object.entries(protoStopsAdjacency.stops).forEach(([key, value]) => {
+  Object.entries(protoStopsAdjacency.stops).forEach(([keyStr, value]) => {
+    const key = parseInt(keyStr, 10);
     stopsAdjacency.set(key, {
       transfers: value.transfers.map(
         (transfer: ProtoTransfer): Transfer => ({
@@ -116,21 +163,17 @@ export const deserializeRoutesAdjacency = (
   const routesAdjacency: RoutesAdjacency = new Map();
 
   Object.entries(protoRoutesAdjacency.routes).forEach(([key, value]) => {
+    const stops = bytesToUint32Array(value.stops);
+    const indices = new Map<number, number>();
+    for (let i = 0; i < stops.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      indices.set(stops[i]!, i);
+    }
     routesAdjacency.set(key, {
-      stopTimes: value.stopTimes.map((stopTimes) => ({
-        arrival: Time.fromSeconds(stopTimes.arrival),
-        departure: Time.fromSeconds(stopTimes.departure),
-        pickUpType:
-          stopTimes.pickUpType !== undefined
-            ? parsePickUpDropOffType(stopTimes.pickUpType)
-            : 'REGULAR',
-        dropOffType:
-          stopTimes.dropOffType !== undefined
-            ? parsePickUpDropOffType(stopTimes.dropOffType)
-            : 'REGULAR',
-      })),
-      stops: value.stops,
-      stopIndices: new Map(value.stops.map((stop, index) => [stop, index])),
+      stopTimes: bytesToUint32Array(value.stopTimes),
+      pickUpDropOffTypes: value.pickUpDropOffTypes,
+      stops: stops,
+      stopIndices: indices,
       serviceRouteId: value.serviceRouteId,
     });
   });
@@ -231,35 +274,5 @@ const serializeRouteType = (type: RouteType): ProtoRouteType => {
       return ProtoRouteType.TROLLEYBUS;
     case 'MONORAIL':
       return ProtoRouteType.MONORAIL;
-  }
-};
-
-const parsePickUpDropOffType = (
-  type: ProtoPickUpDropOffType,
-): PickUpDropOffType => {
-  switch (type) {
-    case ProtoPickUpDropOffType.MUST_PHONE_AGENCY:
-      return 'MUST_PHONE_AGENCY';
-    case ProtoPickUpDropOffType.MUST_COORDINATE_WITH_DRIVER:
-      return 'MUST_COORDINATE_WITH_DRIVER';
-    case ProtoPickUpDropOffType.NOT_AVAILABLE:
-      return 'NOT_AVAILABLE';
-    default:
-      return 'REGULAR';
-  }
-};
-
-const serializePickUpDropOffType = (
-  type: PickUpDropOffType,
-): ProtoPickUpDropOffType | undefined => {
-  switch (type) {
-    case 'REGULAR':
-      return undefined;
-    case 'NOT_AVAILABLE':
-      return ProtoPickUpDropOffType.NOT_AVAILABLE;
-    case 'MUST_COORDINATE_WITH_DRIVER':
-      return ProtoPickUpDropOffType.MUST_COORDINATE_WITH_DRIVER;
-    case 'MUST_PHONE_AGENCY':
-      return ProtoPickUpDropOffType.MUST_PHONE_AGENCY;
   }
 };

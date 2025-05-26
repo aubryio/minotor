@@ -1,19 +1,22 @@
-import { StopId } from '../stops/stops.js';
+import { SourceStopId, StopId } from '../stops/stops.js';
 import {
+  MUST_COORDINATE_WITH_DRIVER,
+  MUST_PHONE_AGENCY,
+  NOT_AVAILABLE,
   PickUpDropOffType,
+  REGULAR,
   Route,
   RouteId,
   RoutesAdjacency,
   ServiceRouteId,
   ServiceRoutesMap,
   StopsAdjacency,
-  StopTimes,
 } from '../timetable/timetable.js';
 import { ServiceIds } from './services.js';
-import { StopIds } from './stops.js';
+import { ParsedStopsMap } from './stops.js';
 import { GtfsTime, toTime } from './time.js';
 import { TransfersMap } from './transfers.js';
-import { hash, parseCsv } from './utils.js';
+import { hashIds, parseCsv } from './utils.js';
 
 export type TripId = string;
 
@@ -36,7 +39,7 @@ type StopTimeEntry = {
   trip_id: TripId;
   arrival_time?: GtfsTime;
   departure_time?: GtfsTime;
-  stop_id: StopId;
+  stop_id: SourceStopId;
   stop_sequence: number;
   pickup_type?: GtfsPickupDropOffType;
   drop_off_type?: GtfsPickupDropOffType;
@@ -72,7 +75,7 @@ export const parseTrips = async (
 };
 
 export const buildStopsAdjacencyStructure = (
-  validStops: StopIds,
+  validStops: Set<StopId>,
   routes: RoutesAdjacency,
   transfersMap: TransfersMap,
 ): StopsAdjacency => {
@@ -104,65 +107,130 @@ export const buildStopsAdjacencyStructure = (
  * Parses the stop_times.txt data from a GTFS feed.
  *
  * @param stopTimesStream The readable stream containing the stop times data.
+ * @param stopsMap A map of parsed stops from the GTFS feed.
  * @param validTripIds A map of valid trip IDs to corresponding route IDs.
- * @param validStopIds A map of valid stop IDs.
- * @returns A mapping of route IDs to route details. The routes return corresponds to the set of trips from GTFS that share the same stop list.
+ * @param validStopIds A set of valid stop IDs.
+ * @returns A mapping of route IDs to route details. The routes returned correspond to the set of trips from GTFS that share the same stop list.
  */
 export const parseStopTimes = async (
   stopTimesStream: NodeJS.ReadableStream,
+  stopsMap: ParsedStopsMap,
   validTripIds: TripIdsMap,
-  validStopIds: StopIds,
+  validStopIds: Set<StopId>,
 ): Promise<RoutesAdjacency> => {
+  /**
+   * Inserts a trip at the right place in the routes adjacency structure.
+   */
   const addTrip = (currentTripId: TripId) => {
     const gtfsRouteId = validTripIds.get(currentTripId);
     if (!gtfsRouteId) {
       stops = [];
-      stopTimes = [];
+      arrivalTimes = [];
+      departureTimes = [];
+      pickUpTypes = [];
+      dropOffTypes = [];
       return;
     }
-    const routeId = `${gtfsRouteId}_${hash(stops.join('$'))}`;
+    const routeId = `${gtfsRouteId}_${hashIds(stops)}`;
 
     let route = routes.get(routeId);
     if (!route) {
+      const stopsCount = stops.length;
+      const stopsArray = new Uint32Array(stops);
+      const stopTimesArray = new Uint32Array(stopsCount * 2);
+      for (let i = 0; i < stopsCount; i++) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        stopTimesArray[i * 2] = arrivalTimes[i]!;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        stopTimesArray[i * 2 + 1] = departureTimes[i]!;
+      }
+      const pickUpDropOffTypesArray = new Uint8Array(stopsCount * 2);
+      for (let i = 0; i < stopsCount; i++) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        pickUpDropOffTypesArray[i * 2] = pickUpTypes[i]!;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        pickUpDropOffTypesArray[i * 2 + 1] = dropOffTypes[i]!;
+      }
       route = {
         serviceRouteId: gtfsRouteId,
-        stops: [...stops],
+        stops: stopsArray,
         stopIndices: new Map(stops.map((stop, i) => [stop, i])),
-        stopTimes: [...stopTimes],
+        stopTimes: stopTimesArray,
+        pickUpDropOffTypes: pickUpDropOffTypesArray,
       };
       routes.set(routeId, route);
       for (const stop of stops) {
         validStopIds.add(stop);
       }
     } else {
-      const tripFirstStop = stopTimes[0];
-      if (!tripFirstStop) {
+      const tripFirstStopDeparture = departureTimes[0];
+      if (tripFirstStopDeparture === undefined) {
         throw new Error(`Empty trip ${currentTripId}`);
       }
-      // insert the stopTimes at the right position
-      let stopTimesIndex = 0;
-      for (let i = 0; i < route.stopTimes.length; i += stops.length) {
-        const currentDeparture = route.stopTimes[i];
-        if (
-          currentDeparture &&
-          tripFirstStop.departure > currentDeparture.departure
-        ) {
-          stopTimesIndex = i + stops.length;
+
+      // Find the correct position to insert the new trip
+      const stopsCount = stops.length;
+      let insertPosition = 0;
+      const existingTripsCount = route.stopTimes.length / (stopsCount * 2);
+
+      for (let tripIndex = 0; tripIndex < existingTripsCount; tripIndex++) {
+        const currentDeparture =
+          route.stopTimes[tripIndex * stopsCount * 2 + 1];
+        if (currentDeparture && tripFirstStopDeparture > currentDeparture) {
+          insertPosition = (tripIndex + 1) * stopsCount;
         } else {
           break;
         }
       }
-      route.stopTimes.splice(stopTimesIndex, 0, ...stopTimes);
+
+      // insert data for the new trip at the right place
+      const newStopTimesLength = route.stopTimes.length + stopsCount * 2;
+      const newStopTimes = new Uint32Array(newStopTimesLength);
+      const newPickUpDropOffTypes = new Uint8Array(newStopTimesLength);
+
+      newStopTimes.set(route.stopTimes.slice(0, insertPosition * 2), 0);
+      newPickUpDropOffTypes.set(
+        route.pickUpDropOffTypes.slice(0, insertPosition * 2),
+        0,
+      );
+      for (let i = 0; i < stopsCount; i++) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        newStopTimes[(insertPosition + i) * 2] = arrivalTimes[i]!;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        newStopTimes[(insertPosition + i) * 2 + 1] = departureTimes[i]!;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        newPickUpDropOffTypes[(insertPosition + i) * 2] = pickUpTypes[i]!;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        newPickUpDropOffTypes[(insertPosition + i) * 2 + 1] = dropOffTypes[i]!;
+      }
+      const afterInsertionSlice = route.stopTimes.slice(insertPosition * 2);
+      newStopTimes.set(afterInsertionSlice, (insertPosition + stopsCount) * 2);
+      const afterInsertionTypesSlice = route.pickUpDropOffTypes.slice(
+        insertPosition * 2,
+      );
+      newPickUpDropOffTypes.set(
+        afterInsertionTypesSlice,
+        (insertPosition + stopsCount) * 2,
+      );
+
+      route.stopTimes = newStopTimes;
+      route.pickUpDropOffTypes = newPickUpDropOffTypes;
     }
     stops = [];
-    stopTimes = [];
+    arrivalTimes = [];
+    departureTimes = [];
+    pickUpTypes = [];
+    dropOffTypes = [];
   };
 
   const routes: RoutesAdjacency = new Map();
 
   let previousSeq = 0;
   let stops: StopId[] = [];
-  let stopTimes: StopTimes[] = [];
+  let arrivalTimes: number[] = [];
+  let departureTimes: number[] = [];
+  let pickUpTypes: PickUpDropOffType[] = [];
+  let dropOffTypes: PickUpDropOffType[] = [];
   let currentTripId: TripId | undefined = undefined;
 
   for await (const rawLine of parseCsv(stopTimesStream)) {
@@ -180,26 +248,21 @@ export const parseStopTimes = async (
     if (line.pickup_type === 1 && line.drop_off_type === 1) {
       continue;
     }
-    if (
-      currentTripId &&
-      line.trip_id !== currentTripId &&
-      stops.length > 0 &&
-      stopTimes.length > 0
-    ) {
+    if (currentTripId && line.trip_id !== currentTripId && stops.length > 0) {
       addTrip(currentTripId);
     }
     currentTripId = line.trip_id;
-    stops.push(line.stop_id);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    stops.push(stopsMap.get(line.stop_id + '')!.id);
     const departure = line.departure_time ?? line.arrival_time;
     const arrival = line.arrival_time ?? line.departure_time;
-    stopTimes.push({
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      departure: toTime(departure!),
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      arrival: toTime(arrival!),
-      pickUpType: parsePickupDropOffType(line.pickup_type),
-      dropOffType: parsePickupDropOffType(line.drop_off_type),
-    });
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    arrivalTimes.push(toTime(arrival!).toSeconds());
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    departureTimes.push(toTime(departure!).toSeconds());
+    pickUpTypes.push(parsePickupDropOffType(line.pickup_type));
+    dropOffTypes.push(parsePickupDropOffType(line.drop_off_type));
+
     previousSeq = line.stop_sequence;
   }
   if (currentTripId) {
@@ -215,14 +278,14 @@ const parsePickupDropOffType = (
   switch (gtfsType) {
     default:
       console.warn(`Unknown pickup/drop-off type ${gtfsType}`);
-      return 'REGULAR';
+      return REGULAR;
     case 0:
-      return 'REGULAR';
+      return REGULAR;
     case 1:
-      return 'NOT_AVAILABLE';
+      return NOT_AVAILABLE;
     case 2:
-      return 'MUST_PHONE_AGENCY';
+      return MUST_PHONE_AGENCY;
     case 3:
-      return 'MUST_COORDINATE_WITH_DRIVER';
+      return MUST_COORDINATE_WITH_DRIVER;
   }
 };

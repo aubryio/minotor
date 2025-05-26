@@ -2,23 +2,28 @@ syntax = "proto3";
 
 package minotor.timetable;
 
-enum PickUpDropOffType {
-  NOT_AVAILABLE = 0;
-  MUST_PHONE_AGENCY = 1;
-  MUST_COORDINATE_WITH_DRIVER = 2;
-}
-
-message StopTimes {
-  int32 arrival = 1;
-  int32 departure = 2;
-  optional PickUpDropOffType pickUpType = 3;
-  optional PickUpDropOffType dropOffType = 4;
-}
-
 message Route {
-  repeated StopTimes stopTimes = 1;
-  repeated string stops = 2;
-  string serviceRouteId = 3;
+  /**
+   * Arrivals and departures encoded as a 32 bit uint array.
+   * Format: [arrival1, departure1, arrival2, departure2, etc.]
+   */
+  bytes stopTimes = 1;
+  /**
+   * PickUp and DropOff types represented as an 8 bit uint array.
+   * Values:
+   *   0: REGULAR
+   *   1: NOT_AVAILABLE
+   *   2: MUST_PHONE_AGENCY
+   *   3: MUST_COORDINATE_WITH_DRIVER
+   * Format: [pickupTypeStop1, dropOffTypeStop1, pickupTypeStop2, dropOffTypeStop2, etc.]
+   */
+  bytes pickUpDropOffTypes = 2;
+  /**
+   * Stops encoded as a 32 bit uint array.
+   * Format: [stop1, stop2, stop3, etc.]
+   */
+  bytes stops = 3;
+  string serviceRouteId = 4;
 }
 
 message RoutesAdjacency {
@@ -33,7 +38,7 @@ enum TransferType {
 }
 
 message Transfer {
-  string destination = 1;
+  uint32 destination = 1;
   TransferType type = 2;
   optional int32 minTransferTime = 3;
 }

@@ -3,13 +3,12 @@ import {
   LocationType,
   Longitude,
   Platform,
+  SourceStopId,
   Stop,
   StopId,
   StopsMap,
 } from '../stops/stops.js';
 import { Maybe, parseCsv } from './utils.js';
-
-export type StopIds = Set<StopId>;
 
 export type GtfsLocationType =
   | 0 // simple stop or platform (can also be empty)
@@ -19,15 +18,20 @@ export type GtfsLocationType =
   | 4; // boarding area
 
 export type StopEntry = {
-  stop_id: StopId;
+  stop_id: SourceStopId;
   stop_name: string;
   stop_lat?: Latitude;
   stop_lon?: Longitude;
   location_type?: GtfsLocationType;
-  parent_station?: StopId;
+  parent_station?: SourceStopId;
   platform_code?: Platform;
 };
 
+type ParsedStop = Stop & {
+  parentSourceId?: SourceStopId;
+};
+
+export type ParsedStopsMap = Map<SourceStopId, ParsedStop>;
 /**
  * Parses the stops.txt file from a GTFS feed.
  *
@@ -37,14 +41,14 @@ export type StopEntry = {
 export const parseStops = async (
   stopsStream: NodeJS.ReadableStream,
   platformParser?: (stopEntry: StopEntry) => Maybe<Platform>,
-  validStops?: StopIds,
-): Promise<StopsMap> => {
-  const stops: StopsMap = new Map();
-
+): Promise<ParsedStopsMap> => {
+  const parsedStops = new Map<SourceStopId, ParsedStop>();
+  let i = 0;
   for await (const rawLine of parseCsv(stopsStream)) {
     const line = rawLine as StopEntry;
-    const stop: Stop = {
-      id: line.stop_id,
+    const stop: ParsedStop = {
+      id: i,
+      sourceStopId: line.stop_id + '',
       name: line.stop_name,
       lat: line.stop_lat,
       lon: line.stop_lon,
@@ -52,7 +56,7 @@ export const parseStops = async (
         ? parseGtfsLocationType(line.location_type)
         : 'SIMPLE_STOP_OR_PLATFORM',
       children: [],
-      ...(line.parent_station && { parent: line.parent_station }),
+      ...(line.parent_station && { parentSourceId: line.parent_station }),
     };
     if (platformParser) {
       try {
@@ -64,30 +68,61 @@ export const parseStops = async (
         console.info(`Could not parse platform for stop ${line.stop_id}.`);
       }
     }
-    stops.set(line.stop_id, stop);
+    parsedStops.set(line.stop_id + '', stop);
+    i = i + 1;
   }
 
-  for (const [stopId, stop] of stops) {
-    if (stop.parent) {
-      const parentStop = stops.get(stop.parent);
+  for (const [sourceStopId, stop] of parsedStops) {
+    if (stop.parentSourceId) {
+      const parentStop = parsedStops.get(stop.parentSourceId);
       if (!parentStop) {
-        console.warn(`Cannot find parent stop ${stop.parent} of ${stopId}`);
+        console.warn(
+          `Cannot find parent stop ${stop.parentSourceId} of ${sourceStopId}`,
+        );
         continue;
       }
-      parentStop.children.push(stopId);
+      stop.parent = parentStop.id;
+      parentStop.children.push(stop.id);
     }
   }
-  if (validStops) {
-    // Remove all stops which don't have at least one valid stopId as a child,
-    // a parent or as its own.
-    for (const [stopId, stop] of stops) {
-      if (
-        !validStops.has(stopId) &&
-        (!stop.parent || !validStops.has(stop.parent)) &&
-        !stop.children.some((childId) => validStops.has(childId))
-      ) {
-        stops.delete(stopId);
-      }
+  return parsedStops;
+};
+
+/**
+ * Builds the final stop map indexed by internal IDs.
+ * Excludes all stops that do not have at least one valid stopId
+ * as a child, a parent, or being valid itself.
+ *
+ * @param parsedStops - The map of parsed stops.
+ * @param validStops - A set of valid stop IDs.
+ * @returns A map of stops indexed by internal IDs.
+ */
+export const indexStops = (
+  parsedStops: ParsedStopsMap,
+  validStops?: Set<StopId>,
+): StopsMap => {
+  const stops = new Map<StopId, Stop>();
+
+  for (const [, stop] of parsedStops) {
+    if (
+      !validStops ||
+      validStops.has(stop.id) ||
+      (stop.parent && validStops.has(stop.parent)) ||
+      stop.children.some((childId) => validStops.has(childId))
+    ) {
+      stops.set(stop.id, {
+        id: stop.id,
+        sourceStopId: stop.sourceStopId,
+        name: stop.name,
+        lat: stop.lat,
+        lon: stop.lon,
+        locationType: stop.locationType,
+        platform: stop.platform,
+        children: stop.children.filter(
+          (childId) => !validStops || validStops.has(childId),
+        ),
+        parent: stop.parent,
+      });
     }
   }
   return stops;

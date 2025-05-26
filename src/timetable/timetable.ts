@@ -13,29 +13,55 @@ import {
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
 import { Time } from './time.js';
 
-export type PickUpDropOffType =
-  | 'REGULAR'
-  | 'NOT_AVAILABLE'
-  | 'MUST_PHONE_AGENCY'
-  | 'MUST_COORDINATE_WITH_DRIVER';
-
-export type StopTimes = {
-  arrival: Time;
-  departure: Time;
-  pickUpType: PickUpDropOffType;
-  dropOffType: PickUpDropOffType;
-};
+// Identifies all trips of a given service route sharing the same list of stops.
 export type RouteId = string;
 
-export type IndexedStopId = {
-  stopId: StopId;
-  index: number;
-};
+export const REGULAR = 0;
+export const NOT_AVAILABLE = 1;
+export const MUST_PHONE_AGENCY = 2;
+export const MUST_COORDINATE_WITH_DRIVER = 3;
+
+export type PickUpDropOffType =
+  | 0 // REGULAR
+  | 1 // NOT_AVAILABLE
+  | 2 // MUST_PHONE_AGENCY
+  | 3; // MUST_COORDINATE_WITH_DRIVER
+
 export type Route = {
-  stopTimes: StopTimes[];
-  stops: StopId[];
+  /**
+   * Arrivals and departures encoded as a binary array.
+   * Format: [arrival1, departure1, arrival2, departure2, etc.]
+   */
+  stopTimes: Uint32Array;
+  /**
+   * PickUp and DropOff types represented as a binary Uint8Array.
+   * Values:
+   *   0: REGULAR
+   *   1: NOT_AVAILABLE
+   *   2: MUST_PHONE_AGENCY
+   *   3: MUST_COORDINATE_WITH_DRIVER
+   * Format: [pickupTypeStop1, dropOffTypeStop1, pickupTypeStop2, dropOffTypeStop2, etc.]
+   */
+  pickUpDropOffTypes: Uint8Array;
+  /**
+   * A binary array of stopIds in the route.
+   * [stop1, stop2, stop3,...]
+   */
+  stops: Uint32Array;
+  /**
+   * A reverse mapping of each stop with their index in the route:
+   * {
+   *   4: 0,
+   *   5: 1,
+   *   ...
+   * }
+   */
   stopIndices: Map<StopId, number>;
+  /**
+   * The identifier of the route as a service shown to users.
+   */
   serviceRouteId: ServiceRouteId;
+  // TODO Add tripIds for real-time support
 };
 export type RoutesAdjacency = Map<RouteId, Route>;
 
@@ -101,7 +127,7 @@ export const ALL_TRANSPORT_MODES: RouteType[] = [
   'MONORAIL',
 ];
 
-export const CURRENT_VERSION = '0.0.1';
+export const CURRENT_VERSION = '0.0.2';
 
 /**
  * The internal transit timetable format
@@ -163,6 +189,14 @@ export class Timetable {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       deserializeServiceRoutesMap(protoTimetable.routes!),
     );
+  }
+
+  getRoutesThroughStop(stopId: StopId): RouteId[] {
+    const stopAdjacency = this.stopsAdjacency.get(stopId);
+    if (!stopAdjacency) {
+      return [];
+    }
+    return stopAdjacency.routes;
   }
 
   getRoute(routeId: RouteId): Route | undefined {
@@ -249,11 +283,9 @@ export class Timetable {
         tripIndex++
       ) {
         const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
-        const stopTime = route.stopTimes[stopTimeIndex]!;
-        if (
-          stopTime.departure >= after &&
-          stopTime.pickUpType !== 'NOT_AVAILABLE'
-        ) {
+        const departure = route.stopTimes[stopTimeIndex * 2 + 1]!;
+        const pickUpType = route.pickUpDropOffTypes[stopTimeIndex * 2]!;
+        if (departure >= after.toSeconds() && pickUpType !== NOT_AVAILABLE) {
           return tripIndex;
         }
       }
@@ -267,17 +299,18 @@ export class Timetable {
         tripIndex--
       ) {
         const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
-        const stopTime = route.stopTimes[stopTimeIndex]!;
-        if (stopTime.departure < after) {
+        const departure = route.stopTimes[stopTimeIndex * 2 + 1]!;
+        const pickUpType = route.pickUpDropOffTypes[stopTimeIndex * 2]!;
+        if (departure < after.toSeconds()) {
           break;
         }
         if (
-          stopTime.pickUpType !== 'NOT_AVAILABLE' &&
+          pickUpType !== NOT_AVAILABLE &&
           (earliestDeparture === undefined ||
-            stopTime.departure < earliestDeparture)
+            departure < earliestDeparture.toSeconds())
         ) {
           earliestTripIndex = tripIndex;
-          earliestDeparture = stopTime.departure;
+          earliestDeparture = Time.fromSeconds(departure);
         }
       }
       return earliestTripIndex;

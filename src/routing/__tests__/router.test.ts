@@ -22,40 +22,36 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        ['stop1', { transfers: [], routes: ['route1'] }],
-        ['stop2', { transfers: [], routes: ['route1'] }],
-        ['stop3', { transfers: [], routes: ['route1'] }],
+        [0, { transfers: [], routes: ['route1'] }],
+        [1, { transfers: [], routes: ['route1'] }],
+        [2, { transfers: [], routes: ['route1'] }],
       ]);
 
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:00:00'),
-                departure: Time.fromString('08:10:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:15:00'),
-                departure: Time.fromString('08:25:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:35:00'),
-                departure: Time.fromString('08:45:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop1', 'stop2', 'stop3'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:00:00').toSeconds(),
+              Time.fromString('08:10:00').toSeconds(),
+              Time.fromString('08:15:00').toSeconds(),
+              Time.fromString('08:25:00').toSeconds(),
+              Time.fromString('08:35:00').toSeconds(),
+              Time.fromString('08:45:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0,
+              0, // REGULAR
+              0,
+              0, // REGULAR
+              0,
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([0, 1, 2]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
-              ['stop3', 2],
+              [0, 0],
+              [1, 1],
+              [2, 2],
             ]),
             serviceRouteId: 'service_route1',
           },
@@ -75,9 +71,10 @@ describe('Router', () => {
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
       const stopsMap: StopsMap = new Map([
         [
-          'stop1',
+          0,
           {
-            id: 'stop1',
+            id: 0,
+            sourceStopId: 'stop1',
             name: 'Stop 1',
             lat: 1.0,
             lon: 1.0,
@@ -86,9 +83,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop2',
+          1,
           {
-            id: 'stop2',
+            id: 1,
+            sourceStopId: 'stop2',
             name: 'Stop 2',
             lat: 2.0,
             lon: 2.0,
@@ -97,9 +95,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop3',
+          2,
           {
-            id: 'stop3',
+            id: 2,
+            sourceStopId: 'stop3',
             name: 'Stop 3',
             lat: 3.0,
             lon: 3.0,
@@ -159,42 +158,37 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        ['stop1', { transfers: [], routes: ['route1'] }],
-        ['stop2', { transfers: [], routes: ['route1', 'route2'] }],
-        ['stop3', { transfers: [], routes: ['route1'] }],
-        ['stop4', { transfers: [], routes: ['route2'] }],
-        ['stop5', { transfers: [], routes: ['route2'] }],
+        [0, { transfers: [], routes: ['route1'] }],
+        [1, { transfers: [], routes: ['route1', 'route2'] }],
+        [2, { transfers: [], routes: ['route1'] }],
+        [3, { transfers: [], routes: ['route2'] }],
+        [4, { transfers: [], routes: ['route2'] }],
       ]);
-
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:00:00'),
-                departure: Time.fromString('08:15:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:30:00'),
-                departure: Time.fromString('08:45:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:00:00'),
-                departure: Time.fromString('09:10:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop1', 'stop2', 'stop3'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:00:00').toSeconds(),
+              Time.fromString('08:15:00').toSeconds(),
+              Time.fromString('08:30:00').toSeconds(),
+              Time.fromString('08:45:00').toSeconds(),
+              Time.fromString('09:00:00').toSeconds(),
+              Time.fromString('09:10:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([0, 1, 2]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
-              ['stop3', 2],
+              [0, 0],
+              [1, 1],
+              [2, 2],
             ]),
             serviceRouteId: 'service_route1',
           },
@@ -202,31 +196,27 @@ describe('Router', () => {
         [
           'route2',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:05:00'),
-                departure: Time.fromString('08:20:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:00:00'),
-                departure: Time.fromString('09:15:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:20:00'),
-                departure: Time.fromString('09:35:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop4', 'stop2', 'stop5'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:05:00').toSeconds(),
+              Time.fromString('08:20:00').toSeconds(),
+              Time.fromString('09:00:00').toSeconds(),
+              Time.fromString('09:15:00').toSeconds(),
+              Time.fromString('09:20:00').toSeconds(),
+              Time.fromString('09:35:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([3, 1, 4]),
             stopIndices: new Map([
-              ['stop4', 0],
-              ['stop2', 1],
-              ['stop5', 2],
+              [3, 0],
+              [1, 1],
+              [4, 2],
             ]),
             serviceRouteId: 'service_route2',
           },
@@ -251,11 +241,13 @@ describe('Router', () => {
       ]);
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
+
       const stopsMap: StopsMap = new Map([
         [
-          'stop1',
+          0,
           {
-            id: 'stop1',
+            id: 0,
+            sourceStopId: 'stop1',
             name: 'Stop 1',
             lat: 1.0,
             lon: 1.0,
@@ -264,9 +256,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop2',
+          1,
           {
-            id: 'stop2',
+            id: 1,
+            sourceStopId: 'stop2',
             name: 'Stop 2',
             lat: 2.0,
             lon: 2.0,
@@ -275,9 +268,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop3',
+          2,
           {
-            id: 'stop3',
+            id: 2,
+            sourceStopId: 'stop3',
             name: 'Stop 3',
             lat: 3.0,
             lon: 3.0,
@@ -286,9 +280,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop4',
+          3,
           {
-            id: 'stop4',
+            id: 3,
+            sourceStopId: 'stop4',
             name: 'Stop 4',
             lat: 4.0,
             lon: 4.0,
@@ -297,9 +292,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop5',
+          4,
           {
-            id: 'stop5',
+            id: 4,
+            sourceStopId: 'stop5',
             name: 'Stop 5',
             lat: 5.0,
             lon: 5.0,
@@ -308,6 +304,7 @@ describe('Router', () => {
           },
         ],
       ]);
+
       const stopsIndex = new StopsIndex(stopsMap);
       router = new Router(timetable, stopsIndex);
     });
@@ -347,13 +344,13 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        ['stop1', { transfers: [], routes: ['route1'] }],
+        [0, { transfers: [], routes: ['route1'] }],
         [
-          'stop2',
+          1,
           {
             transfers: [
               {
-                destination: 'stop5',
+                destination: 4,
                 type: 'REQUIRES_MINIMAL_TIME',
                 minTransferTime: Duration.fromSeconds(300),
               },
@@ -361,41 +358,37 @@ describe('Router', () => {
             routes: ['route1'],
           },
         ],
-        ['stop3', { transfers: [], routes: ['route1'] }],
-        ['stop4', { transfers: [], routes: ['route2'] }],
-        ['stop5', { transfers: [], routes: ['route2'] }],
-        ['stop6', { transfers: [], routes: ['route2'] }],
+        [2, { transfers: [], routes: ['route1'] }],
+        [3, { transfers: [], routes: ['route2'] }],
+        [4, { transfers: [], routes: ['route2'] }],
+        [5, { transfers: [], routes: ['route2'] }],
       ]);
 
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:00:00'),
-                departure: Time.fromString('08:15:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:25:00'),
-                departure: Time.fromString('08:35:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:45:00'),
-                departure: Time.fromString('08:55:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop1', 'stop2', 'stop3'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:00:00').toSeconds(),
+              Time.fromString('08:15:00').toSeconds(),
+              Time.fromString('08:25:00').toSeconds(),
+              Time.fromString('08:35:00').toSeconds(),
+              Time.fromString('08:45:00').toSeconds(),
+              Time.fromString('08:55:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([0, 1, 2]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
-              ['stop3', 2],
+              [0, 0],
+              [1, 1],
+              [2, 2],
             ]),
             serviceRouteId: 'service_route1',
           },
@@ -403,31 +396,27 @@ describe('Router', () => {
         [
           'route2',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:10:00'),
-                departure: Time.fromString('08:20:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:40:00'),
-                departure: Time.fromString('08:50:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:00:00'),
-                departure: Time.fromString('09:10:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop4', 'stop5', 'stop6'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:10:00').toSeconds(),
+              Time.fromString('08:20:00').toSeconds(),
+              Time.fromString('08:40:00').toSeconds(),
+              Time.fromString('08:50:00').toSeconds(),
+              Time.fromString('09:00:00').toSeconds(),
+              Time.fromString('09:10:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([3, 4, 5]),
             stopIndices: new Map([
-              ['stop4', 0],
-              ['stop5', 1],
-              ['stop6', 2],
+              [3, 0],
+              [4, 1],
+              [5, 2],
             ]),
             serviceRouteId: 'service_route2',
           },
@@ -454,9 +443,10 @@ describe('Router', () => {
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
       const stopsMap: StopsMap = new Map([
         [
-          'stop1',
+          0,
           {
-            id: 'stop1',
+            id: 0,
+            sourceStopId: 'stop1',
             name: 'Stop 1',
             lat: 1.0,
             lon: 1.0,
@@ -465,9 +455,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop2',
+          1,
           {
-            id: 'stop2',
+            id: 1,
+            sourceStopId: 'stop2',
             name: 'Stop 2',
             lat: 2.0,
             lon: 2.0,
@@ -476,9 +467,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop3',
+          2,
           {
-            id: 'stop3',
+            id: 2,
+            sourceStopId: 'stop3',
             name: 'Stop 3',
             lat: 3.0,
             lon: 3.0,
@@ -487,9 +479,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop4',
+          3,
           {
-            id: 'stop4',
+            id: 3,
+            sourceStopId: 'stop4',
             name: 'Stop 4',
             lat: 4.0,
             lon: 4.0,
@@ -498,9 +491,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop5',
+          4,
           {
-            id: 'stop5',
+            id: 4,
+            sourceStopId: 'stop5',
             name: 'Stop 5',
             lat: 5.0,
             lon: 5.0,
@@ -509,9 +503,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop6',
+          5,
           {
-            id: 'stop6',
+            id: 5,
+            sourceStopId: 'stop6',
             name: 'Stop 6',
             lat: 6.0,
             lon: 6.0,
@@ -559,42 +554,38 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        ['stop1', { transfers: [], routes: ['route1'] }],
-        ['stop2', { transfers: [], routes: ['route1', 'route2'] }],
-        ['stop3', { transfers: [], routes: ['route1'] }],
-        ['stop4', { transfers: [], routes: ['route2'] }],
-        ['stop5', { transfers: [], routes: ['route2'] }],
+        [0, { transfers: [], routes: ['route1'] }],
+        [1, { transfers: [], routes: ['route1', 'route2'] }],
+        [2, { transfers: [], routes: ['route1'] }],
+        [3, { transfers: [], routes: ['route2'] }],
+        [4, { transfers: [], routes: ['route2'] }],
       ]);
 
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:00:00'),
-                departure: Time.fromString('08:15:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:30:00'),
-                departure: Time.fromString('08:45:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:00:00'),
-                departure: Time.fromString('09:15:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop1', 'stop2', 'stop3'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:00:00').toSeconds(),
+              Time.fromString('08:15:00').toSeconds(),
+              Time.fromString('08:30:00').toSeconds(),
+              Time.fromString('08:45:00').toSeconds(),
+              Time.fromString('09:00:00').toSeconds(),
+              Time.fromString('09:15:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([0, 1, 2]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop2', 1],
-              ['stop3', 2],
+              [0, 0],
+              [1, 1],
+              [2, 2],
             ]),
             serviceRouteId: 'service_route1',
           },
@@ -602,31 +593,27 @@ describe('Router', () => {
         [
           'route2',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:10:00'),
-                departure: Time.fromString('08:25:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('08:50:00'),
-                departure: Time.fromString('09:05:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:10:00'),
-                departure: Time.fromString('09:25:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop4', 'stop2', 'stop5'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:10:00').toSeconds(),
+              Time.fromString('08:25:00').toSeconds(),
+              Time.fromString('08:50:00').toSeconds(),
+              Time.fromString('09:05:00').toSeconds(),
+              Time.fromString('09:10:00').toSeconds(),
+              Time.fromString('09:25:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([3, 1, 4]),
             stopIndices: new Map([
-              ['stop4', 0],
-              ['stop2', 1],
-              ['stop5', 2],
+              [3, 0],
+              [1, 1],
+              [4, 2],
             ]),
             serviceRouteId: 'service_route2',
           },
@@ -634,24 +621,22 @@ describe('Router', () => {
         [
           'route3',
           {
-            stopTimes: [
-              {
-                arrival: Time.fromString('08:00:00'),
-                departure: Time.fromString('08:15:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-              {
-                arrival: Time.fromString('09:45:00'),
-                departure: Time.fromString('10:00:00'),
-                pickUpType: 'REGULAR',
-                dropOffType: 'REGULAR',
-              },
-            ],
-            stops: ['stop1', 'stop5'],
+            stopTimes: new Uint32Array([
+              Time.fromString('08:00:00').toSeconds(),
+              Time.fromString('08:15:00').toSeconds(),
+              Time.fromString('09:45:00').toSeconds(),
+              Time.fromString('10:00:00').toSeconds(),
+            ]),
+            pickUpDropOffTypes: new Uint8Array([
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+              0, // REGULAR
+            ]),
+            stops: new Uint32Array([0, 4]),
             stopIndices: new Map([
-              ['stop1', 0],
-              ['stop5', 1],
+              [0, 0],
+              [4, 1],
             ]),
             serviceRouteId: 'service_route3',
           },
@@ -685,9 +670,10 @@ describe('Router', () => {
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
       const stopsMap: StopsMap = new Map([
         [
-          'stop1',
+          0,
           {
-            id: 'stop1',
+            id: 0,
+            sourceStopId: 'stop1',
             name: 'Stop 1',
             lat: 1.0,
             lon: 1.0,
@@ -696,9 +682,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop2',
+          1,
           {
-            id: 'stop2',
+            id: 1,
+            sourceStopId: 'stop2',
             name: 'Stop 2',
             lat: 2.0,
             lon: 2.0,
@@ -707,9 +694,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop3',
+          2,
           {
-            id: 'stop3',
+            id: 2,
+            sourceStopId: 'stop3',
             name: 'Stop 3',
             lat: 3.0,
             lon: 3.0,
@@ -718,9 +706,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop4',
+          3,
           {
-            id: 'stop4',
+            id: 3,
+            sourceStopId: 'stop4',
             name: 'Stop 4',
             lat: 4.0,
             lon: 4.0,
@@ -729,9 +718,10 @@ describe('Router', () => {
           },
         ],
         [
-          'stop5',
+          4,
           {
-            id: 'stop5',
+            id: 4,
+            sourceStopId: 'stop5',
             name: 'Stop 5',
             lat: 5.0,
             lon: 5.0,

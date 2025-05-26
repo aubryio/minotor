@@ -62,27 +62,29 @@ export function locationTypeToJSON(object: LocationType): string {
 
 export interface Stop {
   name: string;
+  sourceStopId: string;
   lat?: number | undefined;
   lon?: number | undefined;
-  children: string[];
-  parent?: string | undefined;
+  children: number[];
+  parent?: number | undefined;
   locationType: LocationType;
   platform?: string | undefined;
 }
 
 export interface StopsMap {
   version: string;
-  stops: { [key: string]: Stop };
+  stops: { [key: number]: Stop };
 }
 
 export interface StopsMap_StopsEntry {
-  key: string;
+  key: number;
   value: Stop | undefined;
 }
 
 function createBaseStop(): Stop {
   return {
     name: "",
+    sourceStopId: "",
     lat: undefined,
     lon: undefined,
     children: [],
@@ -97,23 +99,28 @@ export const Stop: MessageFns<Stop> = {
     if (message.name !== "") {
       writer.uint32(10).string(message.name);
     }
+    if (message.sourceStopId !== "") {
+      writer.uint32(18).string(message.sourceStopId);
+    }
     if (message.lat !== undefined) {
-      writer.uint32(17).double(message.lat);
+      writer.uint32(25).double(message.lat);
     }
     if (message.lon !== undefined) {
-      writer.uint32(25).double(message.lon);
+      writer.uint32(33).double(message.lon);
     }
+    writer.uint32(42).fork();
     for (const v of message.children) {
-      writer.uint32(34).string(v!);
+      writer.uint32(v);
     }
+    writer.join();
     if (message.parent !== undefined) {
-      writer.uint32(42).string(message.parent);
+      writer.uint32(48).uint32(message.parent);
     }
     if (message.locationType !== 0) {
-      writer.uint32(48).int32(message.locationType);
+      writer.uint32(56).int32(message.locationType);
     }
     if (message.platform !== undefined) {
-      writer.uint32(58).string(message.platform);
+      writer.uint32(66).string(message.platform);
     }
     return writer;
   },
@@ -134,11 +141,11 @@ export const Stop: MessageFns<Stop> = {
           continue;
         }
         case 2: {
-          if (tag !== 17) {
+          if (tag !== 18) {
             break;
           }
 
-          message.lat = reader.double();
+          message.sourceStopId = reader.string();
           continue;
         }
         case 3: {
@@ -146,35 +153,53 @@ export const Stop: MessageFns<Stop> = {
             break;
           }
 
-          message.lon = reader.double();
+          message.lat = reader.double();
           continue;
         }
         case 4: {
-          if (tag !== 34) {
+          if (tag !== 33) {
             break;
           }
 
-          message.children.push(reader.string());
+          message.lon = reader.double();
           continue;
         }
         case 5: {
-          if (tag !== 42) {
-            break;
+          if (tag === 40) {
+            message.children.push(reader.uint32());
+
+            continue;
           }
 
-          message.parent = reader.string();
-          continue;
+          if (tag === 42) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.children.push(reader.uint32());
+            }
+
+            continue;
+          }
+
+          break;
         }
         case 6: {
           if (tag !== 48) {
             break;
           }
 
-          message.locationType = reader.int32() as any;
+          message.parent = reader.uint32();
           continue;
         }
         case 7: {
-          if (tag !== 58) {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.locationType = reader.int32() as any;
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
             break;
           }
 
@@ -193,10 +218,11 @@ export const Stop: MessageFns<Stop> = {
   fromJSON(object: any): Stop {
     return {
       name: isSet(object.name) ? globalThis.String(object.name) : "",
+      sourceStopId: isSet(object.sourceStopId) ? globalThis.String(object.sourceStopId) : "",
       lat: isSet(object.lat) ? globalThis.Number(object.lat) : undefined,
       lon: isSet(object.lon) ? globalThis.Number(object.lon) : undefined,
-      children: globalThis.Array.isArray(object?.children) ? object.children.map((e: any) => globalThis.String(e)) : [],
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : undefined,
+      children: globalThis.Array.isArray(object?.children) ? object.children.map((e: any) => globalThis.Number(e)) : [],
+      parent: isSet(object.parent) ? globalThis.Number(object.parent) : undefined,
       locationType: isSet(object.locationType) ? locationTypeFromJSON(object.locationType) : 0,
       platform: isSet(object.platform) ? globalThis.String(object.platform) : undefined,
     };
@@ -207,6 +233,9 @@ export const Stop: MessageFns<Stop> = {
     if (message.name !== "") {
       obj.name = message.name;
     }
+    if (message.sourceStopId !== "") {
+      obj.sourceStopId = message.sourceStopId;
+    }
     if (message.lat !== undefined) {
       obj.lat = message.lat;
     }
@@ -214,10 +243,10 @@ export const Stop: MessageFns<Stop> = {
       obj.lon = message.lon;
     }
     if (message.children?.length) {
-      obj.children = message.children;
+      obj.children = message.children.map((e) => Math.round(e));
     }
     if (message.parent !== undefined) {
-      obj.parent = message.parent;
+      obj.parent = Math.round(message.parent);
     }
     if (message.locationType !== 0) {
       obj.locationType = locationTypeToJSON(message.locationType);
@@ -234,6 +263,7 @@ export const Stop: MessageFns<Stop> = {
   fromPartial<I extends Exact<DeepPartial<Stop>, I>>(object: I): Stop {
     const message = createBaseStop();
     message.name = object.name ?? "";
+    message.sourceStopId = object.sourceStopId ?? "";
     message.lat = object.lat ?? undefined;
     message.lon = object.lon ?? undefined;
     message.children = object.children?.map((e) => e) || [];
@@ -298,8 +328,8 @@ export const StopsMap: MessageFns<StopsMap> = {
     return {
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       stops: isObject(object.stops)
-        ? Object.entries(object.stops).reduce<{ [key: string]: Stop }>((acc, [key, value]) => {
-          acc[key] = Stop.fromJSON(value);
+        ? Object.entries(object.stops).reduce<{ [key: number]: Stop }>((acc, [key, value]) => {
+          acc[globalThis.Number(key)] = Stop.fromJSON(value);
           return acc;
         }, {})
         : {},
@@ -329,9 +359,9 @@ export const StopsMap: MessageFns<StopsMap> = {
   fromPartial<I extends Exact<DeepPartial<StopsMap>, I>>(object: I): StopsMap {
     const message = createBaseStopsMap();
     message.version = object.version ?? "";
-    message.stops = Object.entries(object.stops ?? {}).reduce<{ [key: string]: Stop }>((acc, [key, value]) => {
+    message.stops = Object.entries(object.stops ?? {}).reduce<{ [key: number]: Stop }>((acc, [key, value]) => {
       if (value !== undefined) {
-        acc[key] = Stop.fromPartial(value);
+        acc[globalThis.Number(key)] = Stop.fromPartial(value);
       }
       return acc;
     }, {});
@@ -340,13 +370,13 @@ export const StopsMap: MessageFns<StopsMap> = {
 };
 
 function createBaseStopsMap_StopsEntry(): StopsMap_StopsEntry {
-  return { key: "", value: undefined };
+  return { key: 0, value: undefined };
 }
 
 export const StopsMap_StopsEntry: MessageFns<StopsMap_StopsEntry> = {
   encode(message: StopsMap_StopsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.key !== "") {
-      writer.uint32(10).string(message.key);
+    if (message.key !== 0) {
+      writer.uint32(8).uint32(message.key);
     }
     if (message.value !== undefined) {
       Stop.encode(message.value, writer.uint32(18).fork()).join();
@@ -362,11 +392,11 @@ export const StopsMap_StopsEntry: MessageFns<StopsMap_StopsEntry> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 10) {
+          if (tag !== 8) {
             break;
           }
 
-          message.key = reader.string();
+          message.key = reader.uint32();
           continue;
         }
         case 2: {
@@ -388,15 +418,15 @@ export const StopsMap_StopsEntry: MessageFns<StopsMap_StopsEntry> = {
 
   fromJSON(object: any): StopsMap_StopsEntry {
     return {
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      key: isSet(object.key) ? globalThis.Number(object.key) : 0,
       value: isSet(object.value) ? Stop.fromJSON(object.value) : undefined,
     };
   },
 
   toJSON(message: StopsMap_StopsEntry): unknown {
     const obj: any = {};
-    if (message.key !== "") {
-      obj.key = message.key;
+    if (message.key !== 0) {
+      obj.key = Math.round(message.key);
     }
     if (message.value !== undefined) {
       obj.value = Stop.toJSON(message.value);
@@ -409,7 +439,7 @@ export const StopsMap_StopsEntry: MessageFns<StopsMap_StopsEntry> = {
   },
   fromPartial<I extends Exact<DeepPartial<StopsMap_StopsEntry>, I>>(object: I): StopsMap_StopsEntry {
     const message = createBaseStopsMap_StopsEntry();
-    message.key = object.key ?? "";
+    message.key = object.key ?? 0;
     message.value = (object.value !== undefined && object.value !== null) ? Stop.fromPartial(object.value) : undefined;
     return message;
   },

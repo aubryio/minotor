@@ -1,10 +1,11 @@
-import { StopId } from '../stops/stops.js';
+import { SourceStopId, StopId } from '../stops/stops.js';
 import { Duration } from '../timetable/duration.js';
 import {
   ServiceRouteId,
   Transfer,
   TransferType,
 } from '../timetable/timetable.js';
+import { ParsedStopsMap } from './stops.js';
 import { TripId } from './trips.js';
 import { parseCsv } from './utils.js';
 
@@ -19,8 +20,8 @@ export type GtfsTransferType =
 export type TransfersMap = Map<StopId, Transfer[]>;
 
 export type TransferEntry = {
-  from_stop_id?: StopId;
-  to_stop_id?: StopId;
+  from_stop_id?: SourceStopId;
+  to_stop_id?: SourceStopId;
   from_trip_id?: TripId;
   to_trip_id?: TripId;
   from_route_id?: ServiceRouteId;
@@ -37,11 +38,13 @@ export type TransferEntry = {
  */
 export const parseTransfers = async (
   transfersStream: NodeJS.ReadableStream,
+  stopsMap: ParsedStopsMap,
 ): Promise<TransfersMap> => {
   const transfers: TransfersMap = new Map();
 
   for await (const rawLine of parseCsv(transfersStream)) {
     const transferEntry = rawLine as TransferEntry;
+
     if (
       transferEntry.transfer_type === 3 ||
       transferEntry.transfer_type === 5
@@ -70,17 +73,22 @@ export const parseTransfers = async (
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const fromStop = stopsMap.get(transferEntry.from_stop_id + '')!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const toStop = stopsMap.get(transferEntry.to_stop_id + '')!;
+
     const transfer: Transfer = {
-      destination: transferEntry.to_stop_id,
+      destination: toStop.id,
       type: parseGtfsTransferType(transferEntry.transfer_type),
       ...(transferEntry.min_transfer_time && {
         minTransferTime: Duration.fromSeconds(transferEntry.min_transfer_time),
       }),
     };
 
-    const fromStopTransfers = transfers.get(transferEntry.from_stop_id) || [];
+    const fromStopTransfers = transfers.get(fromStop.id) || [];
     fromStopTransfers.push(transfer);
-    transfers.set(transferEntry.from_stop_id, fromStopTransfers);
+    transfers.set(fromStop.id, fromStopTransfers);
   }
   return transfers;
 };

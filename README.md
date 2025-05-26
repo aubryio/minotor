@@ -155,7 +155,6 @@ Releases are automatically published to npm when merging to the `main` or `beta`
 
 The project is under active development. Here are some of the features that are planned:
 
-- Documentation website and examples
 - Load multiple GTFS archives at once
 - Range queries
 - Transfer preferences
@@ -163,4 +162,6 @@ The project is under active development. Here are some of the features that are 
 - Support for GTFS `frequencies.txt`
 - Support for more types of transfers
 - NeTEx support
-- RT-GTFS Support
+- Higher level timetable API for cleaner router code
+- RT-GTFS Support (adding tripId support)
+- More extensive testing

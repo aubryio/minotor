@@ -5,9 +5,10 @@ import { StopsMap } from '../stops.js';
 import { StopsIndex } from '../stopsIndex.js';
 const mockStops: StopsMap = new Map([
   [
-    '8587255',
+    1,
     {
-      id: '8587255',
+      id: 1,
+      sourceStopId: '8587255',
       name: 'Fribourg, Tilleul/Cathédrale',
       lat: 46.8061375857565,
       lon: 7.16145029437328,
@@ -16,9 +17,10 @@ const mockStops: StopsMap = new Map([
     },
   ],
   [
-    '8592383',
+    2,
     {
-      id: '8592383',
+      id: 2,
+      sourceStopId: '8592383',
       name: 'Fribourg, Neuveville/Court-Ch.',
       lat: 46.8042990960992,
       lon: 7.16060587800609,
@@ -27,9 +29,10 @@ const mockStops: StopsMap = new Map([
     },
   ],
   [
-    '8592386',
+    3,
     {
-      id: '8592386',
+      id: 3,
+      sourceStopId: '8592386',
       name: 'Fribourg, Petit-St-Jean',
       lat: 46.8035550740648,
       lon: 7.16806189486532,
@@ -38,50 +41,54 @@ const mockStops: StopsMap = new Map([
     },
   ],
   [
-    'Parent8504100',
+    4,
     {
-      id: 'Parent8504100',
+      id: 4,
+      sourceStopId: 'Parent8504100',
       name: 'Fribourg/Freiburg',
       lat: 46.8031492395272,
       lon: 7.15104780338173,
-      children: ['8504100:0:1', '8504100:0:1AB', '8504100:0:2'],
+      children: [5, 6, 7],
       locationType: 'STATION',
     },
   ],
   [
-    '8504100:0:1',
+    5,
     {
-      id: '8504100:0:1',
+      id: 5,
+      sourceStopId: '8504100:0:1',
       name: 'Fribourg/Freiburg',
       lat: 46.8031492395272,
       lon: 7.15104780338173,
       children: [],
       locationType: 'SIMPLE_STOP_OR_PLATFORM',
-      parent: 'Parent8504100',
+      parent: 4,
     },
   ],
   [
-    '8504100:0:1AB',
+    6,
     {
-      id: '8504100:0:1AB',
+      id: 6,
+      sourceStopId: '8504100:0:1AB',
       name: 'Fribourg/Freiburg',
       lat: 46.8031492395272,
       lon: 7.15104780338173,
       children: [],
       locationType: 'SIMPLE_STOP_OR_PLATFORM',
-      parent: 'Parent8504100',
+      parent: 4,
     },
   ],
   [
-    '8504100:0:2',
+    7,
     {
-      id: '8504100:0:2',
+      id: 7,
+      sourceStopId: '8504100:0:2',
       name: 'Fribourg/Freiburg',
       lat: 46.8031492395272,
       lon: 7.15104780338173,
       children: [],
       locationType: 'SIMPLE_STOP_OR_PLATFORM',
-      parent: 'Parent8504100',
+      parent: 4,
     },
   ],
 ]);
@@ -98,25 +105,25 @@ describe('StopFinder', () => {
       const results = stopFinder.findStopsByName(
         'Fribourg, Tilleul/Cathédrale',
       );
-      assert.strictEqual(results[0]?.id, '8587255');
+      assert.strictEqual(results[0]?.id, 1);
     });
 
     it('should not include children stops', () => {
       const results = stopFinder.findStopsByName('Fribourg/Freiburg', 2);
-      assert.strictEqual(results[0]?.id, 'Parent8504100');
-      assert.strictEqual(results[1]?.id, '8587255');
+      assert.strictEqual(results[0]?.id, 4);
+      assert.strictEqual(results[1]?.id, 1);
     });
 
     it('should find stops by partial name', () => {
       const results = stopFinder.findStopsByName('Cathédrale');
       assert.strictEqual(results.length, 1);
-      assert.strictEqual(results[0]?.id, '8587255');
+      assert.strictEqual(results[0]?.id, 1);
     });
 
     it('should find stops by name with accents', () => {
       const results = stopFinder.findStopsByName('Cathedrale');
       assert.strictEqual(results.length, 1);
-      assert.strictEqual(results[0]?.id, '8587255');
+      assert.strictEqual(results[0]?.id, 1);
     });
 
     it('should return an empty array if no stops match the query', () => {
@@ -129,22 +136,22 @@ describe('StopFinder', () => {
     it('should find stops by geographic location', () => {
       const results = stopFinder.findStopsByLocation(46.8061, 7.1614, 1);
       assert.strictEqual(results.length, 1);
-      assert.strictEqual(results[0]?.id, '8587255');
+      assert.strictEqual(results[0]?.id, 1);
     });
 
     it('should find multiple stops within the radius', () => {
       const results = stopFinder.findStopsByLocation(46.8, 7.16, 10, 0.75);
       assert.strictEqual(results.length, 3);
-      assert.strictEqual(results[0]?.id, '8592383');
-      assert.strictEqual(results[1]?.id, '8587255');
-      assert.strictEqual(results[2]?.id, '8592386');
+      assert.strictEqual(results[0]?.id, 2);
+      assert.strictEqual(results[1]?.id, 1);
+      assert.strictEqual(results[2]?.id, 3);
     });
 
     it('should find the N closest stops', () => {
       const results = stopFinder.findStopsByLocation(46.8, 7.16, 2, 10);
       assert.strictEqual(results.length, 2);
-      assert.strictEqual(results[0]?.id, '8592383');
-      assert.strictEqual(results[1]?.id, '8587255');
+      assert.strictEqual(results[0]?.id, 2);
+      assert.strictEqual(results[1]?.id, 1);
     });
 
     it('should return an empty array if no stops are within the radius', () => {
@@ -165,20 +172,22 @@ describe('StopFinder', () => {
   describe('equivalentStops', () => {
     it('should find equivalent stops for a given stop ID', () => {
       const equivalentStops = stopFinder.equivalentStops('8504100:0:1');
-      assert.deepStrictEqual(equivalentStops, [
-        '8504100:0:1',
-        '8504100:0:1AB',
-        '8504100:0:2',
-      ]);
+      assert.deepStrictEqual(
+        equivalentStops.map((stop) => stop.id),
+        [5, 6, 7],
+      );
     });
 
     it('should return the same stop ID in an array if no equivalents', () => {
       const equivalentStops = stopFinder.equivalentStops('8587255');
-      assert.deepStrictEqual(equivalentStops, ['8587255']);
+      assert.deepStrictEqual(
+        equivalentStops.map((stop) => stop.id),
+        [1],
+      );
     });
 
     it('should return an empty array for non-existent stop ID', () => {
-      const equivalentStops = stopFinder.equivalentStops('nonexistent');
+      const equivalentStops = stopFinder.equivalentStops('999');
       assert.deepStrictEqual(equivalentStops, []);
     });
   });
