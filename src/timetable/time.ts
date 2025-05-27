@@ -1,10 +1,14 @@
 import { Duration } from './duration.js';
 
 /**
- * A class representing a time in hours, minutes, and seconds.
+ * A class representing a time as minutes since midnight.
  */
 export class Time {
-  private secondsSinceMidnight: number;
+  /*
+   * Number of minutes since midnight.
+   Note that this value can go beyond 3600 to model services overlapping with the next day.
+   */
+  private minutesSinceMidnight: number;
   /**
    * Gets the infinity time as a Time instance.
    * This represents a time that is conceptually beyond any real possible time.
@@ -17,28 +21,29 @@ export class Time {
   /**
    * Gets the midnight time as a Time instance.
    *
-   * @returns A Time instance representing midnight (00:00:00).
+   * @returns A Time instance representing midnight.
    */
   static origin(): Time {
     return new Time(0);
   }
 
-  private constructor(seconds: number) {
-    this.secondsSinceMidnight = seconds;
+  private constructor(minutes: number) {
+    this.minutesSinceMidnight = minutes;
   }
 
   /**
-   * Creates a Time instance from the number of seconds since midnight.
+   * Creates a Time instance from the number of minutes since midnight.
    *
-   * @param seconds - The number of seconds since midnight.
+   * @param minutes - The number of minutes since midnight.
    * @returns A Time instance representing the specified time.
    */
-  static fromSeconds(seconds: number): Time {
-    return new Time(seconds);
+  static fromMinutes(minutes: number): Time {
+    return new Time(minutes);
   }
 
   /**
    * Creates a Time instance from hours, minutes, and seconds.
+   * Rounds to the closest minute as times are represented in minutes from midnight.
    *
    * @param hours - The hours component of the time.
    * @param minutes - The minutes component of the time.
@@ -57,7 +62,25 @@ export class Time {
         'Invalid time. Ensure hours, minutes, and seconds are valid values.',
       );
     }
-    return new Time(seconds + 60 * minutes + 3600 * hours);
+    const totalSeconds = seconds + 60 * minutes + 3600 * hours;
+    const roundedMinutes = Math.round(totalSeconds / 60);
+    return new Time(roundedMinutes);
+  }
+
+  /**
+   * Creates a Time instance from hours, minutes.
+   *
+   * @param hours - The hours component of the time.
+   * @param minutes - The minutes component of the time.
+   * @returns A Time instance representing the specified time.
+   */
+  static fromHM(hours: number, minutes: number): Time {
+    if (hours < 0 || minutes < 0 || minutes >= 60) {
+      throw new Error(
+        'Invalid time. Ensure hours and minutes are valid values.',
+      );
+    }
+    return new Time(minutes + hours * 60);
   }
 
   /**
@@ -70,7 +93,7 @@ export class Time {
     const hours = date.getHours();
     const minutes = date.getMinutes();
     const seconds = date.getSeconds();
-    return new Time(seconds + 60 * minutes + 3600 * hours);
+    return Time.fromHMS(hours, minutes, seconds);
   }
 
   /**
@@ -95,7 +118,7 @@ export class Time {
     const hours = parseInt(hoursStr, 10);
     const minutes = parseInt(minutesStr, 10);
     const seconds = secondsStr !== undefined ? parseInt(secondsStr, 10) : 0;
-    return new Time(seconds + 60 * minutes + 3600 * hours);
+    return Time.fromHMS(hours, minutes, seconds);
   }
 
   /**
@@ -104,22 +127,20 @@ export class Time {
    * @returns A string representing the time.
    */
   toString(): string {
-    const hours = Math.floor(this.secondsSinceMidnight / 3600);
-    const minutes = Math.floor((this.secondsSinceMidnight % 3600) / 60);
-    const seconds = this.secondsSinceMidnight % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes
-      .toString()
-      .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const hours = Math.floor(this.minutesSinceMidnight / 60);
+    const minutes = Math.floor(this.minutesSinceMidnight % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }
 
   /**
-   * Gets the time as the number of seconds since midnight.
+   * Converts the Time instance to the total number of minutes since midnight, rounded to the closest minute.
    *
-   * @returns The time in seconds since midnight.
+   * @returns The time in minutes since midnight.
    */
-  toSeconds(): number {
-    return this.secondsSinceMidnight;
+  toMinutes(): number {
+    return this.minutesSinceMidnight;
   }
+
   /**
    * Adds a Duration to the current Time instance and returns a new Time instance.
    *
@@ -127,8 +148,8 @@ export class Time {
    * @returns A new Time instance with the added duration.
    */
   plus(duration: Duration): Time {
-    const totalSeconds = this.secondsSinceMidnight + duration.toSeconds();
-    return new Time(totalSeconds);
+    const totalSeconds = this.minutesSinceMidnight * 60 + duration.toSeconds();
+    return new Time(Math.round(totalSeconds / 60));
   }
 
   /**
@@ -138,11 +159,11 @@ export class Time {
    * @returns A new Time instance with the subtracted duration.
    */
   minus(duration: Duration): Time {
-    let totalSeconds = this.secondsSinceMidnight - duration.toSeconds();
+    let totalSeconds = this.minutesSinceMidnight * 60 - duration.toSeconds();
     if (totalSeconds < 0) {
       totalSeconds += 24 * 3600; // Adjust for negative time to loop back to previous day
     }
-    return new Time(totalSeconds);
+    return new Time(Math.round(totalSeconds / 60));
   }
 
   /**
@@ -152,8 +173,8 @@ export class Time {
    * @returns A Duration instance representing the time difference.
    */
   diff(otherTime: Time): Duration {
-    const totalSeconds = this.secondsSinceMidnight - otherTime.toSeconds();
-    return Duration.fromSeconds(Math.abs(totalSeconds));
+    const totalMinutes = this.minutesSinceMidnight - otherTime.toMinutes();
+    return Duration.fromSeconds(Math.abs(totalMinutes * 60));
   }
 
   /**
@@ -167,7 +188,7 @@ export class Time {
       throw new Error('At least one Time instance is required.');
     }
     return times.reduce((maxTime, currentTime) => {
-      return currentTime.toSeconds() > maxTime.toSeconds()
+      return currentTime.toMinutes() > maxTime.toMinutes()
         ? currentTime
         : maxTime;
     });
@@ -184,7 +205,7 @@ export class Time {
       throw new Error('At least one Time instance is required.');
     }
     return times.reduce((minTime, currentTime) => {
-      return currentTime.toSeconds() < minTime.toSeconds()
+      return currentTime.toMinutes() < minTime.toMinutes()
         ? currentTime
         : minTime;
     });

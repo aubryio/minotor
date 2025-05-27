@@ -77,8 +77,8 @@ describe('Route', () => {
     const route = new Route([vehicleLeg, transferLeg, secondVehicleLeg]);
     const departureTime = route.departureTime();
     assert.strictEqual(
-      departureTime.toSeconds(),
-      Time.fromHMS(8, 0, 0).toSeconds(),
+      departureTime.toMinutes(),
+      Time.fromHMS(8, 0, 0).toMinutes(),
     );
   });
 
@@ -86,8 +86,8 @@ describe('Route', () => {
     const route = new Route([vehicleLeg, transferLeg, secondVehicleLeg]);
     const arrivalTime = route.arrivalTime();
     assert.strictEqual(
-      arrivalTime.toSeconds(),
-      Time.fromHMS(9, 0, 0).toSeconds(),
+      arrivalTime.toMinutes(),
+      Time.fromHMS(9, 0, 0).toMinutes(),
     );
   });
 

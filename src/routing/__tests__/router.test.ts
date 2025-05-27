@@ -31,13 +31,13 @@ describe('Router', () => {
         [
           'route1',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:00:00').toSeconds(),
-              Time.fromString('08:10:00').toSeconds(),
-              Time.fromString('08:15:00').toSeconds(),
-              Time.fromString('08:25:00').toSeconds(),
-              Time.fromString('08:35:00').toSeconds(),
-              Time.fromString('08:45:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:00:00').toMinutes(),
+              Time.fromString('08:10:00').toMinutes(),
+              Time.fromString('08:15:00').toMinutes(),
+              Time.fromString('08:25:00').toMinutes(),
+              Time.fromString('08:35:00').toMinutes(),
+              Time.fromString('08:45:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0,
@@ -147,8 +147,8 @@ describe('Router', () => {
 
       const timeToStop3 = result.arrivalAt('stop3');
       assert.strictEqual(
-        timeToStop3?.time.toSeconds(),
-        Time.fromString('08:35:00').toSeconds(),
+        timeToStop3?.time.toMinutes(),
+        Time.fromString('08:35:00').toMinutes(),
       );
     });
   });
@@ -168,13 +168,13 @@ describe('Router', () => {
         [
           'route1',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:00:00').toSeconds(),
-              Time.fromString('08:15:00').toSeconds(),
-              Time.fromString('08:30:00').toSeconds(),
-              Time.fromString('08:45:00').toSeconds(),
-              Time.fromString('09:00:00').toSeconds(),
-              Time.fromString('09:10:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:00:00').toMinutes(),
+              Time.fromString('08:15:00').toMinutes(),
+              Time.fromString('08:30:00').toMinutes(),
+              Time.fromString('08:45:00').toMinutes(),
+              Time.fromString('09:00:00').toMinutes(),
+              Time.fromString('09:10:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR
@@ -196,13 +196,13 @@ describe('Router', () => {
         [
           'route2',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:05:00').toSeconds(),
-              Time.fromString('08:20:00').toSeconds(),
-              Time.fromString('09:00:00').toSeconds(),
-              Time.fromString('09:15:00').toSeconds(),
-              Time.fromString('09:20:00').toSeconds(),
-              Time.fromString('09:35:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:05:00').toMinutes(),
+              Time.fromString('08:20:00').toMinutes(),
+              Time.fromString('09:00:00').toMinutes(),
+              Time.fromString('09:15:00').toMinutes(),
+              Time.fromString('09:20:00').toMinutes(),
+              Time.fromString('09:35:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR
@@ -333,8 +333,8 @@ describe('Router', () => {
 
       const timeToStop5 = result.arrivalAt('stop5');
       assert.strictEqual(
-        timeToStop5?.time.toSeconds(),
-        Time.fromString('09:20:00').toSeconds(),
+        timeToStop5?.time.toMinutes(),
+        Time.fromString('09:20:00').toMinutes(),
       );
     });
   });
@@ -368,13 +368,13 @@ describe('Router', () => {
         [
           'route1',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:00:00').toSeconds(),
-              Time.fromString('08:15:00').toSeconds(),
-              Time.fromString('08:25:00').toSeconds(),
-              Time.fromString('08:35:00').toSeconds(),
-              Time.fromString('08:45:00').toSeconds(),
-              Time.fromString('08:55:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:00:00').toMinutes(),
+              Time.fromString('08:15:00').toMinutes(),
+              Time.fromString('08:25:00').toMinutes(),
+              Time.fromString('08:35:00').toMinutes(),
+              Time.fromString('08:45:00').toMinutes(),
+              Time.fromString('08:55:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR
@@ -396,13 +396,13 @@ describe('Router', () => {
         [
           'route2',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:10:00').toSeconds(),
-              Time.fromString('08:20:00').toSeconds(),
-              Time.fromString('08:40:00').toSeconds(),
-              Time.fromString('08:50:00').toSeconds(),
-              Time.fromString('09:00:00').toSeconds(),
-              Time.fromString('09:10:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:10:00').toMinutes(),
+              Time.fromString('08:20:00').toMinutes(),
+              Time.fromString('08:40:00').toMinutes(),
+              Time.fromString('08:50:00').toMinutes(),
+              Time.fromString('09:00:00').toMinutes(),
+              Time.fromString('09:10:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR
@@ -543,8 +543,8 @@ describe('Router', () => {
 
       const timeToStop5 = result.arrivalAt('stop5');
       assert.strictEqual(
-        timeToStop5?.time.toSeconds(),
-        Time.fromString('08:30:00').toSeconds(),
+        timeToStop5?.time.toMinutes(),
+        Time.fromString('08:30:00').toMinutes(),
       );
     });
   });
@@ -565,13 +565,13 @@ describe('Router', () => {
         [
           'route1',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:00:00').toSeconds(),
-              Time.fromString('08:15:00').toSeconds(),
-              Time.fromString('08:30:00').toSeconds(),
-              Time.fromString('08:45:00').toSeconds(),
-              Time.fromString('09:00:00').toSeconds(),
-              Time.fromString('09:15:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:00:00').toMinutes(),
+              Time.fromString('08:15:00').toMinutes(),
+              Time.fromString('08:30:00').toMinutes(),
+              Time.fromString('08:45:00').toMinutes(),
+              Time.fromString('09:00:00').toMinutes(),
+              Time.fromString('09:15:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR
@@ -593,13 +593,13 @@ describe('Router', () => {
         [
           'route2',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:10:00').toSeconds(),
-              Time.fromString('08:25:00').toSeconds(),
-              Time.fromString('08:50:00').toSeconds(),
-              Time.fromString('09:05:00').toSeconds(),
-              Time.fromString('09:10:00').toSeconds(),
-              Time.fromString('09:25:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:10:00').toMinutes(),
+              Time.fromString('08:25:00').toMinutes(),
+              Time.fromString('08:50:00').toMinutes(),
+              Time.fromString('09:05:00').toMinutes(),
+              Time.fromString('09:10:00').toMinutes(),
+              Time.fromString('09:25:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR
@@ -621,11 +621,11 @@ describe('Router', () => {
         [
           'route3',
           {
-            stopTimes: new Uint32Array([
-              Time.fromString('08:00:00').toSeconds(),
-              Time.fromString('08:15:00').toSeconds(),
-              Time.fromString('09:45:00').toSeconds(),
-              Time.fromString('10:00:00').toSeconds(),
+            stopTimes: new Uint16Array([
+              Time.fromString('08:00:00').toMinutes(),
+              Time.fromString('08:15:00').toMinutes(),
+              Time.fromString('09:45:00').toMinutes(),
+              Time.fromString('10:00:00').toMinutes(),
             ]),
             pickUpDropOffTypes: new Uint8Array([
               0, // REGULAR

@@ -137,7 +137,7 @@ export const parseStopTimes = async (
     if (!route) {
       const stopsCount = stops.length;
       const stopsArray = new Uint32Array(stops);
-      const stopTimesArray = new Uint32Array(stopsCount * 2);
+      const stopTimesArray = new Uint16Array(stopsCount * 2);
       for (let i = 0; i < stopsCount; i++) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         stopTimesArray[i * 2] = arrivalTimes[i]!;
@@ -185,7 +185,7 @@ export const parseStopTimes = async (
 
       // insert data for the new trip at the right place
       const newStopTimesLength = route.stopTimes.length + stopsCount * 2;
-      const newStopTimes = new Uint32Array(newStopTimesLength);
+      const newStopTimes = new Uint16Array(newStopTimesLength);
       const newPickUpDropOffTypes = new Uint8Array(newStopTimesLength);
 
       newStopTimes.set(route.stopTimes.slice(0, insertPosition * 2), 0);
@@ -257,9 +257,9 @@ export const parseStopTimes = async (
     const departure = line.departure_time ?? line.arrival_time;
     const arrival = line.arrival_time ?? line.departure_time;
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    arrivalTimes.push(toTime(arrival!).toSeconds());
+    arrivalTimes.push(toTime(arrival!).toMinutes());
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    departureTimes.push(toTime(departure!).toSeconds());
+    departureTimes.push(toTime(departure!).toMinutes());
     pickUpTypes.push(parsePickupDropOffType(line.pickup_type));
     dropOffTypes.push(parsePickupDropOffType(line.drop_off_type));
 

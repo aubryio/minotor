@@ -44,10 +44,10 @@ describe('GTFS parser', () => {
     ]);
     assert.strictEqual(route.stopTimes.length, 4);
     assert.strictEqual(route.pickUpDropOffTypes.length, 4);
-    assert.strictEqual(route.stopTimes[0], Time.fromHMS(8, 0, 0).toSeconds());
-    assert.strictEqual(route.stopTimes[1], Time.fromHMS(8, 0, 0).toSeconds());
-    assert.strictEqual(route.stopTimes[2], Time.fromHMS(8, 10, 0).toSeconds());
-    assert.strictEqual(route.stopTimes[3], Time.fromHMS(8, 15, 0).toSeconds());
+    assert.strictEqual(route.stopTimes[0], Time.fromHMS(8, 0, 0).toMinutes());
+    assert.strictEqual(route.stopTimes[1], Time.fromHMS(8, 0, 0).toMinutes());
+    assert.strictEqual(route.stopTimes[2], Time.fromHMS(8, 10, 0).toMinutes());
+    assert.strictEqual(route.stopTimes[3], Time.fromHMS(8, 15, 0).toMinutes());
 
     const routes = timetable.getRoutesThroughStop(furCreekResId);
     assert.strictEqual(routes.length, 2);

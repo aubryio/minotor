@@ -29,10 +29,10 @@ export type PickUpDropOffType =
 
 export type Route = {
   /**
-   * Arrivals and departures encoded as a binary array.
+   * Arrivals and departures encoded as minutes from midnight.
    * Format: [arrival1, departure1, arrival2, departure2, etc.]
    */
-  stopTimes: Uint32Array;
+  stopTimes: Uint16Array;
   /**
    * PickUp and DropOff types represented as a binary Uint8Array.
    * Values:
@@ -127,7 +127,7 @@ export const ALL_TRANSPORT_MODES: RouteType[] = [
   'MONORAIL',
 ];
 
-export const CURRENT_VERSION = '0.0.2';
+export const CURRENT_VERSION = '0.0.3';
 
 /**
  * The internal transit timetable format
@@ -285,7 +285,7 @@ export class Timetable {
         const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
         const departure = route.stopTimes[stopTimeIndex * 2 + 1]!;
         const pickUpType = route.pickUpDropOffTypes[stopTimeIndex * 2]!;
-        if (departure >= after.toSeconds() && pickUpType !== NOT_AVAILABLE) {
+        if (departure >= after.toMinutes() && pickUpType !== NOT_AVAILABLE) {
           return tripIndex;
         }
       }
@@ -301,16 +301,16 @@ export class Timetable {
         const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
         const departure = route.stopTimes[stopTimeIndex * 2 + 1]!;
         const pickUpType = route.pickUpDropOffTypes[stopTimeIndex * 2]!;
-        if (departure < after.toSeconds()) {
+        if (departure < after.toMinutes()) {
           break;
         }
         if (
           pickUpType !== NOT_AVAILABLE &&
           (earliestDeparture === undefined ||
-            departure < earliestDeparture.toSeconds())
+            departure < earliestDeparture.toMinutes())
         ) {
           earliestTripIndex = tripIndex;
-          earliestDeparture = Time.fromSeconds(departure);
+          earliestDeparture = Time.fromMinutes(departure);
         }
       }
       return earliestTripIndex;

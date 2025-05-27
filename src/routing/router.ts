@@ -64,7 +64,7 @@ export class Router {
           .time.plus(transferTime);
         const originalArrival =
           arrivalsAtCurrentRound.get(transfer.destination)?.time ?? UNREACHED;
-        if (arrivalAfterTransfer.toSeconds() < originalArrival.toSeconds()) {
+        if (arrivalAfterTransfer.toMinutes() < originalArrival.toMinutes()) {
           const origin = arrivalsAtCurrentRound.get(stop)?.origin ?? stop;
           arrivalsAtCurrentRound.set(transfer.destination, {
             time: arrivalAfterTransfer,
@@ -157,7 +157,7 @@ export class Router {
           if (currentTrip !== undefined) {
             const currentArrivalIndex =
               (currentTrip.trip * stopNumbers + i) * 2;
-            const currentArrivalTime = Time.fromSeconds(
+            const currentArrivalTime = Time.fromMinutes(
               route.stopTimes[currentArrivalIndex]!,
             );
             const currentDropOffType = route.pickUpDropOffTypes[i * 2 + 1];
@@ -185,14 +185,14 @@ export class Router {
             }
             if (
               currentDropOffType !== NOT_AVAILABLE &&
-              currentArrivalTime.toSeconds() < arrivalToImprove.toSeconds()
+              currentArrivalTime.toMinutes() < arrivalToImprove.toMinutes()
             ) {
               const bestHopOnStopIndex = route.stopIndices.get(
                 currentTrip.bestHopOnStop,
               )!;
               const bestHopOnStopDepartureIndex =
                 currentTrip.trip * stopNumbers * 2 + bestHopOnStopIndex * 2 + 1;
-              const bestHopOnDepartureTime = Time.fromSeconds(
+              const bestHopOnDepartureTime = Time.fromMinutes(
                 route.stopTimes[bestHopOnStopDepartureIndex]!,
               );
               arrivalsAtCurrentRound.set(currentStop, {
@@ -224,7 +224,7 @@ export class Router {
           if (
             earliestArrivalOnPreviousRound !== undefined &&
             (currentTrip === undefined ||
-              earliestArrivalOnPreviousRound.toSeconds() <=
+              earliestArrivalOnPreviousRound.toMinutes() <=
                 route.stopTimes[(currentTrip.trip * stopNumbers + i) * 2]!)
           ) {
             const earliestTrip = this.timetable.findEarliestTrip(

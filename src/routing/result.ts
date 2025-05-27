@@ -42,7 +42,7 @@ export class Result {
       if (arrivalTime !== undefined) {
         if (
           fastestTime === undefined ||
-          arrivalTime.time.toSeconds() < fastestTime.time.toSeconds()
+          arrivalTime.time.toMinutes() < fastestTime.time.toMinutes()
         ) {
           fastestDestination = destination.id;
           fastestTime = arrivalTime;
@@ -99,7 +99,7 @@ export class Result {
       if (arrivalTime !== undefined) {
         if (
           earliestArrival === undefined ||
-          arrivalTime.time.toSeconds() < earliestArrival.time.toSeconds()
+          arrivalTime.time.toMinutes() < earliestArrival.time.toMinutes()
         ) {
           earliestArrival = arrivalTime;
         }

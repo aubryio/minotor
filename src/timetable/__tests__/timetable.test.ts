@@ -37,15 +37,15 @@ describe('timetable io', () => {
     [
       'route1',
       {
-        stopTimes: new Uint32Array([
-          Time.fromHMS(0, 16, 40).toSeconds(),
-          Time.fromHMS(0, 16, 50).toSeconds(),
-          Time.fromHMS(0, 33, 20).toSeconds(),
-          Time.fromHMS(0, 33, 30).toSeconds(),
-          Time.fromHMS(0, 50, 0).toSeconds(),
-          Time.fromHMS(0, 50, 10).toSeconds(),
-          Time.fromHMS(1, 10, 0).toSeconds(),
-          Time.fromHMS(1, 10, 10).toSeconds(),
+        stopTimes: new Uint16Array([
+          Time.fromHMS(16, 40, 0).toMinutes(),
+          Time.fromHMS(16, 50, 0).toMinutes(),
+          Time.fromHMS(17, 20, 0).toMinutes(),
+          Time.fromHMS(17, 30, 0).toMinutes(),
+          Time.fromHMS(18, 0, 0).toMinutes(),
+          Time.fromHMS(18, 10, 0).toMinutes(),
+          Time.fromHMS(19, 0, 0).toMinutes(),
+          Time.fromHMS(19, 10, 0).toMinutes(),
         ]),
         pickUpDropOffTypes: new Uint8Array([
           0,
@@ -68,11 +68,11 @@ describe('timetable io', () => {
     [
       'route2',
       {
-        stopTimes: new Uint32Array([
-          Time.fromHMS(1, 6, 40).toSeconds(),
-          Time.fromHMS(1, 6, 50).toSeconds(),
-          Time.fromHMS(1, 23, 20).toSeconds(),
-          Time.fromHMS(1, 23, 30).toSeconds(),
+        stopTimes: new Uint16Array([
+          Time.fromHMS(18, 20, 0).toMinutes(),
+          Time.fromHMS(18, 30, 0).toMinutes(),
+          Time.fromHMS(23, 20, 0).toMinutes(),
+          Time.fromHMS(23, 30, 0).toMinutes(),
         ]),
         pickUpDropOffTypes: new Uint8Array([
           0,
@@ -121,7 +121,7 @@ describe('timetable io', () => {
   it('should find the earliest trip for stop1 on route1 after a specific time', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute('route1')!;
-    const afterTime = Time.fromHMS(0, 25, 0);
+    const afterTime = Time.fromHMS(17, 0, 0);
     const tripIndex = sampleTimetable.findEarliestTrip(
       route,
       1,
@@ -134,7 +134,7 @@ describe('timetable io', () => {
   it('should return undefined if no valid trip exists after a specific time', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute('route1')!;
-    const afterTime = Time.fromHMS(0, 58, 20);
+    const afterTime = Time.fromHMS(23, 40, 0);
     const tripIndex = sampleTimetable.findEarliestTrip(
       route,
       1,

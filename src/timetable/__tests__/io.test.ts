@@ -44,9 +44,9 @@ describe('timetable io', () => {
     [
       'route1',
       {
-        stopTimes: new Uint32Array([
-          Time.fromHMS(0, 16, 40).toSeconds(),
-          Time.fromHMS(0, 16, 50).toSeconds(),
+        stopTimes: new Uint16Array([
+          Time.fromHMS(16, 40, 0).toMinutes(),
+          Time.fromHMS(16, 50, 0).toMinutes(),
         ]),
         pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
         stops: new Uint32Array([1, 2]),
@@ -60,9 +60,9 @@ describe('timetable io', () => {
     [
       'route2',
       {
-        stopTimes: new Uint32Array([
-          Time.fromHMS(0, 33, 20).toSeconds(),
-          Time.fromHMS(0, 33, 30).toSeconds(),
+        stopTimes: new Uint16Array([
+          Time.fromHMS(15, 20, 0).toMinutes(),
+          Time.fromHMS(15, 30, 0).toMinutes(),
         ]),
         pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
         stops: new Uint32Array([2, 1]),
@@ -101,9 +101,9 @@ describe('timetable io', () => {
     routes: {
       route1: {
         stopTimes: new Uint8Array(
-          new Uint32Array([
-            Time.fromHMS(0, 16, 40).toSeconds(),
-            Time.fromHMS(0, 16, 50).toSeconds(),
+          new Uint16Array([
+            Time.fromHMS(16, 40, 0).toMinutes(),
+            Time.fromHMS(16, 50, 0).toMinutes(),
           ]).buffer,
         ),
         pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
@@ -112,9 +112,9 @@ describe('timetable io', () => {
       },
       route2: {
         stopTimes: new Uint8Array(
-          new Uint32Array([
-            Time.fromHMS(0, 33, 20).toSeconds(),
-            Time.fromHMS(0, 33, 30).toSeconds(),
+          new Uint16Array([
+            Time.fromHMS(15, 20, 0).toMinutes(),
+            Time.fromHMS(15, 30, 0).toMinutes(),
           ]).buffer,
         ),
         pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR

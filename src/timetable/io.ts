@@ -70,6 +70,50 @@ function bytesToUint32Array(bytes: Uint8Array): Uint32Array {
   return result;
 }
 
+function uint16ArrayToBytes(array: Uint16Array): Uint8Array {
+  if (isLittleEndian === STANDARD_ENDIANNESS) {
+    return new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
+  }
+
+  // If endianness doesn't match, we need to swap byte order
+  const result = new Uint8Array(array.length * 2);
+  const view = new DataView(result.buffer);
+
+  for (let i = 0; i < array.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    view.setUint16(i * 2, array[i]!, STANDARD_ENDIANNESS);
+  }
+
+  return result;
+}
+
+function bytesToUint16Array(bytes: Uint8Array): Uint16Array {
+  if (bytes.byteLength % 2 !== 0) {
+    throw new Error(
+      'Byte array length must be a multiple of 2 to convert to Uint16Array',
+    );
+  }
+
+  // If system endianness matches our standard, we can create a view directly
+  if (isLittleEndian === STANDARD_ENDIANNESS) {
+    return new Uint16Array(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength / 2,
+    );
+  }
+
+  // If endianness doesn't match, we need to swap byte order
+  const result = new Uint16Array(bytes.byteLength / 2);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  for (let i = 0; i < result.length; i++) {
+    result[i] = view.getUint16(i * 2, STANDARD_ENDIANNESS);
+  }
+
+  return result;
+}
+
 export const serializeStopsAdjacency = (
   stopsAdjacency: StopsAdjacency,
 ): ProtoStopsAdjacency => {
@@ -104,7 +148,7 @@ export const serializeRoutesAdjacency = (
 
   routesAdjacency.forEach((value: Route, key: string) => {
     protoRoutesAdjacency.routes[key] = {
-      stopTimes: uint32ArrayToBytes(value.stopTimes),
+      stopTimes: uint16ArrayToBytes(value.stopTimes),
       pickUpDropOffTypes: value.pickUpDropOffTypes,
       stops: uint32ArrayToBytes(value.stops),
       serviceRouteId: value.serviceRouteId,
@@ -170,7 +214,7 @@ export const deserializeRoutesAdjacency = (
       indices.set(stops[i]!, i);
     }
     routesAdjacency.set(key, {
-      stopTimes: bytesToUint32Array(value.stopTimes),
+      stopTimes: bytesToUint16Array(value.stopTimes),
       pickUpDropOffTypes: value.pickUpDropOffTypes,
       stops: stops,
       stopIndices: indices,
