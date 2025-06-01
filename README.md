@@ -13,13 +13,24 @@ Privacy-conscious applications where the user does not want to share their locat
 The transit router and the stops index of **minotor** can run in the browser, on react-native or in a Node.js environment.
 Transit data (GTFS) parsing runs on Node.js, and the resulting data is serialized as a protobuf binary that can be loaded from the router.
 
+Minotor routing algorithm is mostly based on RAPTOR. See [Round-Based Public Transit Routing, D. Delling et al. 2012](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf).
+
 ## Examples
 
 ### In-browser transit router
 
 An example client-side transit router running in the browser with a web worker.
 
-[Demo](https://www.minotor.dev/#example-usage) | [Code](https://github.com/aubryio/minotor.dev/tree/main/app/examples/router)
+[Demo](https://www.minotor.dev/#router) | [Code](https://github.com/aubryio/minotor.dev/tree/main/app/examples/planner)
+
+
+### Isochrone maps
+
+An example implementation of dynamic isochrone maps using minotor in the browser.
+
+[Demo](https://www.minotor.dev/#isochrones) | [Code](https://github.com/aubryio/minotor.dev/tree/main/app/examples/isochrones)
+
+A more complete isochrone map showcase can be found on [isochrone.ch](https://isochrone.ch).
 
 ## Features
 
@@ -32,7 +43,7 @@ An example client-side transit router running in the browser with a web worker.
 
 | Feed                                                                                       | Parsing time | Timetable Size for a Day (Compressed) |
 | ------------------------------------------------------------------------------------------ | ------------ | ------------------------------------- |
-| [Swiss GTFS feed](https://data.opentransportdata.swiss/en/dataset/timetable-2025-gtfs2020) | ~2 minutes   | 44 MB (9MB)                           |
+| [Swiss GTFS feed](https://data.opentransportdata.swiss/en/dataset/timetable-2025-gtfs2020) | ~2 minutes   | 20 MB (5MB)                           |
 
 ## Get started
 
@@ -63,7 +74,7 @@ const destinations = stopsIndex.findStopsByName('Moles'); // Partial name search
 
 Query stops by ID:
 
-`const stopFromId = stopsIndex.findStopById('8592374:0:A');`
+`const stopFromId = stopsIndex.findStopBySourceId('8592374:0:A');`
 
 Or by location:
 
