@@ -23,7 +23,6 @@ An example client-side transit router running in the browser with a web worker.
 
 [Demo](https://www.minotor.dev/#router) | [Code](https://github.com/aubryio/minotor.dev/tree/main/app/examples/planner)
 
-
 ### Isochrone maps
 
 An example implementation of dynamic isochrone maps using minotor in the browser.
