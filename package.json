@@ -109,7 +109,6 @@
     "kdbush": "^4.0.2",
     "loglevel": "^1.9.2",
     "luxon": "^3.5.0",
-    "minotor": "^1.0.7",
     "node-stream-zip": "^1.15.0",
     "slimsearch": "^2.2.1"
   }
