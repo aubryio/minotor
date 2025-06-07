@@ -1,18 +1,13 @@
 import { SourceStopId, StopId } from '../stops/stops.js';
+import { SerializedRoute } from '../timetable/io.js';
+import { Route, RouteId } from '../timetable/route.js';
 import {
-  MUST_COORDINATE_WITH_DRIVER,
-  MUST_PHONE_AGENCY,
-  NOT_AVAILABLE,
-  PickUpDropOffType,
-  REGULAR,
-  Route,
-  RouteId,
   RoutesAdjacency,
   ServiceRouteId,
   ServiceRoutesMap,
   StopsAdjacency,
 } from '../timetable/timetable.js';
-import { ServiceIds } from './services.js';
+import { ServiceId, ServiceIds } from './services.js';
 import { ParsedStopsMap } from './stops.js';
 import { GtfsTime, toTime } from './time.js';
 import { TransfersMap } from './transfers.js';
@@ -23,8 +18,8 @@ export type TripId = string;
 export type TripIdsMap = Map<TripId, ServiceRouteId>;
 
 type TripEntry = {
-  route_id: RouteId;
-  service_id: ServiceRouteId;
+  route_id: ServiceRouteId;
+  service_id: ServiceId;
   trip_id: TripId;
 };
 
@@ -44,6 +39,13 @@ type StopTimeEntry = {
   pickup_type?: GtfsPickupDropOffType;
   drop_off_type?: GtfsPickupDropOffType;
 };
+
+export type SerializedPickUpDropOffType = 0 | 1 | 2 | 3;
+
+const REGULAR = 0;
+const NOT_AVAILABLE = 1;
+const MUST_PHONE_AGENCY = 2;
+const MUST_COORDINATE_WITH_DRIVER = 3;
 
 /**
  * Parses the trips.txt file from a GTFS feed
@@ -81,8 +83,11 @@ export const buildStopsAdjacencyStructure = (
 ): StopsAdjacency => {
   const stopsAdjacency: StopsAdjacency = new Map();
   for (const routeId of routes.keys()) {
-    const route = routes.get(routeId) as Route;
-    for (const stop of route.stops) {
+    const route = routes.get(routeId);
+    if (!route) {
+      throw new Error(`Route ${routeId} not found`);
+    }
+    for (const stop of route.stopsIterator()) {
       if (!stopsAdjacency.get(stop) && validStops.has(stop)) {
         stopsAdjacency.set(stop, { routes: [], transfers: [] });
       }
@@ -154,7 +159,6 @@ export const parseStopTimes = async (
       route = {
         serviceRouteId: gtfsRouteId,
         stops: stopsArray,
-        stopIndices: new Map(stops.map((stop, i) => [stop, i])),
         stopTimes: stopTimesArray,
         pickUpDropOffTypes: pickUpDropOffTypesArray,
       };
@@ -223,14 +227,14 @@ export const parseStopTimes = async (
     dropOffTypes = [];
   };
 
-  const routes: RoutesAdjacency = new Map();
+  const routes: Map<RouteId, SerializedRoute> = new Map();
 
   let previousSeq = 0;
   let stops: StopId[] = [];
   let arrivalTimes: number[] = [];
   let departureTimes: number[] = [];
-  let pickUpTypes: PickUpDropOffType[] = [];
-  let dropOffTypes: PickUpDropOffType[] = [];
+  let pickUpTypes: SerializedPickUpDropOffType[] = [];
+  let dropOffTypes: SerializedPickUpDropOffType[] = [];
   let currentTripId: TripId | undefined = undefined;
 
   for await (const rawLine of parseCsv(stopTimesStream)) {
@@ -269,12 +273,24 @@ export const parseStopTimes = async (
     addTrip(currentTripId);
   }
 
-  return routes;
+  const routesAdjacency: RoutesAdjacency = new Map<RouteId, Route>();
+  for (const [routeId, routeData] of routes) {
+    routesAdjacency.set(
+      routeId,
+      new Route(
+        routeData.stopTimes,
+        routeData.pickUpDropOffTypes,
+        routeData.stops,
+        routeData.serviceRouteId,
+      ),
+    );
+  }
+  return routesAdjacency;
 };
 
 const parsePickupDropOffType = (
   gtfsType?: GtfsPickupDropOffType,
-): PickUpDropOffType => {
+): SerializedPickUpDropOffType => {
   switch (gtfsType) {
     default:
       console.warn(`Unknown pickup/drop-off type ${gtfsType}`);

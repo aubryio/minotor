@@ -11,58 +11,8 @@ import {
   serializeStopsAdjacency,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
-import { Time } from './time.js';
+import { Route, RouteId } from './route.js';
 
-// Identifies all trips of a given service route sharing the same list of stops.
-export type RouteId = string;
-
-export const REGULAR = 0;
-export const NOT_AVAILABLE = 1;
-export const MUST_PHONE_AGENCY = 2;
-export const MUST_COORDINATE_WITH_DRIVER = 3;
-
-export type PickUpDropOffType =
-  | 0 // REGULAR
-  | 1 // NOT_AVAILABLE
-  | 2 // MUST_PHONE_AGENCY
-  | 3; // MUST_COORDINATE_WITH_DRIVER
-
-export type Route = {
-  /**
-   * Arrivals and departures encoded as minutes from midnight.
-   * Format: [arrival1, departure1, arrival2, departure2, etc.]
-   */
-  stopTimes: Uint16Array;
-  /**
-   * PickUp and DropOff types represented as a binary Uint8Array.
-   * Values:
-   *   0: REGULAR
-   *   1: NOT_AVAILABLE
-   *   2: MUST_PHONE_AGENCY
-   *   3: MUST_COORDINATE_WITH_DRIVER
-   * Format: [pickupTypeStop1, dropOffTypeStop1, pickupTypeStop2, dropOffTypeStop2, etc.]
-   */
-  pickUpDropOffTypes: Uint8Array;
-  /**
-   * A binary array of stopIds in the route.
-   * [stop1, stop2, stop3,...]
-   */
-  stops: Uint32Array;
-  /**
-   * A reverse mapping of each stop with their index in the route:
-   * {
-   *   4: 0,
-   *   5: 1,
-   *   ...
-   * }
-   */
-  stopIndices: Map<StopId, number>;
-  /**
-   * The identifier of the route as a service shown to users.
-   */
-  serviceRouteId: ServiceRouteId;
-  // TODO Add tripIds for real-time support
-};
 export type RoutesAdjacency = Map<RouteId, Route>;
 
 export type TransferType =
@@ -109,11 +59,6 @@ export type ServiceRoute = {
 // Service is here a synonym for route in the GTFS sense.
 export type ServiceRoutesMap = Map<ServiceRouteId, ServiceRoute>;
 
-// a trip index corresponds to the index of the
-// first stop time in the trip modulo the number of stops
-// in the given route
-type TripIndex = number;
-
 export const ALL_TRANSPORT_MODES: RouteType[] = [
   'TRAM',
   'SUBWAY',
@@ -149,7 +94,7 @@ export class Timetable {
   }
 
   /**
-   * Serializes the Timetable into a binary protobuf.
+   * Serializes the Timetable into a binary array.
    *
    * @returns {Uint8Array} - The serialized binary data.
    */
@@ -191,14 +136,6 @@ export class Timetable {
     );
   }
 
-  getRoutesThroughStop(stopId: StopId): RouteId[] {
-    const stopAdjacency = this.stopsAdjacency.get(stopId);
-    if (!stopAdjacency) {
-      return [];
-    }
-    return stopAdjacency.routes;
-  }
-
   getRoute(routeId: RouteId): Route | undefined {
     return this.routesAdjacency.get(routeId);
   }
@@ -207,113 +144,50 @@ export class Timetable {
     return this.stopsAdjacency.get(stopId)?.transfers ?? [];
   }
 
+  getServiceRoute(route: Route): ServiceRoute {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.routes.get(route.serviceRoute())!;
+  }
+
+  routesPassingThrough(stopId: StopId): Route[] {
+    return (
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      this.stopsAdjacency
+        .get(stopId)!
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        .routes.map((routeId) => this.routesAdjacency.get(routeId)!)
+    );
+  }
+
   /**
    * Finds routes that are reachable from a set of stop IDs.
    * Also identifies the first stop available to hop on each route among
    * the input stops.
    */
-  /* eslint-disable @typescript-eslint/no-non-null-assertion */
   findReachableRoutes(
     fromStops: Set<StopId>,
     transportModes: RouteType[] = ALL_TRANSPORT_MODES,
-  ): Map<RouteId, StopId> {
-    const reachableRoutes = new Map<RouteId, StopId>();
-    for (const stop of fromStops) {
-      const validRoutes = this.stopsAdjacency
-        .get(stop)
-        ?.routes.filter((routeId) => {
-          const serviceRoute = this.getServiceRouteFromRouteId(routeId);
-          if (!serviceRoute) {
-            return false;
-          }
+  ): Map<Route, StopId> {
+    const reachableRoutes = new Map<Route, StopId>();
+    for (const originStop of fromStops) {
+      const validRoutes = this.routesPassingThrough(originStop).filter(
+        (route) => {
+          const serviceRoute = this.getServiceRoute(route);
           return transportModes.includes(serviceRoute.type);
-        });
-      for (const routeId of validRoutes || []) {
-        const hopOnStop = reachableRoutes.get(routeId);
+        },
+      );
+      for (const route of validRoutes) {
+        const hopOnStop = reachableRoutes.get(route);
         if (hopOnStop) {
-          // Checks if the existing hop on stop is before the current stop
-          const routeStopIndices =
-            this.routesAdjacency.get(routeId)!.stopIndices;
-          const stopIndex = routeStopIndices.get(stop)!;
-          const hopOnStopIndex = routeStopIndices.get(hopOnStop)!;
-          if (stopIndex < hopOnStopIndex) {
+          if (route.isBefore(originStop, hopOnStop)) {
             // if the current stop is before the existing hop on stop, replace it
-            reachableRoutes.set(routeId, stop);
+            reachableRoutes.set(route, originStop);
           }
         } else {
-          reachableRoutes.set(routeId, stop);
+          reachableRoutes.set(route, originStop);
         }
       }
     }
     return reachableRoutes;
-  }
-
-  getServiceRouteFromRouteId(routeId: RouteId): ServiceRoute | undefined {
-    const route = this.routesAdjacency.get(routeId);
-    if (!route) {
-      console.warn(`Route ${routeId} not found.`);
-      return undefined;
-    }
-    return this.routes.get(route.serviceRouteId);
-  }
-
-  getServiceRoute(serviceRouteId: ServiceRouteId): ServiceRoute | undefined {
-    return this.routes.get(serviceRouteId);
-  }
-
-  /**
-   * Finds the earliest trip that can be taken from a specific stop on a given route,
-   * optionally constrained by a latest trip index and a time before which the trip
-   * should not depart.
-   */
-  findEarliestTrip(
-    route: Route,
-    stopId: StopId,
-    beforeTrip?: TripIndex,
-    after: Time = Time.origin(),
-  ): TripIndex | undefined {
-    const stopIndex = route.stopIndices.get(stopId)!;
-
-    const stopsNumber = route.stops.length;
-
-    if (beforeTrip === undefined) {
-      for (
-        let tripIndex = 0;
-        tripIndex < route.stopTimes.length / stopsNumber;
-        tripIndex++
-      ) {
-        const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
-        const departure = route.stopTimes[stopTimeIndex * 2 + 1]!;
-        const pickUpType = route.pickUpDropOffTypes[stopTimeIndex * 2]!;
-        if (departure >= after.toMinutes() && pickUpType !== NOT_AVAILABLE) {
-          return tripIndex;
-        }
-      }
-      return undefined;
-    } else {
-      let earliestTripIndex: TripIndex | undefined;
-      let earliestDeparture: Time | undefined;
-      for (
-        let tripIndex = beforeTrip; // ?? route.stopTimes.length / stopsNumber - 1;
-        tripIndex >= 0;
-        tripIndex--
-      ) {
-        const stopTimeIndex = tripIndex * stopsNumber + stopIndex;
-        const departure = route.stopTimes[stopTimeIndex * 2 + 1]!;
-        const pickUpType = route.pickUpDropOffTypes[stopTimeIndex * 2]!;
-        if (departure < after.toMinutes()) {
-          break;
-        }
-        if (
-          pickUpType !== NOT_AVAILABLE &&
-          (earliestDeparture === undefined ||
-            departure < earliestDeparture.toMinutes())
-        ) {
-          earliestTripIndex = tripIndex;
-          earliestDeparture = Time.fromMinutes(departure);
-        }
-      }
-      return earliestTripIndex;
-    }
   }
 }

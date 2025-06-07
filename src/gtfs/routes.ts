@@ -1,6 +1,6 @@
 import log from 'loglevel';
 
-import { RouteId, ServiceRoutesMap } from '../timetable/timetable.js';
+import { ServiceRouteId, ServiceRoutesMap } from '../timetable/timetable.js';
 import { GtfsProfile } from './parser.js';
 import { standardProfile } from './profiles/standard.js';
 import { parseCsv } from './utils.js';
@@ -10,7 +10,7 @@ import { parseCsv } from './utils.js';
 export type GtfsRouteType = number;
 
 type RouteEntry = {
-  route_id: RouteId;
+  route_id: ServiceRouteId;
   agency_id: string;
   route_short_name: string;
   route_long_name: string;

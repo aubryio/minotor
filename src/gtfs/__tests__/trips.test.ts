@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { StopId } from '../../stops/stops.js';
+import { Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import {
   RoutesAdjacency,
@@ -24,16 +25,12 @@ describe('buildStopsAdjacencyStructure', () => {
     const routesAdjacency: RoutesAdjacency = new Map([
       [
         'routeA',
-        {
-          serviceRouteId: 'service1',
-          stops: new Uint32Array([0, 1]),
-          stopIndices: new Map([
-            [0, 0],
-            [1, 1],
-          ]),
-          stopTimes: new Uint16Array(),
-          pickUpDropOffTypes: new Uint8Array(),
-        },
+        new Route(
+          new Uint16Array(),
+          new Uint8Array(),
+          new Uint32Array([0, 1]),
+          'service1',
+        ),
       ],
     ]);
     const transfersMap: TransfersMap = new Map([
@@ -62,16 +59,12 @@ describe('buildStopsAdjacencyStructure', () => {
     const routesAdjacency: RoutesAdjacency = new Map([
       [
         'routeA',
-        {
-          serviceRouteId: 'service1',
-          stops: new Uint32Array([0, 1]),
-          stopIndices: new Map([
-            [0, 0],
-            [1, 1],
-          ]),
-          stopTimes: new Uint16Array(),
-          pickUpDropOffTypes: new Uint8Array(),
-        },
+        new Route(
+          new Uint16Array(),
+          new Uint8Array(),
+          new Uint32Array([0, 1]),
+          'service1',
+        ),
       ],
     ]);
     const transfersMap: TransfersMap = new Map([

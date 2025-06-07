@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { Duration } from '../duration.js';
+import { Route } from '../route.js';
 import { Time } from '../time.js';
 import {
   RoutesAdjacency,
@@ -33,60 +34,50 @@ describe('timetable io', () => {
       },
     ],
   ]);
+  const route1 = new Route(
+    new Uint16Array([
+      Time.fromHMS(16, 40, 0).toMinutes(),
+      Time.fromHMS(16, 50, 0).toMinutes(),
+      Time.fromHMS(17, 20, 0).toMinutes(),
+      Time.fromHMS(17, 30, 0).toMinutes(),
+      Time.fromHMS(18, 0, 0).toMinutes(),
+      Time.fromHMS(18, 10, 0).toMinutes(),
+      Time.fromHMS(19, 0, 0).toMinutes(),
+      Time.fromHMS(19, 10, 0).toMinutes(),
+    ]),
+    new Uint8Array([
+      0,
+      0, // REGULAR
+      1, // NOT_AVAILABLE
+      0, // REGULAR
+      0,
+      0, // REGULAR
+      0,
+      0, // REGULAR
+    ]),
+    new Uint32Array([1, 2]),
+    'gtfs1',
+  );
   const routesAdjacency: RoutesAdjacency = new Map([
-    [
-      'route1',
-      {
-        stopTimes: new Uint16Array([
-          Time.fromHMS(16, 40, 0).toMinutes(),
-          Time.fromHMS(16, 50, 0).toMinutes(),
-          Time.fromHMS(17, 20, 0).toMinutes(),
-          Time.fromHMS(17, 30, 0).toMinutes(),
-          Time.fromHMS(18, 0, 0).toMinutes(),
-          Time.fromHMS(18, 10, 0).toMinutes(),
-          Time.fromHMS(19, 0, 0).toMinutes(),
-          Time.fromHMS(19, 10, 0).toMinutes(),
-        ]),
-        pickUpDropOffTypes: new Uint8Array([
-          0,
-          0, // REGULAR
-          1,
-          0, // NOT_AVAILABLE, REGULAR
-          0,
-          0, // REGULAR
-          0,
-          0, // REGULAR
-        ]),
-        stops: new Uint32Array([1, 2]),
-        stopIndices: new Map([
-          [1, 0],
-          [2, 1],
-        ]),
-        serviceRouteId: 'gtfs1',
-      },
-    ],
+    ['route1', route1],
     [
       'route2',
-      {
-        stopTimes: new Uint16Array([
+      new Route(
+        new Uint16Array([
           Time.fromHMS(18, 20, 0).toMinutes(),
           Time.fromHMS(18, 30, 0).toMinutes(),
           Time.fromHMS(23, 20, 0).toMinutes(),
           Time.fromHMS(23, 30, 0).toMinutes(),
         ]),
-        pickUpDropOffTypes: new Uint8Array([
+        new Uint8Array([
           0,
           0, // REGULAR
           0,
           0, // REGULAR
         ]),
-        stops: new Uint32Array([2, 1]),
-        stopIndices: new Map([
-          [2, 0],
-          [1, 1],
-        ]),
-        serviceRouteId: 'gtfs2',
-      },
+        new Uint32Array([2, 1]),
+        'gtfs2',
+      ),
     ],
   ]);
   const routes: ServiceRoutesMap = new Map([
@@ -114,7 +105,7 @@ describe('timetable io', () => {
   it('should find the earliest trip for stop1 on route1', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute('route1')!;
-    const tripIndex = sampleTimetable.findEarliestTrip(route, 1);
+    const tripIndex = route.findEarliestTrip(1);
     assert.strictEqual(tripIndex, 0);
   });
 
@@ -122,12 +113,7 @@ describe('timetable io', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute('route1')!;
     const afterTime = Time.fromHMS(17, 0, 0);
-    const tripIndex = sampleTimetable.findEarliestTrip(
-      route,
-      1,
-      undefined,
-      afterTime,
-    );
+    const tripIndex = route.findEarliestTrip(1, afterTime);
     assert.strictEqual(tripIndex, 1);
   });
 
@@ -135,25 +121,20 @@ describe('timetable io', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute('route1')!;
     const afterTime = Time.fromHMS(23, 40, 0);
-    const tripIndex = sampleTimetable.findEarliestTrip(
-      route,
-      1,
-      undefined,
-      afterTime,
-    );
+    const tripIndex = route.findEarliestTrip(1, afterTime);
     assert.strictEqual(tripIndex, undefined);
   });
   it('should return undefined if the stop on a trip has pick up not available', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute('route1')!;
-    const tripIndex = sampleTimetable.findEarliestTrip(route, 2);
+    const tripIndex = route.findEarliestTrip(2);
     assert.strictEqual(tripIndex, 1);
   });
   it('should find reachable routes from a set of stop IDs', () => {
     const fromStops = new Set([1]);
     const reachableRoutes = sampleTimetable.findReachableRoutes(fromStops);
     assert.strictEqual(reachableRoutes.size, 1);
-    assert.strictEqual(reachableRoutes.get('route1'), 1);
+    assert.deepStrictEqual(reachableRoutes, new Map([[route1, 1]]));
   });
 
   it('should find no reachable routes if starting from a non-existent stop', () => {
