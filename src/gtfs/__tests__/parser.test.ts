@@ -33,28 +33,25 @@ describe('GTFS parser', () => {
 
     const route = timetable.getRoute('AB_x');
     assert(route);
-    assert.strictEqual(route.serviceRouteId, 'AB');
+    assert.strictEqual(route.serviceRoute(), 'AB');
     const beattyAirportId =
       stopsIndex.findStopBySourceStopId('BEATTY_AIRPORT')?.id;
     const bullfrogId = stopsIndex.findStopBySourceStopId('BULLFROG')?.id;
     assert(beattyAirportId !== undefined && bullfrogId !== undefined);
-    assert.deepStrictEqual(Array.from(route.stops), [
-      beattyAirportId,
-      bullfrogId,
-    ]);
-    assert.strictEqual(route.stopTimes.length, 4);
-    assert.strictEqual(route.pickUpDropOffTypes.length, 4);
-    assert.strictEqual(route.stopTimes[0], Time.fromHMS(8, 0, 0).toMinutes());
-    assert.strictEqual(route.stopTimes[1], Time.fromHMS(8, 0, 0).toMinutes());
-    assert.strictEqual(route.stopTimes[2], Time.fromHMS(8, 10, 0).toMinutes());
-    assert.strictEqual(route.stopTimes[3], Time.fromHMS(8, 15, 0).toMinutes());
+    assert.strictEqual(route.getNbStops(), 2);
+    assert(route.arrivalAt(beattyAirportId, 0).equals(Time.fromHMS(8, 0, 0)));
+    assert(
+      route.departureFrom(beattyAirportId, 0).equals(Time.fromHMS(8, 0, 0)),
+    );
+    assert(route.arrivalAt(bullfrogId, 0).equals(Time.fromHMS(8, 10, 0)));
+    assert(route.departureFrom(bullfrogId, 0).equals(Time.fromHMS(8, 15, 0)));
 
-    const routes = timetable.getRoutesThroughStop(furCreekResId);
+    const routes = timetable.routesPassingThrough(furCreekResId);
     assert.strictEqual(routes.length, 2);
-    assert.strictEqual(routes[0], 'BFC_1q');
-    assert.strictEqual(routes[1], 'BFC_2');
+    assert.strictEqual(routes[0]?.serviceRoute(), 'BFC');
+    assert.strictEqual(routes[1]?.serviceRoute(), 'BFC');
 
-    const serviceRoute = timetable.getServiceRoute('AB');
+    const serviceRoute = timetable.getServiceRoute(route);
     assert(serviceRoute);
     assert.strictEqual(serviceRoute.name, '10');
     assert.strictEqual(serviceRoute.type, 'BUS');

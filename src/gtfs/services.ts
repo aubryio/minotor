@@ -55,7 +55,17 @@ export const parseCalendar = async (
   const activeDate: number = toGtfsDate(date);
   const weekday = date.weekday as Weekday;
   const weekdayIndex = weekdays[weekday] as keyof CalendarEntry;
-  for await (const rawLine of parseCsv(calendarStream)) {
+  for await (const rawLine of parseCsv(calendarStream, [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+    'start_date',
+    'end_date',
+  ])) {
     const line = rawLine as CalendarEntry;
     if (activeDate < line.start_date || activeDate > line.end_date) {
       // If the service is not valid on this date
@@ -82,7 +92,10 @@ export const parseCalendarDates = async (
   date: DateTime,
 ) => {
   const activeDate: number = toGtfsDate(date);
-  for await (const rawLine of parseCsv(calendarDatesStream)) {
+  for await (const rawLine of parseCsv(calendarDatesStream, [
+    'date',
+    'exception_type',
+  ])) {
     const line = rawLine as CalendarDatesEntry;
     if (line.date !== activeDate) {
       // No rule on the active date

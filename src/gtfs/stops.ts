@@ -44,11 +44,15 @@ export const parseStops = async (
 ): Promise<ParsedStopsMap> => {
   const parsedStops = new Map<SourceStopId, ParsedStop>();
   let i = 0;
-  for await (const rawLine of parseCsv(stopsStream)) {
+  for await (const rawLine of parseCsv(stopsStream, [
+    'stop_lat',
+    'stop_lon',
+    'location_type',
+  ])) {
     const line = rawLine as StopEntry;
     const stop: ParsedStop = {
       id: i,
-      sourceStopId: line.stop_id + '',
+      sourceStopId: line.stop_id,
       name: line.stop_name,
       lat: line.stop_lat,
       lon: line.stop_lon,
@@ -68,7 +72,7 @@ export const parseStops = async (
         console.info(`Could not parse platform for stop ${line.stop_id}.`);
       }
     }
-    parsedStops.set(line.stop_id + '', stop);
+    parsedStops.set(line.stop_id, stop);
     i = i + 1;
   }
 

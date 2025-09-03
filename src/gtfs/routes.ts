@@ -1,6 +1,6 @@
 import log from 'loglevel';
 
-import { RouteId, ServiceRoutesMap } from '../timetable/timetable.js';
+import { ServiceRouteId, ServiceRoutesMap } from '../timetable/timetable.js';
 import { GtfsProfile } from './parser.js';
 import { standardProfile } from './profiles/standard.js';
 import { parseCsv } from './utils.js';
@@ -10,7 +10,7 @@ import { parseCsv } from './utils.js';
 export type GtfsRouteType = number;
 
 type RouteEntry = {
-  route_id: RouteId;
+  route_id: ServiceRouteId;
   agency_id: string;
   route_short_name: string;
   route_long_name: string;
@@ -30,7 +30,7 @@ export const parseRoutes = async (
   profile: GtfsProfile = standardProfile,
 ): Promise<ServiceRoutesMap> => {
   const routes: ServiceRoutesMap = new Map();
-  for await (const rawLine of parseCsv(routesStream)) {
+  for await (const rawLine of parseCsv(routesStream, ['route_type'])) {
     const line = rawLine as RouteEntry;
     const routeType = profile.routeTypeParser(line.route_type);
     if (routeType === undefined) {
@@ -40,7 +40,7 @@ export const parseRoutes = async (
       continue;
     }
     routes.set(line.route_id, {
-      name: line.route_short_name + '',
+      name: line.route_short_name,
       type: routeType,
     });
   }

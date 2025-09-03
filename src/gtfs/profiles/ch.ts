@@ -10,7 +10,7 @@ import { Maybe } from '../utils.js';
  * @returns The platform corresponding to this stop.
  */
 const platformParser = (stopEntry: StopEntry): Maybe<Platform> => {
-  const stopId = String(stopEntry.stop_id);
+  const stopId = stopEntry.stop_id;
   const stopParts = stopId.split(':');
   if (stopParts.length > 2) {
     return stopParts[2];

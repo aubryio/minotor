@@ -61,8 +61,9 @@ const parser = new GtfsParser('gtfs-feed.zip', chGtfsProfile);
 const { timetable, stopsIndex } = await parser.parse(new Date());
 ```
 
-Note that this operation can take a few minutes for large GTFS feeds.
-See comments in the code for more options.
+Note that times are only represented at the minute level so they can fit on 16 bits.
+
+This operation can take a few minutes for large GTFS feeds.
 
 #### Stop Search (Browser or Node.js)
 
@@ -127,11 +128,21 @@ Query routes (`minotor> .route -h for more options`):
 
 ## Development
 
+### Requirements
+
+Make sure you have a working [node](https://nodejs.org) environment.
+
+`protoc` also needs to be available on the build system.
+
+Ubuntu: `sudo apt install -y protobuf-compiler` |
+Fedora: `sudo dnf install -y protobuf-compiler` |
+MacOS: `brew install protobuf`
+
 ### Debugging
 
 It is possible to plot the router graph to debug the algorithm:
 
-`minotor repl`
+Using the npm script `repl`, or `minotor repl` if the project is installed globally.
 
 `minotor> .plot from <stationId> to <stationId> at <HH:mm> [with <N> transfers] [to <graph.dot>]`
 
@@ -139,15 +150,20 @@ It is possible to plot the router graph to debug the algorithm:
 
 ### Build
 
-Make sure you have a working node setup as well as a protobuf compiler.
-
 - `build`: builds the project in the `dist/` directory
 - `clean`: removes the `dist/` directory
 
-### Tests
+### Unit Tests
 
-- `test`: runs test runner
-- `test:coverage`: runs test runner with coverage reports
+- `test`: runs unit tests
+- `test:coverage`: runs unit test runner with coverage reports
+
+### End-to-End Tests
+
+- `e2e`: runs end-to-end tests, using a real data from a day in the Swiss GTFS dataset
+- `perf`: runs a basic performance test, using a real data from a day in the Swiss GTFS dataset
+
+Note that performance tests are not included in the CI pipeline and must be run manually.
 
 ### Formatting & linting
 
@@ -163,15 +179,19 @@ Releases are automatically published to npm when merging to the `main` or `beta`
 
 ## Roadmap
 
-The project is under active development. Here are some of the features that are planned:
+The project is under active development. Here are some of the features that are planned (ordered by priority).
+Contact [the author](https://aubry.io/) for feature requests.
 
-- Load multiple GTFS archives at once
+- Route/Trip-based transfer support
+- Arrive-by support
 - Range queries
 - Transfer preferences
+- Route/Trip metadata support
+- Routing filters based on metadata e.g. bicycle support, wheelchair access
+- More routing options (slower/faster transfers, etc.)
+- Improved stop search (sort by stop importance)
+- Real-time timetable support (tripId/routeId mapping)
 - Support for exporting a calendar range as opposed to a single day
 - Support for GTFS `frequencies.txt`
-- Support for more types of transfers
+- Load multiple GTFS archives at once
 - NeTEx support
-- Higher level timetable API for cleaner router code
-- RT-GTFS Support (adding tripId support)
-- More extensive testing

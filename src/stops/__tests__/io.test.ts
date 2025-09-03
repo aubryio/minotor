@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { deserializeStopsMap, serializeStopsMap } from '../io.js';
 import { StopsMap } from '../stops.js';
 
-describe('stops io', () => {
+describe('Stops IO', () => {
   const stopsMap: StopsMap = new Map([
     [
       1,

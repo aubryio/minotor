@@ -29,8 +29,13 @@ export class Result {
    * @param to The destination stop. Defaults to the destination of the original query.
    * @returns a route to the destination stop if it exists.
    */
-  bestRoute(to?: SourceStopId | SourceStopId[]): Route | undefined {
-    const destinationList = Array.isArray(to) ? to : to ? [to] : this.query.to;
+  bestRoute(to?: SourceStopId | Set<SourceStopId>): Route | undefined {
+    const destinationList =
+      to instanceof Set
+        ? Array.from(to)
+        : to
+          ? [to]
+          : Array.from(this.query.to);
     const destinations = destinationList.flatMap((destination) =>
       this.stopsIndex.equivalentStops(destination),
     );
@@ -42,7 +47,7 @@ export class Result {
       if (arrivalTime !== undefined) {
         if (
           fastestTime === undefined ||
-          arrivalTime.time.toMinutes() < fastestTime.time.toMinutes()
+          arrivalTime.arrival.isBefore(fastestTime.arrival)
         ) {
           fastestDestination = destination.id;
           fastestTime = arrivalTime;
@@ -91,7 +96,7 @@ export class Result {
     const relevantArrivals =
       maxTransfers !== undefined
         ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          this.earliestArrivalsPerRound[maxTransfers - 1]!
+          this.earliestArrivalsPerRound[maxTransfers + 1]!
         : this.earliestArrivals;
 
     for (const equivalentStop of equivalentStops) {
@@ -99,7 +104,7 @@ export class Result {
       if (arrivalTime !== undefined) {
         if (
           earliestArrival === undefined ||
-          arrivalTime.time.toMinutes() < earliestArrival.time.toMinutes()
+          arrivalTime.arrival.isBefore(earliestArrival.arrival)
         ) {
           earliestArrival = arrivalTime;
         }

@@ -3,7 +3,7 @@ import repl from 'node:repl';
 import fs from 'fs';
 
 import { Query, Router, StopsIndex, Time, Timetable } from '../router.js';
-import { plotGraphToDotFile, prettyPrintRoute } from './utils.js';
+import { plotGraphToDotFile } from './utils.js';
 
 export const startRepl = (stopsPath: string, timetablePath: string) => {
   const stopsIndex = StopsIndex.fromData(fs.readFileSync(stopsPath));
@@ -21,9 +21,20 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
     help: 'Find stops by name using .find <query>',
     action(query: string) {
       this.clearBufferedCommand();
-      const stops = stopsIndex.findStopsByName(query);
+      let stops = [];
+      const stopBySourceId = stopsIndex.findStopBySourceStopId(query);
+      if (stopBySourceId !== undefined) {
+        stops.push(stopBySourceId);
+      } else if (!isNaN(Number(query))) {
+        const stopById = stopsIndex.findStopById(Number(query));
+        if (stopById !== undefined) {
+          stops.push(stopById);
+        }
+      } else {
+        stops = stopsIndex.findStopsByName(query);
+      }
       stops.forEach((stop) => {
-        console.log(`${stop.name} (${stop.id})`);
+        console.log(`${stop.name} (${stop.sourceStopId} - ${stop.id})`);
       });
       this.displayPrompt();
     },
@@ -49,12 +60,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       const fromIndex = parts.indexOf('from');
       const toIndex = parts.indexOf('to');
       const fromId = parts.slice(fromIndex + 1, toIndex).join(' ');
-      const toId = parts
-        .slice(
-          toIndex + 1,
-          withTransfersIndex === -1 ? parts.indexOf('at') : parts.indexOf('at'),
-        )
-        .join(' ');
+      const toId = parts.slice(toIndex + 1, parts.indexOf('at')).join(' ');
 
       if (!fromId || !toId || !atTime) {
         console.log(
@@ -66,9 +72,15 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
       const fromStop =
         stopsIndex.findStopBySourceStopId(fromId) ||
+        (isNaN(Number(fromId))
+          ? undefined
+          : stopsIndex.findStopById(Number(fromId))) ||
         stopsIndex.findStopsByName(fromId)[0];
       const toStop =
         stopsIndex.findStopBySourceStopId(toId) ||
+        (isNaN(Number(toId))
+          ? undefined
+          : stopsIndex.findStopById(Number(toId))) ||
         stopsIndex.findStopsByName(toId)[0];
 
       if (!fromStop) {
@@ -88,7 +100,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       try {
         const query = new Query.Builder()
           .from(fromStop.sourceStopId)
-          .to([toStop.sourceStopId])
+          .to(toStop.sourceStopId)
           .departureTime(departureTime)
           .maxTransfers(maxTransfers)
           .build();
@@ -101,14 +113,15 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
           console.log(`Destination not reachable`);
         } else {
           console.log(
-            `Arriving to ${toStop.name} at ${arrivalTime.time.toString()} with ${arrivalTime.legNumber - 1} transfers from ${stopsIndex.findStopById(arrivalTime.origin)?.name}.`,
+            `Arriving to ${toStop.name} at ${arrivalTime.arrival.toString()} with ${arrivalTime.legNumber - 1} transfers from ${stopsIndex.findStopById(arrivalTime.origin)?.name}.`,
           );
         }
         const bestRoute = result.bestRoute(toStop.sourceStopId);
 
         if (bestRoute) {
           console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
-          prettyPrintRoute(bestRoute);
+          console.log(bestRoute.toString());
+          console.log(JSON.stringify(bestRoute.asJson(), null, 2));
         } else {
           console.log('No route found');
         }
@@ -184,7 +197,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       try {
         const query = new Query.Builder()
           .from(fromStop.sourceStopId)
-          .to([toStop.sourceStopId])
+          .to(toStop.sourceStopId)
           .departureTime(departureTime)
           .maxTransfers(maxTransfers)
           .build();

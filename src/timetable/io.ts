@@ -7,15 +7,23 @@ import {
   Transfer as ProtoTransfer,
   TransferType as ProtoTransferType,
 } from './proto/timetable.js';
+import { Route } from './route.js';
 import {
-  Route,
   RoutesAdjacency,
   RouteType,
+  ServiceRouteId,
   ServiceRoutesMap,
   StopsAdjacency,
   Transfer,
   TransferType,
 } from './timetable.js';
+
+export type SerializedRoute = {
+  stopTimes: Uint16Array;
+  pickUpDropOffTypes: Uint8Array;
+  stops: Uint32Array;
+  serviceRouteId: ServiceRouteId;
+};
 
 const isLittleEndian = (() => {
   const buffer = new ArrayBuffer(4);
@@ -26,7 +34,7 @@ const isLittleEndian = (() => {
 
 const STANDARD_ENDIANNESS = true; // true = little-endian
 
-function uint32ArrayToBytes(array: Uint32Array): Uint8Array {
+const uint32ArrayToBytes = (array: Uint32Array): Uint8Array => {
   if (isLittleEndian === STANDARD_ENDIANNESS) {
     return new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
   }
@@ -41,9 +49,9 @@ function uint32ArrayToBytes(array: Uint32Array): Uint8Array {
   }
 
   return result;
-}
+};
 
-function bytesToUint32Array(bytes: Uint8Array): Uint32Array {
+const bytesToUint32Array = (bytes: Uint8Array): Uint32Array => {
   if (bytes.byteLength % 4 !== 0) {
     throw new Error(
       'Byte array length must be a multiple of 4 to convert to Uint32Array',
@@ -68,9 +76,9 @@ function bytesToUint32Array(bytes: Uint8Array): Uint32Array {
   }
 
   return result;
-}
+};
 
-function uint16ArrayToBytes(array: Uint16Array): Uint8Array {
+const uint16ArrayToBytes = (array: Uint16Array): Uint8Array => {
   if (isLittleEndian === STANDARD_ENDIANNESS) {
     return new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
   }
@@ -85,9 +93,9 @@ function uint16ArrayToBytes(array: Uint16Array): Uint8Array {
   }
 
   return result;
-}
+};
 
-function bytesToUint16Array(bytes: Uint8Array): Uint16Array {
+const bytesToUint16Array = (bytes: Uint8Array): Uint16Array => {
   if (bytes.byteLength % 2 !== 0) {
     throw new Error(
       'Byte array length must be a multiple of 2 to convert to Uint16Array',
@@ -112,7 +120,7 @@ function bytesToUint16Array(bytes: Uint8Array): Uint16Array {
   }
 
   return result;
-}
+};
 
 export const serializeStopsAdjacency = (
   stopsAdjacency: StopsAdjacency,
@@ -146,12 +154,13 @@ export const serializeRoutesAdjacency = (
     routes: {},
   };
 
-  routesAdjacency.forEach((value: Route, key: string) => {
+  routesAdjacency.forEach((route: Route, key: string) => {
+    const routeData = route.serialize();
     protoRoutesAdjacency.routes[key] = {
-      stopTimes: uint16ArrayToBytes(value.stopTimes),
-      pickUpDropOffTypes: value.pickUpDropOffTypes,
-      stops: uint32ArrayToBytes(value.stops),
-      serviceRouteId: value.serviceRouteId,
+      stopTimes: uint16ArrayToBytes(routeData.stopTimes),
+      pickUpDropOffTypes: routeData.pickUpDropOffTypes,
+      stops: uint32ArrayToBytes(routeData.stops),
+      serviceRouteId: routeData.serviceRouteId,
     };
   });
 
@@ -208,18 +217,15 @@ export const deserializeRoutesAdjacency = (
 
   Object.entries(protoRoutesAdjacency.routes).forEach(([key, value]) => {
     const stops = bytesToUint32Array(value.stops);
-    const indices = new Map<number, number>();
-    for (let i = 0; i < stops.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      indices.set(stops[i]!, i);
-    }
-    routesAdjacency.set(key, {
-      stopTimes: bytesToUint16Array(value.stopTimes),
-      pickUpDropOffTypes: value.pickUpDropOffTypes,
-      stops: stops,
-      stopIndices: indices,
-      serviceRouteId: value.serviceRouteId,
-    });
+    routesAdjacency.set(
+      key,
+      new Route(
+        bytesToUint16Array(value.stopTimes),
+        value.pickUpDropOffTypes,
+        stops,
+        value.serviceRouteId,
+      ),
+    );
   });
 
   return routesAdjacency;

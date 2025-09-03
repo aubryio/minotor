@@ -107,9 +107,12 @@ export class Time {
     if (
       hoursStr === undefined ||
       minutesStr === undefined ||
+      hoursStr.trim() === '' ||
+      minutesStr.trim() === '' ||
       isNaN(Number(hoursStr)) ||
       isNaN(Number(minutesStr)) ||
-      (secondsStr !== undefined && isNaN(Number(secondsStr)))
+      (secondsStr !== undefined &&
+        (secondsStr.trim() === '' || isNaN(Number(secondsStr))))
     ) {
       throw new Error(
         'Input string must be in the format "HH:MM:SS" or "HH:MM".',
@@ -127,8 +130,11 @@ export class Time {
    * @returns A string representing the time.
    */
   toString(): string {
-    const hours = Math.floor(this.minutesSinceMidnight / 60);
+    let hours = Math.floor(this.minutesSinceMidnight / 60);
     const minutes = Math.floor(this.minutesSinceMidnight % 60);
+    if (hours >= 24) {
+      hours = hours % 24;
+    }
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }
 
@@ -188,9 +194,7 @@ export class Time {
       throw new Error('At least one Time instance is required.');
     }
     return times.reduce((maxTime, currentTime) => {
-      return currentTime.toMinutes() > maxTime.toMinutes()
-        ? currentTime
-        : maxTime;
+      return currentTime.isAfter(maxTime) ? currentTime : maxTime;
     });
   }
 
@@ -205,9 +209,37 @@ export class Time {
       throw new Error('At least one Time instance is required.');
     }
     return times.reduce((minTime, currentTime) => {
-      return currentTime.toMinutes() < minTime.toMinutes()
-        ? currentTime
-        : minTime;
+      return currentTime.isBefore(minTime) ? currentTime : minTime;
     });
+  }
+
+  /**
+   * Determines if the current Time instance is after another Time instance.
+   *
+   * @param otherTime - A Time instance to compare against.
+   * @returns True if the current Time instance is after the other Time instance, otherwise false.
+   */
+  isAfter(otherTime: Time): boolean {
+    return this.minutesSinceMidnight > otherTime.toMinutes();
+  }
+
+  /**
+   * Determines if the current Time instance is before another Time instance.
+   *
+   * @param otherTime - A Time instance to compare against.
+   * @returns True if the current Time instance is before the other Time instance, otherwise false.
+   */
+  isBefore(otherTime: Time): boolean {
+    return this.minutesSinceMidnight < otherTime.toMinutes();
+  }
+
+  /**
+   * Determines if the current Time instance is equal to another Time instance.
+   *
+   * @param otherTime - A Time instance to compare against.
+   * @returns True if the current Time instance is equal to the other Time instance, otherwise false.
+   */
+  equals(otherTime: Time): boolean {
+    return this.minutesSinceMidnight === otherTime.toMinutes();
   }
 }

@@ -1,0 +1,22 @@
+[
+  {
+    "from": "Parent8504100",
+    "to": ["Parent8504748"],
+    "departureTime": "08:30"
+  },
+  {
+    "from": "Parent8507000",
+    "to": ["Parent8509253"],
+    "departureTime": "12:30"
+  },
+  {
+    "from": "Parent8501008",
+    "to": ["Parent8501008"],
+    "departureTime": "08:30"
+  },
+  {
+    "from": "Parent8500010",
+    "to": ["Parent8301003"],
+    "departureTime": "10:00"
+  }
+]

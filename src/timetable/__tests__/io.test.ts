@@ -10,6 +10,7 @@ import {
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
 } from '../io.js';
+import { REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
 import {
   RoutesAdjacency,
@@ -17,7 +18,7 @@ import {
   StopsAdjacency,
 } from '../timetable.js';
 
-describe('timetable io', () => {
+describe('Timetable IO', () => {
   const stopsAdjacency: StopsAdjacency = new Map([
     [
       1,
@@ -43,35 +44,27 @@ describe('timetable io', () => {
   const routesAdjacency: RoutesAdjacency = new Map([
     [
       'route1',
-      {
-        stopTimes: new Uint16Array([
+      new Route(
+        new Uint16Array([
           Time.fromHMS(16, 40, 0).toMinutes(),
           Time.fromHMS(16, 50, 0).toMinutes(),
         ]),
-        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
-        stops: new Uint32Array([1, 2]),
-        stopIndices: new Map([
-          [1, 0],
-          [2, 1],
-        ]),
-        serviceRouteId: 'gtfs1',
-      },
+        new Uint8Array([REGULAR, REGULAR]),
+        new Uint32Array([1, 2]),
+        'gtfs1',
+      ),
     ],
     [
       'route2',
-      {
-        stopTimes: new Uint16Array([
+      new Route(
+        new Uint16Array([
           Time.fromHMS(15, 20, 0).toMinutes(),
           Time.fromHMS(15, 30, 0).toMinutes(),
         ]),
-        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
-        stops: new Uint32Array([2, 1]),
-        stopIndices: new Map([
-          [2, 0],
-          [1, 1],
-        ]),
-        serviceRouteId: 'gtfs2',
-      },
+        new Uint8Array([REGULAR, REGULAR]),
+        new Uint32Array([2, 1]),
+        'gtfs2',
+      ),
     ],
   ]);
   const routes: ServiceRoutesMap = new Map([
@@ -106,7 +99,7 @@ describe('timetable io', () => {
             Time.fromHMS(16, 50, 0).toMinutes(),
           ]).buffer,
         ),
-        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
+        pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
         stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
         serviceRouteId: 'gtfs1',
       },
@@ -117,7 +110,7 @@ describe('timetable io', () => {
             Time.fromHMS(15, 30, 0).toMinutes(),
           ]).buffer,
         ),
-        pickUpDropOffTypes: new Uint8Array([0, 0]), // REGULAR
+        pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
         stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
         serviceRouteId: 'gtfs2',
       },

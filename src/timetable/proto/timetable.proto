@@ -4,7 +4,7 @@ package minotor.timetable;
 
 message Route {
   /**
-   * Arrivals and departures encoded as a 32 bit uint array.
+   * Arrivals and departures encoded as a 16 bit uint array.
    * Format: [arrival1, departure1, arrival2, departure2, etc.]
    */
   bytes stopTimes = 1;

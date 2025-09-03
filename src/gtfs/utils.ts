@@ -28,12 +28,23 @@ export const hashIds = (ids: number[]): string => {
  * @param stream The CSV stream.
  * @returns A parser from the csv-parse library.
  */
-export const parseCsv = (stream: NodeJS.ReadableStream): Parser => {
+export const parseCsv = (
+  stream: NodeJS.ReadableStream,
+  numericColumns: string[] = [],
+): Parser => {
   return stream.pipe(
     parse({
       delimiter: ',',
       columns: true,
-      cast: true,
+      cast: (value, context) => {
+        if (
+          typeof context.column === 'string' &&
+          numericColumns.includes(context.column)
+        ) {
+          return Number(value);
+        }
+        return value;
+      },
       bom: true,
       ignore_last_delimiters: true,
       relax_column_count: true,

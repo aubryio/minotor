@@ -93,7 +93,7 @@ const mockStops: StopsMap = new Map([
   ],
 ]);
 
-describe('StopFinder', () => {
+describe('Stop Finder', () => {
   let stopFinder: StopsIndex;
 
   beforeEach(() => {

@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { StopId } from '../stops/stops.js';
+import { Stop, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { Duration } from '../timetable/duration.js';
+import { TripIndex } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import { NOT_AVAILABLE, Timetable } from '../timetable/timetable.js';
+import { Timetable } from '../timetable/timetable.js';
 import { Query } from './query.js';
 import { Result } from './result.js';
 import { Leg } from './route.js';
@@ -15,17 +16,23 @@ export type TripLeg = ReachingTime & {
 };
 
 export type ReachingTime = {
-  time: Time;
+  arrival: Time;
   legNumber: number;
   origin: StopId;
 };
 
 type CurrentTrip = {
-  trip: number;
+  tripIndex: TripIndex;
   origin: StopId;
   bestHopOnStop: StopId;
 };
 
+/**
+ * A public transportation network router utilizing the RAPTOR algorithm for
+ * efficient journey planning and routing. For more information on the RAPTOR
+ * algorithm, refer to its detailed explanation in the research paper:
+ * https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
+ */
 export class Router {
   private readonly timetable: Timetable;
   private readonly stopsIndex: StopsIndex;
@@ -50,6 +57,14 @@ export class Router {
     const { options } = query;
     const newlyMarkedStops: Set<StopId> = new Set();
     for (const stop of markedStops) {
+      const currentArrival = arrivalsAtCurrentRound.get(stop);
+      if (!currentArrival) continue;
+      // Skip transfers if the last leg was also a transfer
+      const previousLeg = currentArrival.leg;
+      if (previousLeg && !('route' in previousLeg)) {
+        continue;
+      }
+
       for (const transfer of this.timetable.getTransfers(stop)) {
         let transferTime: Duration;
         if (transfer.minTransferTime) {
@@ -59,15 +74,14 @@ export class Router {
         } else {
           transferTime = options.minTransferTime;
         }
-        const arrivalAfterTransfer = arrivalsAtCurrentRound
-          .get(stop)!
-          .time.plus(transferTime);
+        const arrivalAfterTransfer = currentArrival.arrival.plus(transferTime);
         const originalArrival =
-          arrivalsAtCurrentRound.get(transfer.destination)?.time ?? UNREACHED;
-        if (arrivalAfterTransfer.toMinutes() < originalArrival.toMinutes()) {
-          const origin = arrivalsAtCurrentRound.get(stop)?.origin ?? stop;
+          arrivalsAtCurrentRound.get(transfer.destination)?.arrival ??
+          UNREACHED;
+        if (arrivalAfterTransfer.isBefore(originalArrival)) {
+          const origin = currentArrival.origin;
           arrivalsAtCurrentRound.set(transfer.destination, {
-            time: arrivalAfterTransfer,
+            arrival: arrivalAfterTransfer,
             legNumber: round,
             origin: origin,
             leg: {
@@ -78,7 +92,7 @@ export class Router {
             },
           });
           earliestArrivals.set(transfer.destination, {
-            time: arrivalAfterTransfer,
+            arrival: arrivalAfterTransfer,
             legNumber: round,
             origin: origin,
           });
@@ -92,6 +106,29 @@ export class Router {
   }
 
   /**
+   * Finds the earliest arrival time at any stop from a given set of destinations.
+   *
+   * @param earliestArrivals A map of stops to their earliest reaching times.
+   * @param destinations An array of destination stops to evaluate.
+   * @returns The earliest arrival time among the provided destinations.
+   */
+  private earliestArrivalAtAnyStop(
+    earliestArrivals: Map<StopId, ReachingTime>,
+    destinations: Stop[],
+  ): Time {
+    let earliestArrivalAtAnyDestination = UNREACHED;
+    for (const destination of destinations) {
+      const arrival =
+        earliestArrivals.get(destination.id)?.arrival ?? UNREACHED;
+      earliestArrivalAtAnyDestination = Time.min(
+        earliestArrivalAtAnyDestination,
+        arrival,
+      );
+    }
+    return earliestArrivalAtAnyDestination;
+  }
+
+  /**
    * The main Raptor algorithm implementation.
    *
    * @param query The query containing the main parameters for the routing.
@@ -102,7 +139,7 @@ export class Router {
     // Consider children or siblings of the "from" stop as potential origins
     const origins = this.stopsIndex.equivalentStops(from);
     // Consider children or siblings of the "to" stop(s) as potential destinations
-    const destinations = to.flatMap((destination) =>
+    const destinations = Array.from(to).flatMap((destination) =>
       this.stopsIndex.equivalentStops(destination),
     );
     const earliestArrivals = new Map<StopId, ReachingTime>();
@@ -115,12 +152,12 @@ export class Router {
     for (const originStop of origins) {
       markedStops.add(originStop.id);
       earliestArrivals.set(originStop.id, {
-        time: departureTime,
+        arrival: departureTime,
         legNumber: 0,
         origin: originStop.id,
       });
       earliestArrivalsWithoutAnyLeg.set(originStop.id, {
-        time: departureTime,
+        arrival: departureTime,
         legNumber: 0,
         origin: originStop.id,
       });
@@ -146,57 +183,33 @@ export class Router {
       );
       markedStops.clear();
       // for each route that can be reached with at least round - 1 trips
-      for (const [routeId, hopOnStop] of reachableRoutes.entries()) {
-        const route = this.timetable.getRoute(routeId)!;
+      for (const [route, hopOnStop] of reachableRoutes.entries()) {
         let currentTrip: CurrentTrip | undefined = undefined;
-        const hopOnIndex = route.stopIndices.get(hopOnStop)!;
-        // for each stop in the route starting with the hop-on one
-        for (let i = hopOnIndex; i < route.stops.length; i++) {
-          const currentStop = route.stops[i]!;
-          const stopNumbers = route.stops.length;
+        for (const currentStop of route.stopsIterator(hopOnStop)) {
           if (currentTrip !== undefined) {
-            const currentArrivalIndex =
-              (currentTrip.trip * stopNumbers + i) * 2;
-            const currentArrivalTime = Time.fromMinutes(
-              route.stopTimes[currentArrivalIndex]!,
+            const currentArrivalTime = route.arrivalAt(
+              currentStop,
+              currentTrip.tripIndex,
             );
-            const currentDropOffType = route.pickUpDropOffTypes[i * 2 + 1];
+            const currentDropOffType = route.dropOffTypeAt(
+              currentStop,
+              currentTrip.tripIndex,
+            );
             const earliestArrivalAtCurrentStop =
-              earliestArrivals.get(currentStop)?.time ?? UNREACHED;
-            let arrivalToImprove = earliestArrivalAtCurrentStop;
-            if (destinations.length > 0) {
-              const earliestArrivalsAtDestinations: Time[] = [];
-              // if multiple destinations are specified, the target pruning
-              // should compare to the earliest arrival at any of them
-              for (const destinationStop of destinations) {
-                const earliestArrivalAtDestination =
-                  earliestArrivals.get(destinationStop.id)?.time ?? UNREACHED;
-                earliestArrivalsAtDestinations.push(
-                  earliestArrivalAtDestination,
-                );
-              }
-              const earliestArrivalAtDestination = Time.min(
-                ...earliestArrivalsAtDestinations,
-              );
-              arrivalToImprove = Time.min(
-                earliestArrivalAtCurrentStop,
-                earliestArrivalAtDestination,
-              );
-            }
+              earliestArrivals.get(currentStop)?.arrival ?? UNREACHED;
             if (
-              currentDropOffType !== NOT_AVAILABLE &&
-              currentArrivalTime.toMinutes() < arrivalToImprove.toMinutes()
+              currentDropOffType !== 'NOT_AVAILABLE' &&
+              currentArrivalTime.isBefore(earliestArrivalAtCurrentStop) &&
+              currentArrivalTime.isBefore(
+                this.earliestArrivalAtAnyStop(earliestArrivals, destinations),
+              )
             ) {
-              const bestHopOnStopIndex = route.stopIndices.get(
+              const bestHopOnDepartureTime = route.departureFrom(
                 currentTrip.bestHopOnStop,
-              )!;
-              const bestHopOnStopDepartureIndex =
-                currentTrip.trip * stopNumbers * 2 + bestHopOnStopIndex * 2 + 1;
-              const bestHopOnDepartureTime = Time.fromMinutes(
-                route.stopTimes[bestHopOnStopDepartureIndex]!,
+                currentTrip.tripIndex,
               );
               arrivalsAtCurrentRound.set(currentStop, {
-                time: currentArrivalTime,
+                arrival: currentArrivalTime,
                 legNumber: round,
                 origin: currentTrip.origin,
                 leg: {
@@ -206,11 +219,11 @@ export class Router {
                   to: this.stopsIndex.findStopById(currentStop)!,
                   departureTime: bestHopOnDepartureTime,
                   arrivalTime: currentArrivalTime,
-                  route: this.timetable.getServiceRoute(route.serviceRouteId)!,
+                  route: this.timetable.getServiceRoute(route),
                 },
               });
               earliestArrivals.set(currentStop, {
-                time: currentArrivalTime,
+                arrival: currentArrivalTime,
                 legNumber: round,
                 origin: currentTrip.origin,
               });
@@ -220,22 +233,25 @@ export class Router {
           // check if we can catch a previous trip at the current stop
           // if there was no current trip, find the first one reachable
           const earliestArrivalOnPreviousRound =
-            arrivalsAtPreviousRound.get(currentStop)?.time;
+            arrivalsAtPreviousRound.get(currentStop)?.arrival;
           if (
             earliestArrivalOnPreviousRound !== undefined &&
             (currentTrip === undefined ||
-              earliestArrivalOnPreviousRound.toMinutes() <=
-                route.stopTimes[(currentTrip.trip * stopNumbers + i) * 2]!)
+              earliestArrivalOnPreviousRound.isBefore(
+                route.arrivalAt(currentStop, currentTrip.tripIndex),
+              ) ||
+              earliestArrivalOnPreviousRound.equals(
+                route.arrivalAt(currentStop, currentTrip.tripIndex),
+              ))
           ) {
-            const earliestTrip = this.timetable.findEarliestTrip(
-              route,
+            const earliestTrip = route.findEarliestTrip(
               currentStop,
-              currentTrip?.trip,
               earliestArrivalOnPreviousRound,
+              currentTrip?.tripIndex,
             );
             if (earliestTrip !== undefined) {
               currentTrip = {
-                trip: earliestTrip,
+                tripIndex: earliestTrip,
                 // we need to keep track of the best hop-on stop to reconstruct the route at the end
                 bestHopOnStop: currentStop,
                 origin:

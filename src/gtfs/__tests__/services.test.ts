@@ -5,6 +5,7 @@ import { describe, it } from 'node:test';
 import { DateTime } from 'luxon';
 
 import { parseCalendar, parseCalendarDates, ServiceIds } from '../services.js';
+
 describe('GTFS calendar parser', () => {
   describe('parsing a well formed stream', () => {
     it('should find valid services present in the source', async () => {

@@ -4,6 +4,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { StopsMap } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Duration } from '../../timetable/duration.js';
+import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import {
   RoutesAdjacency,
@@ -30,8 +31,8 @@ describe('Router', () => {
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:00:00').toMinutes(),
               Time.fromString('08:10:00').toMinutes(),
               Time.fromString('08:15:00').toMinutes(),
@@ -39,22 +40,17 @@ describe('Router', () => {
               Time.fromString('08:35:00').toMinutes(),
               Time.fromString('08:45:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0,
-              0, // REGULAR
-              0,
-              0, // REGULAR
-              0,
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([0, 1, 2]),
-            stopIndices: new Map([
-              [0, 0],
-              [1, 1],
-              [2, 2],
-            ]),
-            serviceRouteId: 'service_route1',
-          },
+            new Uint32Array([0, 1, 2]),
+            'service_route1',
+          ),
         ],
       ]);
 
@@ -147,7 +143,7 @@ describe('Router', () => {
 
       const timeToStop3 = result.arrivalAt('stop3');
       assert.strictEqual(
-        timeToStop3?.time.toMinutes(),
+        timeToStop3?.arrival.toMinutes(),
         Time.fromString('08:35:00').toMinutes(),
       );
     });
@@ -167,8 +163,8 @@ describe('Router', () => {
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:00:00').toMinutes(),
               Time.fromString('08:15:00').toMinutes(),
               Time.fromString('08:30:00').toMinutes(),
@@ -176,27 +172,22 @@ describe('Router', () => {
               Time.fromString('09:00:00').toMinutes(),
               Time.fromString('09:10:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([0, 1, 2]),
-            stopIndices: new Map([
-              [0, 0],
-              [1, 1],
-              [2, 2],
-            ]),
-            serviceRouteId: 'service_route1',
-          },
+            new Uint32Array([0, 1, 2]),
+            'service_route1',
+          ),
         ],
         [
           'route2',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:05:00').toMinutes(),
               Time.fromString('08:20:00').toMinutes(),
               Time.fromString('09:00:00').toMinutes(),
@@ -204,22 +195,17 @@ describe('Router', () => {
               Time.fromString('09:20:00').toMinutes(),
               Time.fromString('09:35:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([3, 1, 4]),
-            stopIndices: new Map([
-              [3, 0],
-              [1, 1],
-              [4, 2],
-            ]),
-            serviceRouteId: 'service_route2',
-          },
+            new Uint32Array([3, 1, 4]),
+            'service_route2',
+          ),
         ],
       ]);
 
@@ -333,7 +319,7 @@ describe('Router', () => {
 
       const timeToStop5 = result.arrivalAt('stop5');
       assert.strictEqual(
-        timeToStop5?.time.toMinutes(),
+        timeToStop5?.arrival.toMinutes(),
         Time.fromString('09:20:00').toMinutes(),
       );
     });
@@ -367,8 +353,8 @@ describe('Router', () => {
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:00:00').toMinutes(),
               Time.fromString('08:15:00').toMinutes(),
               Time.fromString('08:25:00').toMinutes(),
@@ -376,27 +362,22 @@ describe('Router', () => {
               Time.fromString('08:45:00').toMinutes(),
               Time.fromString('08:55:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([0, 1, 2]),
-            stopIndices: new Map([
-              [0, 0],
-              [1, 1],
-              [2, 2],
-            ]),
-            serviceRouteId: 'service_route1',
-          },
+            new Uint32Array([0, 1, 2]),
+            'service_route1',
+          ),
         ],
         [
           'route2',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:10:00').toMinutes(),
               Time.fromString('08:20:00').toMinutes(),
               Time.fromString('08:40:00').toMinutes(),
@@ -404,22 +385,17 @@ describe('Router', () => {
               Time.fromString('09:00:00').toMinutes(),
               Time.fromString('09:10:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([3, 4, 5]),
-            stopIndices: new Map([
-              [3, 0],
-              [4, 1],
-              [5, 2],
-            ]),
-            serviceRouteId: 'service_route2',
-          },
+            new Uint32Array([3, 4, 5]),
+            'service_route2',
+          ),
         ],
       ]);
 
@@ -543,7 +519,7 @@ describe('Router', () => {
 
       const timeToStop5 = result.arrivalAt('stop5');
       assert.strictEqual(
-        timeToStop5?.time.toMinutes(),
+        timeToStop5?.arrival.toMinutes(),
         Time.fromString('08:30:00').toMinutes(),
       );
     });
@@ -564,8 +540,8 @@ describe('Router', () => {
       const routesAdjacency: RoutesAdjacency = new Map([
         [
           'route1',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:00:00').toMinutes(),
               Time.fromString('08:15:00').toMinutes(),
               Time.fromString('08:30:00').toMinutes(),
@@ -573,27 +549,22 @@ describe('Router', () => {
               Time.fromString('09:00:00').toMinutes(),
               Time.fromString('09:15:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([0, 1, 2]),
-            stopIndices: new Map([
-              [0, 0],
-              [1, 1],
-              [2, 2],
-            ]),
-            serviceRouteId: 'service_route1',
-          },
+            new Uint32Array([0, 1, 2]),
+            'service_route1',
+          ),
         ],
         [
           'route2',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:10:00').toMinutes(),
               Time.fromString('08:25:00').toMinutes(),
               Time.fromString('08:50:00').toMinutes(),
@@ -601,45 +572,31 @@ describe('Router', () => {
               Time.fromString('09:10:00').toMinutes(),
               Time.fromString('09:25:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
+            new Uint8Array([
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
+              REGULAR,
             ]),
-            stops: new Uint32Array([3, 1, 4]),
-            stopIndices: new Map([
-              [3, 0],
-              [1, 1],
-              [4, 2],
-            ]),
-            serviceRouteId: 'service_route2',
-          },
+            new Uint32Array([3, 1, 4]),
+            'service_route2',
+          ),
         ],
         [
           'route3',
-          {
-            stopTimes: new Uint16Array([
+          new Route(
+            new Uint16Array([
               Time.fromString('08:00:00').toMinutes(),
               Time.fromString('08:15:00').toMinutes(),
               Time.fromString('09:45:00').toMinutes(),
               Time.fromString('10:00:00').toMinutes(),
             ]),
-            pickUpDropOffTypes: new Uint8Array([
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-              0, // REGULAR
-            ]),
-            stops: new Uint32Array([0, 4]),
-            stopIndices: new Map([
-              [0, 0],
-              [4, 1],
-            ]),
-            serviceRouteId: 'service_route3',
-          },
+            new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
+            new Uint32Array([0, 4]),
+            'service_route3',
+          ),
         ],
       ]);
 

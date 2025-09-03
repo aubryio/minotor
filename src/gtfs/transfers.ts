@@ -42,7 +42,10 @@ export const parseTransfers = async (
 ): Promise<TransfersMap> => {
   const transfers: TransfersMap = new Map();
 
-  for await (const rawLine of parseCsv(transfersStream)) {
+  for await (const rawLine of parseCsv(transfersStream, [
+    'transfer_type',
+    'min_transfer_time',
+  ])) {
     const transferEntry = rawLine as TransferEntry;
 
     if (
@@ -74,9 +77,9 @@ export const parseTransfers = async (
     }
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const fromStop = stopsMap.get(transferEntry.from_stop_id + '')!;
+    const fromStop = stopsMap.get(transferEntry.from_stop_id)!;
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const toStop = stopsMap.get(transferEntry.to_stop_id + '')!;
+    const toStop = stopsMap.get(transferEntry.to_stop_id)!;
 
     const transfer: Transfer = {
       destination: toStop.id,

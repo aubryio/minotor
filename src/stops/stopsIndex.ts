@@ -74,8 +74,8 @@ export class StopsIndex {
   /**
    * Deserializes a binary representation of the stops.
    *
-   * @param {Uint8Array} data - The binary data to deserialize.
-   * @returns {StopsMap} - The deserialized StopFinder.
+   * @param data - The binary data to deserialize.
+   * @returns The deserialized StopFinder.
    */
   static fromData(data: Uint8Array): StopsIndex {
     const reader = new BinaryReader(data);
@@ -87,7 +87,7 @@ export class StopsIndex {
   /**
    * Serializes the stops into a binary protobuf.
    *
-   * @returns {Uint8Array} - The serialized binary data.
+   * @returns The serialized binary data.
    */
   serialize(): Uint8Array {
     const protoStopsMap: ProtoStopsMap = serializeStopsMap(this.stopsMap);

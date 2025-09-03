@@ -242,7 +242,6 @@ describe('GTFS transfers parser', () => {
         },
       ],
     ]);
-    console.log(JSON.stringify(stopsMap));
     const transfers = await parseTransfers(mockedStream, stopsMap);
     assert.deepEqual(
       transfers,

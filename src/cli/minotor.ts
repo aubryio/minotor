@@ -4,6 +4,12 @@ import log from 'loglevel';
 import { DateTime } from 'luxon';
 
 import { chGtfsProfile, GtfsParser, GtfsProfile } from '../parser.js';
+import { Router, StopsIndex, Timetable } from '../router.js';
+import {
+  loadQueriesFromJson,
+  prettyPrintPerformanceResults,
+  testRouterPerformance,
+} from './perf.js';
 import { startRepl } from './repl.js';
 
 const program = new Command();
@@ -71,7 +77,7 @@ program
 
 program
   .command('parse-stops')
-  .description('Parse a GTFS feed and output a timetable and stops file.')
+  .description('Parse a GTFS feed and output a stops file.')
   .argument('<gtfsPath>', 'Path to GTFS data')
   .option('-s, --outputPath <path>', 'Path to output stops file', '/tmp/stops')
   .option('-p, --profileName <name>', 'Profile name for GTFS config', 'CH')
@@ -108,5 +114,49 @@ program
   .action((options: { stopsPath: string; timetablePath: string }) => {
     startRepl(options.stopsPath, options.timetablePath);
   });
+
+program
+  .command('perf')
+  .description('Evaluate the performance of the router on a set of routes.')
+  .argument('<routesPath>', 'Path to the JSON file containing the routes')
+  .option('-s, --stopsPath <path>', 'Path to the stops file', '/tmp/stops')
+  .option(
+    '-t, --timetablePath <path>',
+    'Path to the timetable file',
+    '/tmp/timetable',
+  )
+  .option(
+    '-i, --iterations <number>',
+    'Number of iterations for performance tests',
+    '20',
+  )
+  .action(
+    (
+      routesPath: string,
+      options: {
+        stopsPath: string;
+        timetablePath: string;
+        iterations: string;
+      },
+    ) => {
+      const stopsIndex = StopsIndex.fromData(
+        fs.readFileSync(options.stopsPath),
+      );
+      const timetable = Timetable.fromData(
+        fs.readFileSync(options.timetablePath),
+      );
+      const router = new Router(timetable, stopsIndex);
+
+      const queries = loadQueriesFromJson(routesPath);
+      const performanceResults = testRouterPerformance(
+        router,
+        stopsIndex,
+        queries,
+        parseInt(options.iterations, 10),
+      );
+
+      prettyPrintPerformanceResults(performanceResults);
+    },
+  );
 
 program.parse(process.argv);
