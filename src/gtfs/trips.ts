@@ -63,11 +63,7 @@ export const parseTrips = async (
   routeIds: ServiceRoutesMap,
 ): Promise<TripIdsMap> => {
   const trips: TripIdsMap = new Map();
-  for await (const rawLine of parseCsv(tripsStream, [
-    'stop_sequence',
-    'pickup_type',
-    'drop_off_type',
-  ])) {
+  for await (const rawLine of parseCsv(tripsStream, ['stop_sequence'])) {
     const line = rawLine as TripEntry;
     if (!serviceIds.has(line.service_id)) {
       // The trip doesn't correspond to an active service
@@ -243,7 +239,7 @@ export const parseStopTimes = async (
   let dropOffTypes: SerializedPickUpDropOffType[] = [];
   let currentTripId: TripId | undefined = undefined;
 
-  for await (const rawLine of parseCsv(stopTimesStream)) {
+  for await (const rawLine of parseCsv(stopTimesStream, ['stop_sequence'])) {
     const line = rawLine as StopTimeEntry;
     if (line.trip_id === currentTripId && line.stop_sequence <= previousSeq) {
       console.warn(`Stop sequences not increasing for trip ${line.trip_id}.`);
