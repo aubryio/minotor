@@ -121,7 +121,6 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         if (bestRoute) {
           console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
           console.log(bestRoute.toString());
-          console.log(JSON.stringify(bestRoute.asJson(), null, 2));
         } else {
           console.log('No route found');
         }

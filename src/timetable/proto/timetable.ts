@@ -148,7 +148,8 @@ export interface Route {
    *   1: NOT_AVAILABLE
    *   2: MUST_PHONE_AGENCY
    *   3: MUST_COORDINATE_WITH_DRIVER
-   * Format: [pickupTypeStop1, dropOffTypeStop1, pickupTypeStop2, dropOffTypeStop2, etc.]
+   * Format: [drop_off_1][pickup_1][drop_off_0][pickup_0]
+   * 2 bits per value
    */
   pickUpDropOffTypes: Uint8Array;
   /**

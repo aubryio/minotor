@@ -65,14 +65,16 @@ export class Route {
    */
   private readonly stopTimes: Uint16Array;
   /**
-   * PickUp and DropOff types represented as a binary Uint8Array.
-   * Values:
+   * PickUp and DropOff types represented as a 2-bit encoded Uint8Array.
+   * Values (2 bits each):
    *   0: REGULAR
    *   1: NOT_AVAILABLE
    *   2: MUST_PHONE_AGENCY
    *   3: MUST_COORDINATE_WITH_DRIVER
-   * Format: [pickupTypeStop1, dropOffTypeStop1, pickupTypeStop2, dropOffTypeStop2, etc.]
-   * TODO: Encode 4 values instead of 1 in 8 bits.
+   *
+   * Encoding format: Each byte contains 2 pickup/drop-off pairs (4 bits each)
+   * Bit layout per byte: [pickup_1 (2 bits)][drop_off_1 (2 bits)][pickup_0 (2 bits)][drop_off_0 (2 bits)]
+   * Example: For stops 0 and 1 in a trip, one byte encodes all 4 values
    */
   private readonly pickUpDropOffTypes: Uint8Array;
   /**
@@ -225,14 +227,20 @@ export class Route {
    * @returns The pick-up type at the specified stop and trip.
    */
   pickUpTypeFrom(stopId: StopId, tripIndex: TripIndex): PickUpDropOffType {
-    const pickUpIndex =
-      (tripIndex * this.stops.length + this.stopIndex(stopId)) * 2;
-    const pickUpValue = this.pickUpDropOffTypes[pickUpIndex];
-    if (pickUpValue === undefined) {
+    const globalIndex = tripIndex * this.stops.length + this.stopIndex(stopId);
+    const byteIndex = Math.floor(globalIndex / 2);
+    const isSecondPair = globalIndex % 2 === 1;
+
+    const byte = this.pickUpDropOffTypes[byteIndex];
+    if (byte === undefined) {
       throw new Error(
         `Pick up type not found for stop ${stopId} at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
+
+    const pickUpValue = isSecondPair
+      ? (byte >> 6) & 0x03 // Upper 2 bits for second pair
+      : (byte >> 2) & 0x03; // Bits 2-3 for first pair
     return toPickupDropOffType(pickUpValue);
   }
 
@@ -244,14 +252,20 @@ export class Route {
    * @returns The drop-off type at the specified stop and trip.
    */
   dropOffTypeAt(stopId: StopId, tripIndex: TripIndex): PickUpDropOffType {
-    const dropOffIndex =
-      (tripIndex * this.stops.length + this.stopIndex(stopId)) * 2 + 1;
-    const dropOffValue = this.pickUpDropOffTypes[dropOffIndex];
-    if (dropOffValue === undefined) {
+    const globalIndex = tripIndex * this.stops.length + this.stopIndex(stopId);
+    const byteIndex = Math.floor(globalIndex / 2);
+    const isSecondPair = globalIndex % 2 === 1;
+
+    const byte = this.pickUpDropOffTypes[byteIndex];
+    if (byte === undefined) {
       throw new Error(
         `Drop off type not found for stop ${stopId} at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
+
+    const dropOffValue = isSecondPair
+      ? (byte >> 4) & 0x03 // Bits 4-5 for second pair
+      : byte & 0x03; // Lower 2 bits for first pair
     return toPickupDropOffType(dropOffValue);
   }
 

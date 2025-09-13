@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { encodePickUpDropOffTypes } from '../../gtfs/trips.js';
 import {
   MUST_COORDINATE_WITH_DRIVER,
   MUST_PHONE_AGENCY,
@@ -29,23 +30,30 @@ describe('Route', () => {
     Time.fromHMS(10, 31, 0).toMinutes(),
   ]);
 
-  const pickUpDropOffTypes = new Uint8Array([
-    // Trip 0
-    REGULAR,
-    REGULAR,
-    NOT_AVAILABLE,
-    REGULAR,
-    // Trip 1
-    REGULAR,
-    REGULAR,
-    REGULAR,
-    REGULAR,
-    // Trip 2
-    MUST_PHONE_AGENCY,
-    REGULAR,
-    MUST_COORDINATE_WITH_DRIVER,
-    REGULAR,
-  ]);
+  const pickUpDropOffTypes = encodePickUpDropOffTypes(
+    [
+      // Trip 0
+      REGULAR,
+      NOT_AVAILABLE,
+      // Trip 1
+      REGULAR,
+      REGULAR,
+      // Trip 2
+      MUST_PHONE_AGENCY,
+      MUST_COORDINATE_WITH_DRIVER,
+    ],
+    [
+      // Trip 0
+      REGULAR,
+      REGULAR,
+      // Trip 1
+      REGULAR,
+      REGULAR,
+      // Trip 2
+      REGULAR,
+      REGULAR,
+    ],
+  );
 
   const stops = new Uint32Array([1001, 1002]);
   const serviceRouteId = 'test-route-1';

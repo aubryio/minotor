@@ -183,6 +183,7 @@ The project is under active development. Here are some of the features that are 
 Contact [the author](https://aubry.io/) for feature requests.
 
 - Route/Trip-based transfer support
+- Favor shorter trips with less transfers in case of tie
 - Arrive-by support
 - Range queries
 - Transfer preferences

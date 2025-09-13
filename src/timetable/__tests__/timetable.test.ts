@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { encodePickUpDropOffTypes } from '../../gtfs/trips.js';
 import { Duration } from '../duration.js';
 import { NOT_AVAILABLE, REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
@@ -42,6 +43,7 @@ describe('Timetable', () => {
       },
     ],
   ]);
+
   const route1 = new Route(
     new Uint16Array([
       Time.fromHMS(16, 40, 0).toMinutes(),
@@ -53,16 +55,10 @@ describe('Timetable', () => {
       Time.fromHMS(19, 0, 0).toMinutes(),
       Time.fromHMS(19, 10, 0).toMinutes(),
     ]),
-    new Uint8Array([
-      REGULAR,
-      REGULAR,
-      NOT_AVAILABLE,
-      REGULAR,
-      REGULAR,
-      REGULAR,
-      REGULAR,
-      REGULAR,
-    ]),
+    encodePickUpDropOffTypes(
+      [REGULAR, NOT_AVAILABLE, REGULAR, REGULAR],
+      [REGULAR, REGULAR, REGULAR, REGULAR],
+    ),
     new Uint32Array([1, 2]),
     'gtfs1',
   );
@@ -73,7 +69,7 @@ describe('Timetable', () => {
       Time.fromHMS(23, 20, 0).toMinutes(),
       Time.fromHMS(23, 30, 0).toMinutes(),
     ]),
-    new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
+    encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
     new Uint32Array([2, 1]),
     'gtfs2',
   );

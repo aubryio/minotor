@@ -51,6 +51,7 @@ export class GtfsParser {
   async parse(
     date: Date,
   ): Promise<{ timetable: Timetable; stopsIndex: StopsIndex }> {
+    log.setLevel('INFO');
     const zip = new StreamZip.async({ file: this.path });
     const entries = await zip.entries();
     const datetime = DateTime.fromJSDate(date);
@@ -59,50 +60,75 @@ export class GtfsParser {
     const validStopIds = new Set<StopId>();
 
     log.info(`Parsing ${STOPS_FILE}`);
+    const stopsStart = performance.now();
     const stopsStream = await zip.stream(STOPS_FILE);
     const parsedStops = await parseStops(
       stopsStream,
       this.profile.platformParser,
     );
-    log.info(`${parsedStops.size} parsed stops.`);
+    const stopsEnd = performance.now();
+    log.info(
+      `${parsedStops.size} parsed stops. (${(stopsEnd - stopsStart).toFixed(2)}ms)`,
+    );
 
     if (entries[CALENDAR_FILE]) {
       log.info(`Parsing ${CALENDAR_FILE}`);
+      const calendarStart = performance.now();
       const calendarStream = await zip.stream(CALENDAR_FILE);
       await parseCalendar(calendarStream, validServiceIds, datetime);
-      log.info(`${validServiceIds.size} valid services.`);
+      const calendarEnd = performance.now();
+      log.info(
+        `${validServiceIds.size} valid services. (${(calendarEnd - calendarStart).toFixed(2)}ms)`,
+      );
     }
 
     if (entries[CALENDAR_DATES_FILE]) {
       log.info(`Parsing ${CALENDAR_DATES_FILE}`);
+      const calendarDatesStart = performance.now();
       const calendarDatesStream = await zip.stream(CALENDAR_DATES_FILE);
       await parseCalendarDates(calendarDatesStream, validServiceIds, datetime);
-      log.info(`${validServiceIds.size} valid services.`);
+      const calendarDatesEnd = performance.now();
+      log.info(
+        `${validServiceIds.size} valid services. (${(calendarDatesEnd - calendarDatesStart).toFixed(2)}ms)`,
+      );
     }
 
     log.info(`Parsing ${ROUTES_FILE}`);
+    const routesStart = performance.now();
     const routesStream = await zip.stream(ROUTES_FILE);
     const validGtfsRoutes = await parseRoutes(routesStream, this.profile);
-    log.info(`${validGtfsRoutes.size} valid GTFS routes.`);
+    const routesEnd = performance.now();
+    log.info(
+      `${validGtfsRoutes.size} valid GTFS routes. (${(routesEnd - routesStart).toFixed(2)}ms)`,
+    );
 
     log.info(`Parsing ${TRIPS_FILE}`);
+    const tripsStart = performance.now();
     const tripsStream = await zip.stream(TRIPS_FILE);
     const trips = await parseTrips(
       tripsStream,
       validServiceIds,
       validGtfsRoutes,
     );
-    log.info(`${trips.size} valid trips.`);
+    const tripsEnd = performance.now();
+    log.info(
+      `${trips.size} valid trips. (${(tripsEnd - tripsStart).toFixed(2)}ms)`,
+    );
 
     let transfers = new Map() as TransfersMap;
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
+      const transfersStart = performance.now();
       const transfersStream = await zip.stream(TRANSFERS_FILE);
       transfers = await parseTransfers(transfersStream, parsedStops);
-      log.info(`${transfers.size} valid transfers.`);
+      const transfersEnd = performance.now();
+      log.info(
+        `${transfers.size} valid transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+      );
     }
 
     log.info(`Parsing ${STOP_TIMES_FILE}`);
+    const stopTimesStart = performance.now();
     const stopTimesStream = await zip.stream(STOP_TIMES_FILE);
     const routesAdjacency = await parseStopTimes(
       stopTimesStream,
@@ -115,12 +141,17 @@ export class GtfsParser {
       routesAdjacency,
       transfers,
     );
-    log.info(`${routesAdjacency.size} valid unique routes.`);
+    const stopTimesEnd = performance.now();
+    log.info(
+      `${routesAdjacency.size} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
+    );
 
     log.info(`Removing unused stops.`);
+    const indexStopsStart = performance.now();
     const stops = indexStops(parsedStops, validStopIds);
+    const indexStopsEnd = performance.now();
     log.info(
-      `${stops.size} used stop stops, ${parsedStops.size - stops.size} unused.`,
+      `${stops.size} used stop stops, ${parsedStops.size - stops.size} unused. (${(indexStopsEnd - indexStopsStart).toFixed(2)}ms)`,
     );
 
     await zip.close();
@@ -132,7 +163,12 @@ export class GtfsParser {
     );
 
     log.info(`Building stops index.`);
+    const stopsIndexStart = performance.now();
     const stopsIndex = new StopsIndex(stops);
+    const stopsIndexEnd = performance.now();
+    log.info(
+      `Stops index built. (${(stopsIndexEnd - stopsIndexStart).toFixed(2)}ms)`,
+    );
 
     log.info('Parsing complete.');
     return { timetable, stopsIndex };
@@ -149,12 +185,16 @@ export class GtfsParser {
     const zip = new StreamZip.async({ file: this.path });
 
     log.info(`Parsing ${STOPS_FILE}`);
+    const stopsStart = performance.now();
     const stopsStream = await zip.stream(STOPS_FILE);
     const stops = indexStops(
       await parseStops(stopsStream, this.profile.platformParser),
     );
+    const stopsEnd = performance.now();
 
-    log.info(`${stops.size} parsed stops.`);
+    log.info(
+      `${stops.size} parsed stops. (${(stopsEnd - stopsStart).toFixed(2)}ms)`,
+    );
 
     await zip.close();
 
