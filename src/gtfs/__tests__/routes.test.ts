@@ -24,6 +24,7 @@ describe('GTFS routes parser', () => {
             {
               type: 'BUS',
               name: 'B1',
+              routes: [],
             },
           ],
           [
@@ -31,6 +32,7 @@ describe('GTFS routes parser', () => {
             {
               type: 'TRAM',
               name: 'T1',
+              routes: [],
             },
           ],
         ]),
@@ -54,6 +56,7 @@ describe('GTFS routes parser', () => {
             {
               type: 'BUS',
               name: 'B1',
+              routes: [],
             },
           ],
         ]),

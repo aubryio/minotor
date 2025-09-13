@@ -42,6 +42,7 @@ export const parseRoutes = async (
     routes.set(line.route_id, {
       name: line.route_short_name,
       type: routeType,
+      routes: [],
     });
   }
   return routes;

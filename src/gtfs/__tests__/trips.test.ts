@@ -5,10 +5,7 @@ import { describe, it } from 'node:test';
 import { StopId } from '../../stops/stops.js';
 import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
-import {
-  RoutesAdjacency,
-  ServiceRoutesMap,
-} from '../../timetable/timetable.js';
+import { ServiceRoutesMap } from '../../timetable/timetable.js';
 import { ServiceIds } from '../services.js';
 import { ParsedStopsMap } from '../stops.js';
 import { TransfersMap } from '../transfers.js';
@@ -23,23 +20,24 @@ import {
 describe('buildStopsAdjacencyStructure', () => {
   it('should correctly build stops adjacency for valid routes and transfers', () => {
     const validStops: Set<StopId> = new Set([0]);
-    const routesAdjacency: RoutesAdjacency = new Map([
-      [
-        'routeA',
-        new Route(
-          new Uint16Array(),
-          encodePickUpDropOffTypes([], []),
-          new Uint32Array([0, 1]),
-          'service1',
-        ),
-      ],
-    ]);
+    const routesAdjacency = [
+      new Route(
+        new Uint16Array(),
+        new Uint8Array(),
+        new Uint32Array([0, 1]),
+        'service1',
+      ),
+    ];
     const transfersMap: TransfersMap = new Map([
       [0, [{ destination: 1, type: 'RECOMMENDED' }]],
+    ]);
+    const serviceRoutes: ServiceRoutesMap = new Map([
+      ['service1', { type: 'BUS', name: 'B1', routes: [] }],
     ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStops,
+      serviceRoutes,
       routesAdjacency,
       transfersMap,
     );
@@ -48,32 +46,34 @@ describe('buildStopsAdjacencyStructure', () => {
       [
         0,
         {
-          routes: ['routeA'],
+          routes: [0],
           transfers: [],
         },
       ],
     ]);
+    assert.deepEqual(serviceRoutes.get('service1')?.routes, [0]);
   });
 
   it('should ignore transfers to invalid stops', () => {
     const validStops: Set<StopId> = new Set([0, 1]);
-    const routesAdjacency: RoutesAdjacency = new Map([
-      [
-        'routeA',
-        new Route(
-          new Uint16Array(),
-          encodePickUpDropOffTypes([], []),
-          new Uint32Array([0, 1]),
-          'service1',
-        ),
-      ],
-    ]);
+    const routesAdjacency = [
+      new Route(
+        new Uint16Array(),
+        new Uint8Array(),
+        new Uint32Array([0, 1]),
+        'service1',
+      ),
+    ];
     const transfersMap: TransfersMap = new Map([
       [0, [{ destination: 2, type: 'RECOMMENDED' }]],
+    ]);
+    const serviceRoutes: ServiceRoutesMap = new Map([
+      ['service1', { type: 'BUS', name: 'B1', routes: [] }],
     ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStops,
+      serviceRoutes,
       routesAdjacency,
       transfersMap,
     );
@@ -82,18 +82,19 @@ describe('buildStopsAdjacencyStructure', () => {
       [
         0,
         {
-          routes: ['routeA'],
+          routes: [0],
           transfers: [],
         },
       ],
       [
         1,
         {
-          routes: ['routeA'],
+          routes: [0],
           transfers: [],
         },
       ],
     ]);
+    assert.deepEqual(serviceRoutes.get('service1')?.routes, [0]);
   });
 });
 describe('GTFS trips parser', () => {
@@ -106,8 +107,8 @@ describe('GTFS trips parser', () => {
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
     const validRouteIds: ServiceRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1' }],
-      ['routeB', { type: 'TRAM', name: 'T1' }],
+      ['routeA', { type: 'BUS', name: 'B1', routes: [0] }],
+      ['routeB', { type: 'TRAM', name: 'T1', routes: [1] }],
     ]);
 
     const trips = await parseTrips(
@@ -133,8 +134,8 @@ describe('GTFS trips parser', () => {
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
     const validRouteIds: ServiceRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1' }],
-      ['routeB', { type: 'TRAM', name: 'T1' }],
+      ['routeA', { type: 'BUS', name: 'B1', routes: [0] }],
+      ['routeB', { type: 'TRAM', name: 'T1', routes: [1] }],
     ]);
 
     const trips = await parseTrips(
@@ -154,8 +155,8 @@ describe('GTFS trips parser', () => {
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
     const validRouteIds: ServiceRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1' }],
-      ['routeB', { type: 'TRAM', name: 'T1' }],
+      ['routeA', { type: 'BUS', name: 'B1', routes: [0] }],
+      ['routeB', { type: 'TRAM', name: 'T1', routes: [1] }],
     ]);
 
     const trips = await parseTrips(
@@ -211,25 +212,19 @@ describe('GTFS stop times parser', () => {
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(
-      routes,
-      new Map([
-        [
-          'routeA_1',
-          new Route(
-            new Uint16Array([
-              Time.fromHMS(8, 0, 0).toMinutes(),
-              Time.fromHMS(8, 5, 0).toMinutes(),
-              Time.fromHMS(8, 10, 0).toMinutes(),
-              Time.fromHMS(8, 15, 0).toMinutes(),
-            ]),
-            encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
-            new Uint32Array([0, 1]),
-            'routeA',
-          ),
-        ],
-      ]),
-    );
+    assert.deepEqual(routes, [
+      new Route(
+        new Uint16Array([
+          Time.fromHMS(8, 0, 0).toMinutes(),
+          Time.fromHMS(8, 5, 0).toMinutes(),
+          Time.fromHMS(8, 10, 0).toMinutes(),
+          Time.fromHMS(8, 15, 0).toMinutes(),
+        ]),
+        encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
+        new Uint32Array([0, 1]),
+        'routeA',
+      ),
+    ]);
   });
 
   it('should create same route for same GTFS route with same stops', async () => {
@@ -277,32 +272,26 @@ describe('GTFS stop times parser', () => {
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(
-      routes,
-      new Map([
-        [
-          'routeA_1',
-          new Route(
-            new Uint16Array([
-              Time.fromHMS(8, 0, 0).toMinutes(),
-              Time.fromHMS(8, 5, 0).toMinutes(),
-              Time.fromHMS(8, 10, 0).toMinutes(),
-              Time.fromHMS(8, 15, 0).toMinutes(),
-              Time.fromHMS(9, 0, 0).toMinutes(),
-              Time.fromHMS(9, 5, 0).toMinutes(),
-              Time.fromHMS(9, 10, 0).toMinutes(),
-              Time.fromHMS(9, 15, 0).toMinutes(),
-            ]),
-            encodePickUpDropOffTypes(
-              [REGULAR, REGULAR, REGULAR, REGULAR],
-              [REGULAR, REGULAR, REGULAR, REGULAR],
-            ),
-            new Uint32Array([0, 1]),
-            'routeA',
-          ),
-        ],
-      ]),
-    );
+    assert.deepEqual(routes, [
+      new Route(
+        new Uint16Array([
+          Time.fromHMS(8, 0, 0).toMinutes(),
+          Time.fromHMS(8, 5, 0).toMinutes(),
+          Time.fromHMS(8, 10, 0).toMinutes(),
+          Time.fromHMS(8, 15, 0).toMinutes(),
+          Time.fromHMS(9, 0, 0).toMinutes(),
+          Time.fromHMS(9, 5, 0).toMinutes(),
+          Time.fromHMS(9, 10, 0).toMinutes(),
+          Time.fromHMS(9, 15, 0).toMinutes(),
+        ]),
+        encodePickUpDropOffTypes(
+          [REGULAR, REGULAR, REGULAR, REGULAR],
+          [REGULAR, REGULAR, REGULAR, REGULAR],
+        ),
+        new Uint32Array([0, 1]),
+        'routeA',
+      ),
+    ]);
   });
 
   it('should support unsorted trips within a route', async () => {
@@ -350,32 +339,26 @@ describe('GTFS stop times parser', () => {
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(
-      routes,
-      new Map([
-        [
-          'routeA_1',
-          new Route(
-            new Uint16Array([
-              Time.fromHMS(8, 0, 0).toMinutes(),
-              Time.fromHMS(8, 5, 0).toMinutes(),
-              Time.fromHMS(8, 10, 0).toMinutes(),
-              Time.fromHMS(8, 15, 0).toMinutes(),
-              Time.fromHMS(9, 0, 0).toMinutes(),
-              Time.fromHMS(9, 5, 0).toMinutes(),
-              Time.fromHMS(9, 10, 0).toMinutes(),
-              Time.fromHMS(9, 15, 0).toMinutes(),
-            ]),
-            encodePickUpDropOffTypes(
-              [REGULAR, REGULAR, REGULAR, REGULAR],
-              [REGULAR, REGULAR, REGULAR, REGULAR],
-            ),
-            new Uint32Array([0, 1]),
-            'routeA',
-          ),
-        ],
-      ]),
-    );
+    assert.deepEqual(routes, [
+      new Route(
+        new Uint16Array([
+          Time.fromHMS(8, 0, 0).toMinutes(),
+          Time.fromHMS(8, 5, 0).toMinutes(),
+          Time.fromHMS(8, 10, 0).toMinutes(),
+          Time.fromHMS(8, 15, 0).toMinutes(),
+          Time.fromHMS(9, 0, 0).toMinutes(),
+          Time.fromHMS(9, 5, 0).toMinutes(),
+          Time.fromHMS(9, 10, 0).toMinutes(),
+          Time.fromHMS(9, 15, 0).toMinutes(),
+        ]),
+        encodePickUpDropOffTypes(
+          [REGULAR, REGULAR, REGULAR, REGULAR],
+          [REGULAR, REGULAR, REGULAR, REGULAR],
+        ),
+        new Uint32Array([0, 1]),
+        'routeA',
+      ),
+    ]);
   });
 
   it('should create distinct route for same GTFS route with different stops', async () => {
@@ -422,37 +405,28 @@ describe('GTFS stop times parser', () => {
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(
-      routes,
-      new Map([
-        [
-          'routeA_1',
-          new Route(
-            new Uint16Array([
-              Time.fromHMS(8, 0, 0).toMinutes(),
-              Time.fromHMS(8, 5, 0).toMinutes(),
-              Time.fromHMS(8, 10, 0).toMinutes(),
-              Time.fromHMS(8, 15, 0).toMinutes(),
-            ]),
-            encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
-            new Uint32Array([0, 1]),
-            'routeA',
-          ),
-        ],
-        [
-          'routeA_0',
-          new Route(
-            new Uint16Array([
-              Time.fromHMS(9, 0, 0).toMinutes(),
-              Time.fromHMS(9, 15, 0).toMinutes(),
-            ]),
-            encodePickUpDropOffTypes([REGULAR], [REGULAR]),
-            new Uint32Array([0]),
-            'routeA',
-          ),
-        ],
-      ]),
-    );
+    assert.deepEqual(routes, [
+      new Route(
+        new Uint16Array([
+          Time.fromHMS(8, 0, 0).toMinutes(),
+          Time.fromHMS(8, 5, 0).toMinutes(),
+          Time.fromHMS(8, 10, 0).toMinutes(),
+          Time.fromHMS(8, 15, 0).toMinutes(),
+        ]),
+        encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
+        new Uint32Array([0, 1]),
+        'routeA',
+      ),
+      new Route(
+        new Uint16Array([
+          Time.fromHMS(9, 0, 0).toMinutes(),
+          Time.fromHMS(9, 15, 0).toMinutes(),
+        ]),
+        encodePickUpDropOffTypes([REGULAR], [REGULAR]),
+        new Uint32Array([0]),
+        'routeA',
+      ),
+    ]);
   });
 
   it('should ignore non-increasing stop sequences', async () => {
@@ -495,22 +469,16 @@ describe('GTFS stop times parser', () => {
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(
-      routes,
-      new Map([
-        [
-          'routeA_0',
-          new Route(
-            new Uint16Array([
-              Time.fromHMS(8, 0, 0).toMinutes(),
-              Time.fromHMS(8, 5, 0).toMinutes(),
-            ]),
-            encodePickUpDropOffTypes([REGULAR], [REGULAR]),
-            new Uint32Array([0]),
-            'routeA',
-          ),
-        ],
-      ]),
-    );
+    assert.deepEqual(routes, [
+      new Route(
+        new Uint16Array([
+          Time.fromHMS(8, 0, 0).toMinutes(),
+          Time.fromHMS(8, 5, 0).toMinutes(),
+        ]),
+        encodePickUpDropOffTypes([REGULAR], [REGULAR]),
+        new Uint32Array([0]),
+        'routeA',
+      ),
+    ]);
   });
 });

@@ -9,7 +9,7 @@ import { ServiceRouteId } from './timetable.js';
  * This one is used for identifying groups of trips
  * from a service route sharing the same list of stops.
  */
-export type RouteId = string;
+export type RouteId = number;
 
 /**
  * Details about the pickup and drop-off modalities at each stop in each trip of a route.

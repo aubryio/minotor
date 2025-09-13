@@ -27,10 +27,6 @@ message Route {
   string serviceRouteId = 4;
 }
 
-message RoutesAdjacency {
-  map<string, Route> routes = 1;
-}
-
 enum TransferType {
   RECOMMENDED_TRANSFER_POINT = 0;
   TIMED_TRANSFER = 1;
@@ -41,15 +37,15 @@ enum TransferType {
 message Transfer {
   uint32 destination = 1;
   TransferType type = 2;
-  optional int32 minTransferTime = 3;
+  optional uint32 minTransferTime = 3;
 }
 
 message StopsAdjacency {
   message StopAdjacency {
     repeated Transfer transfers = 1;
-    repeated string routes = 2;
+    repeated int32 routes = 2;
   }
-  map<string, StopAdjacency> stops = 1;
+  map<uint32, StopAdjacency> stops = 1;
 }
 
 enum RouteType {
@@ -68,6 +64,7 @@ enum RouteType {
 message ServiceRoute {
   RouteType type = 1;
   string name = 2;
+  repeated int32 routes = 3;
 }
 
 message ServiceRoutesMap {
@@ -77,6 +74,6 @@ message ServiceRoutesMap {
 message Timetable {
   string version = 1;
   StopsAdjacency stopsAdjacency = 2;
-  RoutesAdjacency routesAdjacency = 3;
+  repeated Route routesAdjacency = 3;
   ServiceRoutesMap routes = 4;
 }

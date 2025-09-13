@@ -1,15 +1,14 @@
 import { Duration } from './duration.js';
 import {
-  RoutesAdjacency as ProtoRoutesAdjacency,
+  Route as ProtoRoute,
   RouteType as ProtoRouteType,
   ServiceRoutesMap as ProtoServiceRoutesMap,
   StopsAdjacency as ProtoStopsAdjacency,
   Transfer as ProtoTransfer,
   TransferType as ProtoTransferType,
 } from './proto/timetable.js';
-import { Route } from './route.js';
+import { Route, RouteId } from './route.js';
 import {
-  RoutesAdjacency,
   RouteType,
   ServiceRouteId,
   ServiceRoutesMap,
@@ -130,7 +129,7 @@ export const serializeStopsAdjacency = (
   };
 
   stopsAdjacency.forEach(
-    (value: { transfers: Transfer[]; routes: string[] }, key: number) => {
+    (value: { transfers: Transfer[]; routes: number[] }, key: number) => {
       protoStopsAdjacency.stops[key] = {
         transfers: value.transfers.map((transfer) => ({
           destination: transfer.destination,
@@ -148,20 +147,18 @@ export const serializeStopsAdjacency = (
 };
 
 export const serializeRoutesAdjacency = (
-  routesAdjacency: RoutesAdjacency,
-): ProtoRoutesAdjacency => {
-  const protoRoutesAdjacency: ProtoRoutesAdjacency = {
-    routes: {},
-  };
+  routesAdjacency: Route[],
+): ProtoRoute[] => {
+  const protoRoutesAdjacency: ProtoRoute[] = [];
 
-  routesAdjacency.forEach((route: Route, key: string) => {
+  routesAdjacency.forEach((route: Route) => {
     const routeData = route.serialize();
-    protoRoutesAdjacency.routes[key] = {
+    protoRoutesAdjacency.push({
       stopTimes: uint16ArrayToBytes(routeData.stopTimes),
       pickUpDropOffTypes: routeData.pickUpDropOffTypes,
       stops: uint32ArrayToBytes(routeData.stops),
       serviceRouteId: routeData.serviceRouteId,
-    };
+    });
   });
 
   return protoRoutesAdjacency;
@@ -175,10 +172,14 @@ export const serializeServiceRoutesMap = (
   };
 
   serviceRoutesMap.forEach(
-    (value: { type: RouteType; name: string }, key: string) => {
+    (
+      value: { type: RouteType; name: string; routes: RouteId[] },
+      key: string,
+    ) => {
       protoServiceRoutesMap.routes[key] = {
         type: serializeRouteType(value.type),
         name: value.name,
+        routes: value.routes,
       };
     },
   );
@@ -211,14 +212,13 @@ export const deserializeStopsAdjacency = (
 };
 
 export const deserializeRoutesAdjacency = (
-  protoRoutesAdjacency: ProtoRoutesAdjacency,
-): RoutesAdjacency => {
-  const routesAdjacency: RoutesAdjacency = new Map();
+  protoRoutesAdjacency: ProtoRoute[],
+): Route[] => {
+  const routesAdjacency: Route[] = [];
 
-  Object.entries(protoRoutesAdjacency.routes).forEach(([key, value]) => {
+  protoRoutesAdjacency.forEach((value) => {
     const stops = bytesToUint32Array(value.stops);
-    routesAdjacency.set(
-      key,
+    routesAdjacency.push(
       new Route(
         bytesToUint16Array(value.stopTimes),
         value.pickUpDropOffTypes,
@@ -240,6 +240,7 @@ export const deserializeServiceRoutesMap = (
     serviceRoutesMap.set(key, {
       type: parseRouteType(value.type),
       name: value.name,
+      routes: value.routes,
     });
   });
 

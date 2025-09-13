@@ -7,7 +7,6 @@ import { Duration } from '../../timetable/duration.js';
 import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import {
-  RoutesAdjacency,
   ServiceRoutesMap,
   StopsAdjacency,
   Timetable,
@@ -23,36 +22,33 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: ['route1'] }],
-        [1, { transfers: [], routes: ['route1'] }],
-        [2, { transfers: [], routes: ['route1'] }],
+        [0, { transfers: [], routes: [0] }],
+        [1, { transfers: [], routes: [0] }],
+        [2, { transfers: [], routes: [0] }],
       ]);
 
-      const routesAdjacency: RoutesAdjacency = new Map([
-        [
-          'route1',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:00:00').toMinutes(),
-              Time.fromString('08:10:00').toMinutes(),
-              Time.fromString('08:15:00').toMinutes(),
-              Time.fromString('08:25:00').toMinutes(),
-              Time.fromString('08:35:00').toMinutes(),
-              Time.fromString('08:45:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([0, 1, 2]),
-            'service_route1',
-          ),
-        ],
-      ]);
+      const routesAdjacency = [
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:10:00').toMinutes(),
+            Time.fromString('08:15:00').toMinutes(),
+            Time.fromString('08:25:00').toMinutes(),
+            Time.fromString('08:35:00').toMinutes(),
+            Time.fromString('08:45:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([0, 1, 2]),
+          'service_route1',
+        ),
+      ];
 
       const routes: ServiceRoutesMap = new Map([
         [
@@ -60,6 +56,7 @@ describe('Router', () => {
           {
             type: 'BUS',
             name: 'Line 1',
+            routes: [0],
           },
         ],
       ]);
@@ -154,60 +151,54 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: ['route1'] }],
-        [1, { transfers: [], routes: ['route1', 'route2'] }],
-        [2, { transfers: [], routes: ['route1'] }],
-        [3, { transfers: [], routes: ['route2'] }],
-        [4, { transfers: [], routes: ['route2'] }],
+        [0, { transfers: [], routes: [0] }],
+        [1, { transfers: [], routes: [0, 1] }],
+        [2, { transfers: [], routes: [0] }],
+        [3, { transfers: [], routes: [1] }],
+        [4, { transfers: [], routes: [1] }],
       ]);
-      const routesAdjacency: RoutesAdjacency = new Map([
-        [
-          'route1',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:00:00').toMinutes(),
-              Time.fromString('08:15:00').toMinutes(),
-              Time.fromString('08:30:00').toMinutes(),
-              Time.fromString('08:45:00').toMinutes(),
-              Time.fromString('09:00:00').toMinutes(),
-              Time.fromString('09:10:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([0, 1, 2]),
-            'service_route1',
-          ),
-        ],
-        [
-          'route2',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:05:00').toMinutes(),
-              Time.fromString('08:20:00').toMinutes(),
-              Time.fromString('09:00:00').toMinutes(),
-              Time.fromString('09:15:00').toMinutes(),
-              Time.fromString('09:20:00').toMinutes(),
-              Time.fromString('09:35:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([3, 1, 4]),
-            'service_route2',
-          ),
-        ],
-      ]);
+      const routesAdjacency = [
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:15:00').toMinutes(),
+            Time.fromString('08:30:00').toMinutes(),
+            Time.fromString('08:45:00').toMinutes(),
+            Time.fromString('09:00:00').toMinutes(),
+            Time.fromString('09:10:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([0, 1, 2]),
+          'service_route1',
+        ),
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:05:00').toMinutes(),
+            Time.fromString('08:20:00').toMinutes(),
+            Time.fromString('09:00:00').toMinutes(),
+            Time.fromString('09:15:00').toMinutes(),
+            Time.fromString('09:20:00').toMinutes(),
+            Time.fromString('09:35:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([3, 1, 4]),
+          'service_route2',
+        ),
+      ];
 
       const routes: ServiceRoutesMap = new Map([
         [
@@ -215,6 +206,7 @@ describe('Router', () => {
           {
             type: 'BUS',
             name: 'Line 1',
+            routes: [0],
           },
         ],
         [
@@ -222,6 +214,7 @@ describe('Router', () => {
           {
             type: 'RAIL',
             name: 'Line 2',
+            routes: [1],
           },
         ],
       ]);
@@ -330,7 +323,7 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: ['route1'] }],
+        [0, { transfers: [], routes: [0] }],
         [
           1,
           {
@@ -341,63 +334,57 @@ describe('Router', () => {
                 minTransferTime: Duration.fromSeconds(300),
               },
             ],
-            routes: ['route1'],
+            routes: [0],
           },
         ],
-        [2, { transfers: [], routes: ['route1'] }],
-        [3, { transfers: [], routes: ['route2'] }],
-        [4, { transfers: [], routes: ['route2'] }],
-        [5, { transfers: [], routes: ['route2'] }],
+        [2, { transfers: [], routes: [0] }],
+        [3, { transfers: [], routes: [1] }],
+        [4, { transfers: [], routes: [1] }],
+        [5, { transfers: [], routes: [1] }],
       ]);
 
-      const routesAdjacency: RoutesAdjacency = new Map([
-        [
-          'route1',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:00:00').toMinutes(),
-              Time.fromString('08:15:00').toMinutes(),
-              Time.fromString('08:25:00').toMinutes(),
-              Time.fromString('08:35:00').toMinutes(),
-              Time.fromString('08:45:00').toMinutes(),
-              Time.fromString('08:55:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([0, 1, 2]),
-            'service_route1',
-          ),
-        ],
-        [
-          'route2',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:10:00').toMinutes(),
-              Time.fromString('08:20:00').toMinutes(),
-              Time.fromString('08:40:00').toMinutes(),
-              Time.fromString('08:50:00').toMinutes(),
-              Time.fromString('09:00:00').toMinutes(),
-              Time.fromString('09:10:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([3, 4, 5]),
-            'service_route2',
-          ),
-        ],
-      ]);
+      const routesAdjacency = [
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:15:00').toMinutes(),
+            Time.fromString('08:25:00').toMinutes(),
+            Time.fromString('08:35:00').toMinutes(),
+            Time.fromString('08:45:00').toMinutes(),
+            Time.fromString('08:55:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([0, 1, 2]),
+          'service_route1',
+        ),
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:10:00').toMinutes(),
+            Time.fromString('08:20:00').toMinutes(),
+            Time.fromString('08:40:00').toMinutes(),
+            Time.fromString('08:50:00').toMinutes(),
+            Time.fromString('09:00:00').toMinutes(),
+            Time.fromString('09:10:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([3, 4, 5]),
+          'service_route2',
+        ),
+      ];
 
       const routes: ServiceRoutesMap = new Map([
         [
@@ -405,6 +392,7 @@ describe('Router', () => {
           {
             type: 'BUS',
             name: 'Line 1',
+            routes: [0],
           },
         ],
         [
@@ -412,6 +400,7 @@ describe('Router', () => {
           {
             type: 'RAIL',
             name: 'Line 2',
+            routes: [1],
           },
         ],
       ]);
@@ -530,75 +519,66 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: ['route1'] }],
-        [1, { transfers: [], routes: ['route1', 'route2'] }],
-        [2, { transfers: [], routes: ['route1'] }],
-        [3, { transfers: [], routes: ['route2'] }],
-        [4, { transfers: [], routes: ['route2'] }],
+        [0, { transfers: [], routes: [0] }],
+        [1, { transfers: [], routes: [0, 1] }],
+        [2, { transfers: [], routes: [0] }],
+        [3, { transfers: [], routes: [1] }],
+        [4, { transfers: [], routes: [1] }],
       ]);
 
-      const routesAdjacency: RoutesAdjacency = new Map([
-        [
-          'route1',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:00:00').toMinutes(),
-              Time.fromString('08:15:00').toMinutes(),
-              Time.fromString('08:30:00').toMinutes(),
-              Time.fromString('08:45:00').toMinutes(),
-              Time.fromString('09:00:00').toMinutes(),
-              Time.fromString('09:15:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([0, 1, 2]),
-            'service_route1',
-          ),
-        ],
-        [
-          'route2',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:10:00').toMinutes(),
-              Time.fromString('08:25:00').toMinutes(),
-              Time.fromString('08:50:00').toMinutes(),
-              Time.fromString('09:05:00').toMinutes(),
-              Time.fromString('09:10:00').toMinutes(),
-              Time.fromString('09:25:00').toMinutes(),
-            ]),
-            new Uint8Array([
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-              REGULAR,
-            ]),
-            new Uint32Array([3, 1, 4]),
-            'service_route2',
-          ),
-        ],
-        [
-          'route3',
-          new Route(
-            new Uint16Array([
-              Time.fromString('08:00:00').toMinutes(),
-              Time.fromString('08:15:00').toMinutes(),
-              Time.fromString('09:45:00').toMinutes(),
-              Time.fromString('10:00:00').toMinutes(),
-            ]),
-            new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
-            new Uint32Array([0, 4]),
-            'service_route3',
-          ),
-        ],
-      ]);
+      const routesAdjacency = [
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:15:00').toMinutes(),
+            Time.fromString('08:30:00').toMinutes(),
+            Time.fromString('08:45:00').toMinutes(),
+            Time.fromString('09:00:00').toMinutes(),
+            Time.fromString('09:15:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([0, 1, 2]),
+          'service_route1',
+        ),
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:10:00').toMinutes(),
+            Time.fromString('08:25:00').toMinutes(),
+            Time.fromString('08:50:00').toMinutes(),
+            Time.fromString('09:05:00').toMinutes(),
+            Time.fromString('09:10:00').toMinutes(),
+            Time.fromString('09:25:00').toMinutes(),
+          ]),
+          new Uint8Array([
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+            REGULAR,
+          ]),
+          new Uint32Array([3, 1, 4]),
+          'service_route2',
+        ),
+        new Route(
+          new Uint16Array([
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:15:00').toMinutes(),
+            Time.fromString('09:45:00').toMinutes(),
+            Time.fromString('10:00:00').toMinutes(),
+          ]),
+          new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
+          new Uint32Array([0, 4]),
+          'service_route3',
+        ),
+      ];
 
       const routes: ServiceRoutesMap = new Map([
         [
@@ -606,6 +586,7 @@ describe('Router', () => {
           {
             type: 'BUS',
             name: 'Line 1',
+            routes: [0],
           },
         ],
         [
@@ -613,6 +594,7 @@ describe('Router', () => {
           {
             type: 'RAIL',
             name: 'Line 2',
+            routes: [1],
           },
         ],
         [
@@ -620,6 +602,7 @@ describe('Router', () => {
           {
             type: 'FERRY',
             name: 'Line 3',
+            routes: [2],
           },
         ],
       ]);

@@ -31,7 +31,7 @@ describe('GTFS parser', () => {
     const transfers = timetable.getTransfers(furCreekResId);
     assert.strictEqual(transfers.length, 0);
 
-    const route = timetable.getRoute('AB_x');
+    const route = timetable.getRoute(3);
     assert(route);
     assert.strictEqual(route.serviceRoute(), 'AB');
     const beattyAirportId =
@@ -51,7 +51,7 @@ describe('GTFS parser', () => {
     assert.strictEqual(routes[0]?.serviceRoute(), 'BFC');
     assert.strictEqual(routes[1]?.serviceRoute(), 'BFC');
 
-    const serviceRoute = timetable.getServiceRoute(route);
+    const serviceRoute = timetable.getServiceRouteInfo(route);
     assert(serviceRoute);
     assert.strictEqual(serviceRoute.name, '10');
     assert.strictEqual(serviceRoute.type, 'BUS');

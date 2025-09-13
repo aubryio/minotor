@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { Stop } from '../../stops/stops.js';
 import { Duration } from '../../timetable/duration.js';
 import { Time } from '../../timetable/time.js';
-import { ServiceRoute, TransferType } from '../../timetable/timetable.js';
+import { ServiceRouteInfo, TransferType } from '../../timetable/timetable.js';
 import { Route } from '../route.js';
 
 describe('Route', () => {
@@ -40,12 +40,12 @@ describe('Route', () => {
     children: [],
   };
 
-  const serviceRoute: ServiceRoute = {
+  const serviceRoute: ServiceRouteInfo = {
     type: 'BUS',
     name: 'Route 1',
   };
 
-  const serviceRoute2: ServiceRoute = {
+  const serviceRoute2: ServiceRouteInfo = {
     type: 'RAIL',
     name: 'Route 2',
   };

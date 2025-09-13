@@ -13,8 +13,6 @@ import {
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
 import { Route, RouteId } from './route.js';
 
-export type RoutesAdjacency = Map<RouteId, Route>;
-
 export type TransferType =
   | 'RECOMMENDED'
   | 'GUARANTEED'
@@ -49,10 +47,12 @@ export type RouteType =
   | 'TROLLEYBUS'
   | 'MONORAIL';
 
-export type ServiceRoute = {
+type ServiceRoute = {
   type: RouteType;
   name: string;
+  routes: RouteId[];
 };
+export type ServiceRouteInfo = Omit<ServiceRoute, 'routes'>;
 
 // A service refers to a collection of trips that are displayed to riders as a single service.
 // As opposed to a route which consists of the subset of trips from a service which shares the same list of stops.
@@ -72,19 +72,19 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'MONORAIL',
 ]);
 
-export const CURRENT_VERSION = '0.0.4';
+export const CURRENT_VERSION = '0.0.5';
 
 /**
  * The internal transit timetable format.
  */
 export class Timetable {
   private readonly stopsAdjacency: StopsAdjacency;
-  private readonly routesAdjacency: RoutesAdjacency;
+  private readonly routesAdjacency: Route[];
   private readonly routes: ServiceRoutesMap;
 
   constructor(
     stopsAdjacency: StopsAdjacency,
-    routesAdjacency: RoutesAdjacency,
+    routesAdjacency: Route[],
     routes: ServiceRoutesMap,
   ) {
     this.stopsAdjacency = stopsAdjacency;
@@ -126,10 +126,7 @@ export class Timetable {
     return new Timetable(
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency!),
-      deserializeRoutesAdjacency(
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        protoTimetable.routesAdjacency!,
-      ),
+      deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       deserializeServiceRoutesMap(protoTimetable.routes!),
     );
@@ -143,7 +140,7 @@ export class Timetable {
    * or undefined if no such route exists.
    */
   getRoute(routeId: RouteId): Route | undefined {
-    return this.routesAdjacency.get(routeId);
+    return this.routesAdjacency[routeId];
   }
 
   /**
@@ -164,9 +161,16 @@ export class Timetable {
    * @param route - The route for which the service route is to be retrieved.
    * @returns The service route corresponding to the provided route.
    */
-  getServiceRoute(route: Route): ServiceRoute {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return this.routes.get(route.serviceRoute())!;
+  getServiceRouteInfo(route: Route): ServiceRouteInfo {
+    const serviceRoute = this.routes.get(route.serviceRoute());
+    if (!serviceRoute) {
+      throw new Error(
+        `Service route not found for route ID: ${route.serviceRoute()}`,
+      );
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { routes, ...serviceRouteInfo } = serviceRoute;
+    return serviceRouteInfo;
   }
 
   /**
@@ -182,7 +186,7 @@ export class Timetable {
     }
     const routes: Route[] = [];
     for (const routeId of stopData.routes) {
-      const route = this.routesAdjacency.get(routeId);
+      const route = this.routesAdjacency[routeId];
       if (route) {
         routes.push(route);
       }
@@ -207,7 +211,7 @@ export class Timetable {
     for (const originStop of fromStops) {
       const validRoutes = this.routesPassingThrough(originStop).filter(
         (route) => {
-          const serviceRoute = this.getServiceRoute(route);
+          const serviceRoute = this.getServiceRouteInfo(route);
           return transportModes.has(serviceRoute.type);
         },
       );

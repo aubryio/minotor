@@ -6,10 +6,8 @@ import {
   NOT_AVAILABLE,
   REGULAR,
   Route,
-  RouteId,
 } from '../timetable/route.js';
 import {
-  RoutesAdjacency,
   ServiceRouteId,
   ServiceRoutesMap,
   StopsAdjacency,
@@ -169,13 +167,13 @@ const finalizeRouteFromBuilder = (builder: RouteBuilder): SerializedRoute => {
  *
  * @param tripsStream The readable stream containing the trips data.
  * @param serviceIds A mapping of service IDs to corresponding route IDs.
- * @param routeIds A mapping of route IDs to route details.
+ * @param serviceRoutes A mapping of route IDs to route details.
  * @returns A mapping of trip IDs to corresponding route IDs.
  */
 export const parseTrips = async (
   tripsStream: NodeJS.ReadableStream,
   serviceIds: ServiceIds,
-  routeIds: ServiceRoutesMap,
+  serviceRoutes: ServiceRoutesMap,
 ): Promise<TripIdsMap> => {
   const trips: TripIdsMap = new Map();
   for await (const rawLine of parseCsv(tripsStream, ['stop_sequence'])) {
@@ -184,7 +182,7 @@ export const parseTrips = async (
       // The trip doesn't correspond to an active service
       continue;
     }
-    if (!routeIds.get(line.route_id)) {
+    if (!serviceRoutes.get(line.route_id)) {
       // The trip doesn't correspond to a supported route
       continue;
     }
@@ -195,23 +193,27 @@ export const parseTrips = async (
 
 export const buildStopsAdjacencyStructure = (
   validStops: Set<StopId>,
-  routes: RoutesAdjacency,
+  serviceRoutes: ServiceRoutesMap,
+  routes: Route[],
   transfersMap: TransfersMap,
 ): StopsAdjacency => {
   const stopsAdjacency: StopsAdjacency = new Map();
-  for (const routeId of routes.keys()) {
-    const route = routes.get(routeId);
-    if (!route) {
-      throw new Error(`Route ${routeId} not found`);
-    }
+  routes.forEach((route, index) => {
     for (const stop of route.stopsIterator()) {
       if (!stopsAdjacency.get(stop) && validStops.has(stop)) {
         stopsAdjacency.set(stop, { routes: [], transfers: [] });
       }
 
-      stopsAdjacency.get(stop)?.routes.push(routeId);
+      stopsAdjacency.get(stop)?.routes.push(index);
     }
-  }
+    const serviceRoute = serviceRoutes.get(route.serviceRoute());
+    if (!serviceRoute) {
+      throw new Error(
+        `Service route ${route.serviceRoute()} not found for route ${index}.`,
+      );
+    }
+    serviceRoute.routes.push(index);
+  });
   for (const [stop, transfers] of transfersMap) {
     const s = stopsAdjacency.get(stop);
     if (s) {
@@ -239,7 +241,7 @@ export const parseStopTimes = async (
   stopsMap: ParsedStopsMap,
   validTripIds: TripIdsMap,
   validStopIds: Set<StopId>,
-): Promise<RoutesAdjacency> => {
+): Promise<Route[]> => {
   /**
    * Adds a trip to the appropriate route builder
    */
@@ -296,7 +298,8 @@ export const parseStopTimes = async (
     dropOffTypes = [];
   };
 
-  const routeBuilders: Map<RouteId, RouteBuilder> = new Map();
+  type BuilderRouteId = string;
+  const routeBuilders: Map<BuilderRouteId, RouteBuilder> = new Map();
 
   let previousSeq = 0;
   let stops: StopId[] = [];
@@ -355,11 +358,10 @@ export const parseStopTimes = async (
     addTrip(currentTripId);
   }
 
-  const routesAdjacency: RoutesAdjacency = new Map<RouteId, Route>();
-  for (const [routeId, routeBuilder] of routeBuilders) {
+  const routesAdjacency: Route[] = [];
+  for (const [, routeBuilder] of routeBuilders) {
     const routeData = finalizeRouteFromBuilder(routeBuilder);
-    routesAdjacency.set(
-      routeId,
+    routesAdjacency.push(
       new Route(
         routeData.stopTimes,
         routeData.pickUpDropOffTypes,

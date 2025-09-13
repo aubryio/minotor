@@ -12,11 +12,7 @@ import {
 } from '../io.js';
 import { REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
-import {
-  RoutesAdjacency,
-  ServiceRoutesMap,
-  StopsAdjacency,
-} from '../timetable.js';
+import { ServiceRoutesMap, StopsAdjacency } from '../timetable.js';
 
 describe('Timetable IO', () => {
   const stopsAdjacency: StopsAdjacency = new Map([
@@ -24,7 +20,7 @@ describe('Timetable IO', () => {
       1,
       {
         transfers: [{ destination: 2, type: 'RECOMMENDED' }],
-        routes: ['route1'],
+        routes: [0],
       },
     ],
     [
@@ -37,45 +33,39 @@ describe('Timetable IO', () => {
             minTransferTime: Duration.fromMinutes(3),
           },
         ],
-        routes: ['route2'],
+        routes: [1],
       },
     ],
   ]);
-  const routesAdjacency: RoutesAdjacency = new Map([
-    [
-      'route1',
-      new Route(
-        new Uint16Array([
-          Time.fromHMS(16, 40, 0).toMinutes(),
-          Time.fromHMS(16, 50, 0).toMinutes(),
-        ]),
-        new Uint8Array([REGULAR, REGULAR]),
-        new Uint32Array([1, 2]),
-        'gtfs1',
-      ),
-    ],
-    [
-      'route2',
-      new Route(
-        new Uint16Array([
-          Time.fromHMS(15, 20, 0).toMinutes(),
-          Time.fromHMS(15, 30, 0).toMinutes(),
-        ]),
-        new Uint8Array([REGULAR, REGULAR]),
-        new Uint32Array([2, 1]),
-        'gtfs2',
-      ),
-    ],
-  ]);
+  const routesAdjacency = [
+    new Route(
+      new Uint16Array([
+        Time.fromHMS(16, 40, 0).toMinutes(),
+        Time.fromHMS(16, 50, 0).toMinutes(),
+      ]),
+      new Uint8Array([REGULAR, REGULAR]),
+      new Uint32Array([1, 2]),
+      'gtfs1',
+    ),
+    new Route(
+      new Uint16Array([
+        Time.fromHMS(15, 20, 0).toMinutes(),
+        Time.fromHMS(15, 30, 0).toMinutes(),
+      ]),
+      new Uint8Array([REGULAR, REGULAR]),
+      new Uint32Array([2, 1]),
+      'gtfs2',
+    ),
+  ];
   const routes: ServiceRoutesMap = new Map([
-    ['gtfs1', { type: 'RAIL', name: 'Route 1' }],
-    ['gtfs2', { type: 'RAIL', name: 'Route 2' }],
+    ['gtfs1', { type: 'RAIL', name: 'Route 1', routes: [0] }],
+    ['gtfs2', { type: 'RAIL', name: 'Route 2', routes: [1] }],
   ]);
   const stopsAdjacencyProto = {
     stops: {
       '1': {
         transfers: [{ destination: 2, type: 0 }],
-        routes: ['route1'],
+        routes: [0],
       },
       '2': {
         transfers: [
@@ -85,42 +75,40 @@ describe('Timetable IO', () => {
             minTransferTime: 180,
           },
         ],
-        routes: ['route2'],
+        routes: [1],
       },
     },
   };
 
-  const routesAdjacencyProto = {
-    routes: {
-      route1: {
-        stopTimes: new Uint8Array(
-          new Uint16Array([
-            Time.fromHMS(16, 40, 0).toMinutes(),
-            Time.fromHMS(16, 50, 0).toMinutes(),
-          ]).buffer,
-        ),
-        pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
-        stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
-        serviceRouteId: 'gtfs1',
-      },
-      route2: {
-        stopTimes: new Uint8Array(
-          new Uint16Array([
-            Time.fromHMS(15, 20, 0).toMinutes(),
-            Time.fromHMS(15, 30, 0).toMinutes(),
-          ]).buffer,
-        ),
-        pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
-        stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
-        serviceRouteId: 'gtfs2',
-      },
+  const routesAdjacencyProto = [
+    {
+      stopTimes: new Uint8Array(
+        new Uint16Array([
+          Time.fromHMS(16, 40, 0).toMinutes(),
+          Time.fromHMS(16, 50, 0).toMinutes(),
+        ]).buffer,
+      ),
+      pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
+      stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
+      serviceRouteId: 'gtfs1',
     },
-  };
+    {
+      stopTimes: new Uint8Array(
+        new Uint16Array([
+          Time.fromHMS(15, 20, 0).toMinutes(),
+          Time.fromHMS(15, 30, 0).toMinutes(),
+        ]).buffer,
+      ),
+      pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
+      stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
+      serviceRouteId: 'gtfs2',
+    },
+  ];
 
   const routesProto = {
     routes: {
-      gtfs1: { type: 2, name: 'Route 1' },
-      gtfs2: { type: 2, name: 'Route 2' },
+      gtfs1: { type: 2, name: 'Route 1', routes: [0] },
+      gtfs2: { type: 2, name: 'Route 2', routes: [1] },
     },
   };
 

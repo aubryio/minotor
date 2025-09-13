@@ -219,7 +219,7 @@ export class Router {
                   to: this.stopsIndex.findStopById(currentStop)!,
                   departureTime: bestHopOnDepartureTime,
                   arrivalTime: currentArrivalTime,
-                  route: this.timetable.getServiceRoute(route),
+                  route: this.timetable.getServiceRouteInfo(route),
                 },
               });
               earliestArrivals.set(currentStop, {

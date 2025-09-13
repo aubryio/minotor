@@ -138,12 +138,13 @@ export class GtfsParser {
     );
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStopIds,
+      validGtfsRoutes,
       routesAdjacency,
       transfers,
     );
     const stopTimesEnd = performance.now();
     log.info(
-      `${routesAdjacency.size} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
+      `${routesAdjacency.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
     );
 
     log.info(`Removing unused stops.`);

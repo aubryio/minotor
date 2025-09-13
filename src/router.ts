@@ -12,7 +12,7 @@ import { Duration } from './timetable/duration.js';
 import { Time } from './timetable/time.js';
 import type {
   RouteType,
-  ServiceRoute,
+  ServiceRouteInfo,
   TransferType,
 } from './timetable/timetable.js';
 import { Timetable } from './timetable/timetable.js';
@@ -34,7 +34,7 @@ export type {
   LocationType,
   ReachingTime,
   RouteType,
-  ServiceRoute,
+  ServiceRouteInfo,
   SourceStopId,
   Stop,
   StopId,
