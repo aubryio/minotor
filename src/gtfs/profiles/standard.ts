@@ -1,7 +1,4 @@
-import { Platform } from '../../stops/stops.js';
 import { GtfsProfile } from '../parser.js';
-import { StopEntry } from '../stops.js';
-import { Maybe } from '../utils.js';
 
 export const standardProfile: GtfsProfile = {
   routeTypeParser: (routeType: number) => {
@@ -29,11 +26,5 @@ export const standardProfile: GtfsProfile = {
       default:
         return undefined;
     }
-  },
-  platformParser: (stopEntry: StopEntry): Maybe<Platform> => {
-    if (stopEntry.platform_code) {
-      return stopEntry.platform_code;
-    }
-    return undefined;
   },
 };

@@ -2,13 +2,13 @@ import log from 'loglevel';
 import { DateTime } from 'luxon';
 import StreamZip from 'node-stream-zip';
 
-import { Platform, StopId } from '../stops/stops.js';
+import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { standardProfile } from './profiles/standard.js';
 import { parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
-import { indexStops, parseStops, StopEntry } from './stops.js';
+import { indexStops, parseStops } from './stops.js';
 import { parseTransfers, TransfersMap } from './transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -27,7 +27,6 @@ const TRANSFERS_FILE = 'transfers.txt';
 
 export type GtfsProfile = {
   routeTypeParser: (routeType: number) => Maybe<RouteType>;
-  platformParser?: (stopEntry: StopEntry) => Maybe<Platform>;
 };
 
 export class GtfsParser {
@@ -62,10 +61,7 @@ export class GtfsParser {
     log.info(`Parsing ${STOPS_FILE}`);
     const stopsStart = performance.now();
     const stopsStream = await zip.stream(STOPS_FILE);
-    const parsedStops = await parseStops(
-      stopsStream,
-      this.profile.platformParser,
-    );
+    const parsedStops = await parseStops(stopsStream);
     const stopsEnd = performance.now();
     log.info(
       `${parsedStops.size} parsed stops. (${(stopsEnd - stopsStart).toFixed(2)}ms)`,
@@ -188,9 +184,7 @@ export class GtfsParser {
     log.info(`Parsing ${STOPS_FILE}`);
     const stopsStart = performance.now();
     const stopsStream = await zip.stream(STOPS_FILE);
-    const stops = indexStops(
-      await parseStops(stopsStream, this.profile.platformParser),
-    );
+    const stops = indexStops(await parseStops(stopsStream));
     const stopsEnd = performance.now();
 
     log.info(

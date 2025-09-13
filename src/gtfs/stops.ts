@@ -8,7 +8,7 @@ import {
   StopId,
   StopsMap,
 } from '../stops/stops.js';
-import { Maybe, parseCsv } from './utils.js';
+import { parseCsv } from './utils.js';
 
 export type GtfsLocationType =
   | 0 // simple stop or platform (can also be empty)
@@ -40,7 +40,6 @@ export type ParsedStopsMap = Map<SourceStopId, ParsedStop>;
  */
 export const parseStops = async (
   stopsStream: NodeJS.ReadableStream,
-  platformParser?: (stopEntry: StopEntry) => Maybe<Platform>,
 ): Promise<ParsedStopsMap> => {
   const parsedStops = new Map<SourceStopId, ParsedStop>();
   let i = 0;
@@ -59,19 +58,10 @@ export const parseStops = async (
       locationType: line.location_type
         ? parseGtfsLocationType(line.location_type)
         : 'SIMPLE_STOP_OR_PLATFORM',
+      ...(line.platform_code && { platform: line.platform_code }),
       children: [],
       ...(line.parent_station && { parentSourceId: line.parent_station }),
     };
-    if (platformParser) {
-      try {
-        const platform = platformParser(line);
-        if (platform) {
-          stop.platform = platform;
-        }
-      } catch {
-        console.info(`Could not parse platform for stop ${line.stop_id}.`);
-      }
-    }
     parsedStops.set(line.stop_id, stop);
     i = i + 1;
   }

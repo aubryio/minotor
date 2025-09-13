@@ -1,22 +1,6 @@
-import { Platform } from '../../stops/stops.js';
 import { RouteType } from '../../timetable/timetable.js';
 import { GtfsProfile } from '../parser.js';
-import { StopEntry } from '../stops.js';
 import { Maybe } from '../utils.js';
-
-/**
- * Parses the platform number from a stop entry.
- * @param stopEntry The stop entry.
- * @returns The platform corresponding to this stop.
- */
-const platformParser = (stopEntry: StopEntry): Maybe<Platform> => {
-  const stopId = stopEntry.stop_id;
-  const stopParts = stopId.split(':');
-  if (stopParts.length > 2) {
-    return stopParts[2];
-  }
-  return undefined;
-};
 
 /**
  * Parses the SBB extended route type and returns the corresponding basic GTFS route type.
@@ -44,6 +28,7 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
       return 'FERRY'; // Boat
     case 900: // Tram
       return 'TRAM'; // Tram
+    case 116: // ??? train TODO figure out what this means
     case 117: // Special train
     case 102: // International train
     case 104: // Car train
@@ -55,7 +40,6 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 100: // No guaranteed train
     case 106: // Regional train
     case 109: // Urban train
-    case 116: // ??? train TODO figure out what this means
       return 'RAIL'; // Train
     case 1100: // Aircraft
     case 1500: // Taxi
@@ -66,5 +50,4 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
 
 export const chGtfsProfile: GtfsProfile = {
   routeTypeParser,
-  platformParser,
 };

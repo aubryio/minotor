@@ -3,7 +3,6 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { StopId } from '../../stops/stops.js';
-import { chGtfsProfile } from '../profiles/ch.js';
 import { indexStops, ParsedStopsMap, parseStops } from '../stops.js';
 
 describe('GTFS stops parser', () => {
@@ -21,10 +20,7 @@ describe('GTFS stops parser', () => {
       );
 
       mockedStream.push(null);
-      const parsedStops = await parseStops(
-        mockedStream,
-        chGtfsProfile.platformParser,
-      );
+      const parsedStops = await parseStops(mockedStream);
 
       assert.equal(parsedStops.size, 2);
 
@@ -93,24 +89,21 @@ describe('GTFS stops parser', () => {
     it('should parse the platform', async () => {
       const mockedStream = new Readable();
       mockedStream.push(
-        'stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station\n',
+        'stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station,platform_code\n',
       );
       mockedStream.push(
-        '"8504100:0:1","Fribourg/Freiburg","46.8018210323626","7.14993389242926","","Parent8504100"\n',
+        '"8504100:0:1","Fribourg/Freiburg","46.8018210323626","7.14993389242926","","Parent8504100","1"\n',
       );
       mockedStream.push(
-        '"8504100:0:2","Fribourg/Freiburg","46.8010031847878","7.14920625704902","","Parent8504100"\n',
+        '"8504100:0:2","Fribourg/Freiburg","46.8010031847878","7.14920625704902","","Parent8504100","2"\n',
       );
       mockedStream.push(
-        '"Parent8504100","Fribourg/Freiburg","46.8031492395272","7.15104780338173","1",""\n',
+        '"Parent8504100","Fribourg/Freiburg","46.8031492395272","7.15104780338173","1","",""\n',
       );
 
       mockedStream.push(null);
 
-      const parsedStops = await parseStops(
-        mockedStream,
-        chGtfsProfile.platformParser,
-      );
+      const parsedStops = await parseStops(mockedStream);
 
       const childStop1 = parsedStops.get('8504100:0:1');
       assert.ok(childStop1);
