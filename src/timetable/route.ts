@@ -1,3 +1,4 @@
+import { TripId } from '../routing/route.js';
 import { StopId } from '../stops/stops.js';
 import { SerializedRoute } from './io.js';
 import { Time } from './time.js';
@@ -30,7 +31,7 @@ export const MUST_COORDINATE_WITH_DRIVER = 3;
  * first stop time in the trip divided by the number of stops
  * in the given route
  */
-export type TripIndex = number;
+export type RouteTripIndex = number;
 
 const pickUpDropOffTypeMap: PickUpDropOffType[] = [
   'REGULAR',
@@ -91,6 +92,7 @@ export class Route {
    * }
    */
   private readonly stopIndices: Map<StopId, number>;
+
   /**
    * The identifier of the route as a service shown to users.
    */
@@ -106,18 +108,26 @@ export class Route {
    */
   private readonly nbTrips: number;
 
+  /**
+   * A binary array of tripIds in the route.
+   * [trip1, trip2, trip3,...]
+   */
+  private readonly trips: Uint32Array;
+
   constructor(
     stopTimes: Uint16Array,
     pickUpDropOffTypes: Uint8Array,
     stops: Uint32Array,
     serviceRouteId: ServiceRouteId,
+    trips: Uint32Array,
   ) {
     this.stopTimes = stopTimes;
     this.pickUpDropOffTypes = pickUpDropOffTypes;
     this.stops = stops;
     this.serviceRouteId = serviceRouteId;
     this.nbStops = stops.length;
-    this.nbTrips = this.stopTimes.length / (this.stops.length * 2);
+    this.nbTrips = this.stopTimes.length / (this.stops.length * 2); // TODO remove
+    this.trips = trips;
     this.stopIndices = new Map<number, number>();
     for (let i = 0; i < stops.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -188,7 +198,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The arrival time at the specified stop and trip as a Time object.
    */
-  arrivalAt(stopId: StopId, tripIndex: TripIndex): Time {
+  arrivalAt(stopId: StopId, tripIndex: RouteTripIndex): Time {
     const arrivalIndex =
       (tripIndex * this.stops.length + this.stopIndex(stopId)) * 2;
     const arrival = this.stopTimes[arrivalIndex];
@@ -207,7 +217,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The departure time at the specified stop and trip as a Time object.
    */
-  departureFrom(stopId: StopId, tripIndex: TripIndex): Time {
+  departureFrom(stopId: StopId, tripIndex: RouteTripIndex): Time {
     const departureIndex =
       (tripIndex * this.stops.length + this.stopIndex(stopId)) * 2 + 1;
     const departure = this.stopTimes[departureIndex];
@@ -220,13 +230,30 @@ export class Route {
   }
 
   /**
+   * Retrieves the TripId at a specific trip index in the route.
+   *
+   * @param tripIndex - The index of the trip within the route.
+   * @returns The TripId at the specified index.
+   * @throws An error if no trip is found at the specified index.
+   */
+  tripIdAtIndex(tripIndex: RouteTripIndex): TripId {
+    const tripId = this.trips[tripIndex];
+    if (tripId === undefined) {
+      throw new Error(
+        `No trip found at Index ${tripIndex} in route ${this.serviceRouteId}`,
+      );
+    }
+    return tripId;
+  }
+
+  /**
    * Retrieves the pick-up type for a specific stop and trip.
    *
    * @param stopId - The identifier of the stop.
    * @param tripIndex - The index of the trip.
    * @returns The pick-up type at the specified stop and trip.
    */
-  pickUpTypeFrom(stopId: StopId, tripIndex: TripIndex): PickUpDropOffType {
+  pickUpTypeFrom(stopId: StopId, tripIndex: RouteTripIndex): PickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + this.stopIndex(stopId);
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
@@ -251,7 +278,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The drop-off type at the specified stop and trip.
    */
-  dropOffTypeAt(stopId: StopId, tripIndex: TripIndex): PickUpDropOffType {
+  dropOffTypeAt(stopId: StopId, tripIndex: RouteTripIndex): PickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + this.stopIndex(stopId);
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
@@ -314,8 +341,8 @@ export class Route {
   findEarliestTrip(
     stopId: StopId,
     after: Time = Time.origin(),
-    beforeTrip?: TripIndex,
-  ): TripIndex | undefined {
+    beforeTrip?: RouteTripIndex,
+  ): RouteTripIndex | undefined {
     const maxTripIndex =
       beforeTrip !== undefined
         ? Math.min(beforeTrip - 1, this.nbTrips - 1)
@@ -323,7 +350,7 @@ export class Route {
     if (maxTripIndex < 0) {
       return undefined;
     }
-    let earliestTripIndex: TripIndex | undefined;
+    let earliestTripIndex: RouteTripIndex | undefined;
     let lowTrip = 0;
     let highTrip = maxTripIndex;
 

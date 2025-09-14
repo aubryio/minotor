@@ -24,7 +24,13 @@ message Route {
    * Format: [stop1, stop2, stop3, etc.]
    */
   bytes stops = 3;
-  string serviceRouteId = 4;
+  uint32 serviceRoute = 4;
+  /**
+   * TripIds encoded as a 32 bits uint array.
+   * Format: [tripId1, tripId2, tripId3, etc.]
+   */
+  bytes trips = 5;
+  // TODO Add trips hints
 }
 
 enum TransferType {
@@ -38,6 +44,10 @@ message Transfer {
   uint32 destination = 1;
   TransferType type = 2;
   optional uint32 minTransferTime = 3;
+  optional uint32 fromServiceRoute = 4;
+  optional uint32 toServiceRoute = 5;
+  optional uint32 fromTrip = 4;
+  optional uint32 toTrip = 5;
 }
 
 message StopsAdjacency {
@@ -64,16 +74,13 @@ enum RouteType {
 message ServiceRoute {
   RouteType type = 1;
   string name = 2;
-  repeated int32 routes = 3;
-}
-
-message ServiceRoutesMap {
-  map<string, ServiceRoute> routes = 1;
+  string description = 3;
+  repeated int32 routes = 4;
 }
 
 message Timetable {
   string version = 1;
   StopsAdjacency stopsAdjacency = 2;
   repeated Route routesAdjacency = 3;
-  ServiceRoutesMap routes = 4;
+  repeated ServiceRoute serviceRoutes = 4;
 }

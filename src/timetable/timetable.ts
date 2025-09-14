@@ -1,5 +1,7 @@
 import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
+import { TripId } from '../routing/route.js';
+import { MarkedStop } from '../routing/router.js';
 import { StopId } from '../stops/stops.js';
 import { Duration } from './duration.js';
 import {
@@ -23,6 +25,10 @@ export type Transfer = {
   destination: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+  fromServiceRoute?: ServiceRouteId;
+  toServiceRoute?: ServiceRouteId;
+  fromTrip?: TripId;
+  toTrip?: TripId;
 };
 
 export type StopsAdjacency = Map<
@@ -33,7 +39,7 @@ export type StopsAdjacency = Map<
   }
 >;
 
-export type ServiceRouteId = string;
+export type ServiceRouteId = number;
 
 export type RouteType =
   | 'TRAM'
@@ -47,17 +53,16 @@ export type RouteType =
   | 'TROLLEYBUS'
   | 'MONORAIL';
 
-type ServiceRoute = {
-  type: RouteType;
-  name: string;
-  routes: RouteId[];
-};
-export type ServiceRouteInfo = Omit<ServiceRoute, 'routes'>;
-
 // A service refers to a collection of trips that are displayed to riders as a single service.
 // As opposed to a route which consists of the subset of trips from a service which shares the same list of stops.
 // Service is here a synonym for route in the GTFS sense.
-export type ServiceRoutesMap = Map<ServiceRouteId, ServiceRoute>;
+type ServiceRoute = {
+  type: RouteType;
+  name: string;
+  description: string;
+  routes: RouteId[];
+};
+export type ServiceRouteInfo = Omit<ServiceRoute, 'routes'>;
 
 export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'TRAM',
@@ -80,16 +85,16 @@ export const CURRENT_VERSION = '0.0.5';
 export class Timetable {
   private readonly stopsAdjacency: StopsAdjacency;
   private readonly routesAdjacency: Route[];
-  private readonly routes: ServiceRoutesMap;
+  private readonly serviceRoutes: ServiceRoute[];
 
   constructor(
     stopsAdjacency: StopsAdjacency,
     routesAdjacency: Route[],
-    routes: ServiceRoutesMap,
+    serviceRoutes: ServiceRoute[],
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
-    this.routes = routes;
+    this.serviceRoutes = serviceRoutes;
   }
 
   /**
@@ -102,7 +107,7 @@ export class Timetable {
       version: CURRENT_VERSION,
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
-      routes: serializeServiceRoutesMap(this.routes),
+      routes: serializeServiceRoutesMap(this.serviceRoutes),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -144,13 +149,39 @@ export class Timetable {
   }
 
   /**
-   * Retrieves all transfer options available at the specified stop.
+   * Retrieves transfer options available at the specified stop, optionally filtered
+   * by the originating service route or trip.
    *
    * @param stopId - The ID of the stop to get transfers for.
-   * @returns An array of transfer options available at the stop.
+   * @param fromServiceRoute - Optional service route ID to filter transfers from.
+   * @param fromTrip - Optional trip ID to filter transfers from.
+   * @returns An array of transfer options available at the stop, filtered by the specified criteria.
    */
-  getTransfers(stopId: StopId): Transfer[] {
-    return this.stopsAdjacency.get(stopId)?.transfers ?? [];
+  getTransfers(
+    stopId: StopId,
+    fromServiceRoute?: ServiceRouteId,
+    fromTrip?: TripId,
+  ): Transfer[] {
+    return (
+      this.stopsAdjacency.get(stopId)?.transfers.filter((transfer) => {
+        if (
+          transfer.fromTrip === undefined &&
+          transfer.fromServiceRoute === undefined
+        ) {
+          return true;
+        }
+        if (transfer.fromTrip !== undefined && transfer.fromTrip === fromTrip) {
+          return true;
+        }
+        if (
+          transfer.fromServiceRoute !== undefined &&
+          transfer.fromServiceRoute === fromServiceRoute
+        ) {
+          return true;
+        }
+        return false;
+      }) ?? []
+    );
   }
 
   /**
@@ -162,7 +193,7 @@ export class Timetable {
    * @returns The service route corresponding to the provided route.
    */
   getServiceRouteInfo(route: Route): ServiceRouteInfo {
-    const serviceRoute = this.routes.get(route.serviceRoute());
+    const serviceRoute = this.serviceRoutes[route.serviceRoute()];
     if (!serviceRoute) {
       throw new Error(
         `Service route not found for route ID: ${route.serviceRoute()}`,
@@ -202,15 +233,27 @@ export class Timetable {
    * @param fromStops - The set of stop IDs to find reachable routes from.
    * @param transportModes - The set of transport modes to consider for reachable routes.
    * @returns A map of reachable routes to the first stop available to hop on each route.
+   * Each stop is mapped to its trip constraints if any (if one or more trip appears in the Set,
+   * the stop is reachable only on those trips).
    */
   findReachableRoutes(
-    fromStops: Set<StopId>,
+    fromStops: Set<MarkedStop>,
     transportModes: Set<RouteType> = ALL_TRANSPORT_MODES,
   ): Map<Route, StopId> {
     const reachableRoutes = new Map<Route, StopId>();
     for (const originStop of fromStops) {
-      const validRoutes = this.routesPassingThrough(originStop).filter(
+      const validRoutes = this.routesPassingThrough(originStop.stopId).filter(
         (route) => {
+          if (
+            // check if the previous transfer allowed to hop on the route
+            originStop.toServiceRoute !== undefined &&
+            originStop.toServiceRoute !== route.serviceRoute()
+          ) {
+            return false;
+          }
+          if (transportModes.size === 0) {
+            return true;
+          }
           const serviceRoute = this.getServiceRouteInfo(route);
           return transportModes.has(serviceRoute.type);
         },
@@ -218,12 +261,12 @@ export class Timetable {
       for (const route of validRoutes) {
         const hopOnStop = reachableRoutes.get(route);
         if (hopOnStop) {
-          if (route.isBefore(originStop, hopOnStop)) {
+          if (route.isBefore(originStop.stopId, hopOnStop)) {
             // if the current stop is before the existing hop on stop, replace it
-            reachableRoutes.set(route, originStop);
+            reachableRoutes.set(route, originStop.stopId);
           }
         } else {
-          reachableRoutes.set(route, originStop);
+          reachableRoutes.set(route, originStop.stopId);
         }
       }
     }

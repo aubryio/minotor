@@ -184,11 +184,12 @@ Contact [the author](https://aubry.io/) for feature requests.
 
 - Route/Trip-based transfer support
 - Favor shorter trips with less transfers in case of tie
+- Use an array instead of a stopMap
 - Arrive-by support
 - Range queries
 - Transfer preferences
-- Route/Trip metadata support
-- Routing filters based on metadata e.g. bicycle support, wheelchair access
+- Route/Trip hints support
+- Routing hints based on metadata e.g. bicycle support, wheelchair access
 - More routing options (slower/faster transfers, etc.)
 - Improved stop search (sort by stop importance)
 - Real-time timetable support (tripId/routeId mapping)

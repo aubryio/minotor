@@ -6,7 +6,7 @@ import {
   TransferType,
 } from '../timetable/timetable.js';
 import { ParsedStopsMap } from './stops.js';
-import { TripId } from './trips.js';
+import { GtfsTripId } from './trips.js';
 import { parseCsv } from './utils.js';
 
 export type GtfsTransferType =
@@ -22,9 +22,9 @@ export type TransfersMap = Map<StopId, Transfer[]>;
 export type TransferEntry = {
   from_stop_id?: SourceStopId;
   to_stop_id?: SourceStopId;
-  from_trip_id?: TripId;
-  to_trip_id?: TripId;
-  from_route_id?: ServiceRouteId;
+  from_trip_id?: GtfsTripId;
+  to_trip_id?: GtfsTripId;
+  from_route_id?: ServiceRouteId; // TODO if not fromroute to route is provided but a trip one is, find the route from the trip as this is costly at runtime
   to_route_id?: ServiceRouteId;
   transfer_type: GtfsTransferType;
   min_transfer_time?: number;

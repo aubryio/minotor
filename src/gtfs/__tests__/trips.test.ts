@@ -14,7 +14,7 @@ import {
   encodePickUpDropOffTypes,
   parseStopTimes,
   parseTrips,
-  TripIdsMap,
+  GtfsTripIdsMap,
 } from '../trips.js';
 
 describe('buildStopsAdjacencyStructure', () => {
@@ -178,7 +178,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripA","08:10:00","08:15:00","stop2","2","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
+    const validTripIds: GtfsTripIdsMap = new Map([['tripA', 'routeA']]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
     const stopsMap: ParsedStopsMap = new Map([
       [
@@ -238,7 +238,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripB","09:10:00","09:15:00","stop2","2","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([
+    const validTripIds: GtfsTripIdsMap = new Map([
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
@@ -305,7 +305,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripA","08:10:00","08:15:00","stop2","2","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([
+    const validTripIds: GtfsTripIdsMap = new Map([
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
@@ -371,7 +371,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripB","09:00:00","09:15:00","stop1","1","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([
+    const validTripIds: GtfsTripIdsMap = new Map([
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
@@ -438,7 +438,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripA","08:10:00","08:15:00","stop2","1","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
+    const validTripIds: GtfsTripIdsMap = new Map([['tripA', 'routeA']]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
     const stopsMap: ParsedStopsMap = new Map([
       [

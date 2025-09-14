@@ -22,7 +22,7 @@ type StopPoint = { id: StopId; lat: number; lon: number };
  * to efficiently find stops based on user queries.
  */
 export class StopsIndex {
-  private readonly stopsMap: StopsMap;
+  private readonly stopsMap: StopsMap; // TODO change to array
   private readonly sourceStopsMap: SourceStopsMap;
   private readonly textIndex;
   private readonly geoIndex: KDTree;
