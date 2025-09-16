@@ -7,7 +7,7 @@ import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import { ServiceRoutesMap } from '../../timetable/timetable.js';
 import { ServiceIds } from '../services.js';
-import { ParsedStopsMap } from '../stops.js';
+import { GtfsStopsMap } from '../stops.js';
 import { TransfersMap } from '../transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -180,7 +180,7 @@ describe('GTFS stop times parser', () => {
 
     const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         'stop1',
         {
@@ -243,7 +243,7 @@ describe('GTFS stop times parser', () => {
       ['tripB', 'routeA'],
     ]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         'stop1',
         {
@@ -310,7 +310,7 @@ describe('GTFS stop times parser', () => {
       ['tripB', 'routeA'],
     ]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         'stop1',
         {
@@ -376,7 +376,7 @@ describe('GTFS stop times parser', () => {
       ['tripB', 'routeA'],
     ]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         'stop1',
         {
@@ -440,7 +440,7 @@ describe('GTFS stop times parser', () => {
 
     const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         'stop1',
         {

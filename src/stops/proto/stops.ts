@@ -73,12 +73,7 @@ export interface Stop {
 
 export interface StopsMap {
   version: string;
-  stops: { [key: number]: Stop };
-}
-
-export interface StopsMap_StopsEntry {
-  key: number;
-  value: Stop | undefined;
+  stops: Stop[];
 }
 
 function createBaseStop(): Stop {
@@ -103,10 +98,10 @@ export const Stop: MessageFns<Stop> = {
       writer.uint32(18).string(message.sourceStopId);
     }
     if (message.lat !== undefined) {
-      writer.uint32(25).double(message.lat);
+      writer.uint32(29).float(message.lat);
     }
     if (message.lon !== undefined) {
-      writer.uint32(33).double(message.lon);
+      writer.uint32(37).float(message.lon);
     }
     writer.uint32(42).fork();
     for (const v of message.children) {
@@ -149,19 +144,19 @@ export const Stop: MessageFns<Stop> = {
           continue;
         }
         case 3: {
-          if (tag !== 25) {
+          if (tag !== 29) {
             break;
           }
 
-          message.lat = reader.double();
+          message.lat = reader.float();
           continue;
         }
         case 4: {
-          if (tag !== 33) {
+          if (tag !== 37) {
             break;
           }
 
-          message.lon = reader.double();
+          message.lon = reader.float();
           continue;
         }
         case 5: {
@@ -275,7 +270,7 @@ export const Stop: MessageFns<Stop> = {
 };
 
 function createBaseStopsMap(): StopsMap {
-  return { version: "", stops: {} };
+  return { version: "", stops: [] };
 }
 
 export const StopsMap: MessageFns<StopsMap> = {
@@ -283,9 +278,9 @@ export const StopsMap: MessageFns<StopsMap> = {
     if (message.version !== "") {
       writer.uint32(10).string(message.version);
     }
-    Object.entries(message.stops).forEach(([key, value]) => {
-      StopsMap_StopsEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).join();
-    });
+    for (const v of message.stops) {
+      Stop.encode(v!, writer.uint32(18).fork()).join();
+    }
     return writer;
   },
 
@@ -309,10 +304,7 @@ export const StopsMap: MessageFns<StopsMap> = {
             break;
           }
 
-          const entry2 = StopsMap_StopsEntry.decode(reader, reader.uint32());
-          if (entry2.value !== undefined) {
-            message.stops[entry2.key] = entry2.value;
-          }
+          message.stops.push(Stop.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -327,12 +319,7 @@ export const StopsMap: MessageFns<StopsMap> = {
   fromJSON(object: any): StopsMap {
     return {
       version: isSet(object.version) ? globalThis.String(object.version) : "",
-      stops: isObject(object.stops)
-        ? Object.entries(object.stops).reduce<{ [key: number]: Stop }>((acc, [key, value]) => {
-          acc[globalThis.Number(key)] = Stop.fromJSON(value);
-          return acc;
-        }, {})
-        : {},
+      stops: globalThis.Array.isArray(object?.stops) ? object.stops.map((e: any) => Stop.fromJSON(e)) : [],
     };
   },
 
@@ -341,14 +328,8 @@ export const StopsMap: MessageFns<StopsMap> = {
     if (message.version !== "") {
       obj.version = message.version;
     }
-    if (message.stops) {
-      const entries = Object.entries(message.stops);
-      if (entries.length > 0) {
-        obj.stops = {};
-        entries.forEach(([k, v]) => {
-          obj.stops[k] = Stop.toJSON(v);
-        });
-      }
+    if (message.stops?.length) {
+      obj.stops = message.stops.map((e) => Stop.toJSON(e));
     }
     return obj;
   },
@@ -359,88 +340,7 @@ export const StopsMap: MessageFns<StopsMap> = {
   fromPartial<I extends Exact<DeepPartial<StopsMap>, I>>(object: I): StopsMap {
     const message = createBaseStopsMap();
     message.version = object.version ?? "";
-    message.stops = Object.entries(object.stops ?? {}).reduce<{ [key: number]: Stop }>((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[globalThis.Number(key)] = Stop.fromPartial(value);
-      }
-      return acc;
-    }, {});
-    return message;
-  },
-};
-
-function createBaseStopsMap_StopsEntry(): StopsMap_StopsEntry {
-  return { key: 0, value: undefined };
-}
-
-export const StopsMap_StopsEntry: MessageFns<StopsMap_StopsEntry> = {
-  encode(message: StopsMap_StopsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.key !== 0) {
-      writer.uint32(8).uint32(message.key);
-    }
-    if (message.value !== undefined) {
-      Stop.encode(message.value, writer.uint32(18).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): StopsMap_StopsEntry {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseStopsMap_StopsEntry();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.key = reader.uint32();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.value = Stop.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): StopsMap_StopsEntry {
-    return {
-      key: isSet(object.key) ? globalThis.Number(object.key) : 0,
-      value: isSet(object.value) ? Stop.fromJSON(object.value) : undefined,
-    };
-  },
-
-  toJSON(message: StopsMap_StopsEntry): unknown {
-    const obj: any = {};
-    if (message.key !== 0) {
-      obj.key = Math.round(message.key);
-    }
-    if (message.value !== undefined) {
-      obj.value = Stop.toJSON(message.value);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<StopsMap_StopsEntry>, I>>(base?: I): StopsMap_StopsEntry {
-    return StopsMap_StopsEntry.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<StopsMap_StopsEntry>, I>>(object: I): StopsMap_StopsEntry {
-    const message = createBaseStopsMap_StopsEntry();
-    message.key = object.key ?? 0;
-    message.value = (object.value !== undefined && object.value !== null) ? Stop.fromPartial(object.value) : undefined;
+    message.stops = object.stops?.map((e) => Stop.fromPartial(e)) || [];
     return message;
   },
 };
@@ -456,10 +356,6 @@ export type DeepPartial<T> = T extends Builtin ? T
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
-
-function isObject(value: any): boolean {
-  return typeof value === "object" && value !== null;
-}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

@@ -1,6 +1,7 @@
 import log from 'loglevel';
 
-import { ServiceRouteId, ServiceRoutesMap } from '../timetable/timetable.js';
+import { RouteType } from '../router.js';
+import { ServiceRoute, ServiceRouteId } from '../timetable/timetable.js';
 import { GtfsProfile } from './parser.js';
 import { standardProfile } from './profiles/standard.js';
 import { parseCsv } from './utils.js';
@@ -8,9 +9,18 @@ import { parseCsv } from './utils.js';
 // Can be a standard gtfs route type or an extended route type
 // the profile converter handles the conversion to a route type.
 export type GtfsRouteType = number;
+export type GtfsRouteId = string;
+
+export type GtfsRoutesMap = Map<
+  GtfsRouteId,
+  {
+    name: string;
+    type: RouteType;
+  }
+>;
 
 type RouteEntry = {
-  route_id: ServiceRouteId;
+  route_id: GtfsRouteId;
   agency_id: string;
   route_short_name: string;
   route_long_name: string;
@@ -28,8 +38,8 @@ type RouteEntry = {
 export const parseRoutes = async (
   routesStream: NodeJS.ReadableStream,
   profile: GtfsProfile = standardProfile,
-): Promise<ServiceRoutesMap> => {
-  const routes: ServiceRoutesMap = new Map();
+): Promise<GtfsRoutesMap> => {
+  const routes: GtfsRoutesMap = new Map();
   for await (const rawLine of parseCsv(routesStream, ['route_type'])) {
     const line = rawLine as RouteEntry;
     const routeType = profile.routeTypeParser(line.route_type);
@@ -42,8 +52,34 @@ export const parseRoutes = async (
     routes.set(line.route_id, {
       name: line.route_short_name,
       type: routeType,
-      routes: [],
     });
   }
   return routes;
+};
+
+/**
+ * Creates an array of ServiceRoute objects by combining GTFS route data with service route mappings.
+ *
+ * @param gtfsRoutesMap A map containing GTFS route information indexed by route ID
+ * @param serviceRoutesMap A map linking GTFS route IDs to service route IDs
+ * @returns An array of ServiceRoute objects with route information
+ */
+export const indexRoutes = (
+  gtfsRoutesMap: GtfsRoutesMap,
+  serviceRoutesMap: Map<GtfsRouteId, ServiceRouteId>,
+): ServiceRoute[] => {
+  const serviceRoutes: ServiceRoute[] = [];
+  for (const [routeId] of serviceRoutesMap) {
+    const route = gtfsRoutesMap.get(routeId);
+    if (route === undefined) {
+      log.warn(`Route ${routeId} not found.`);
+      continue;
+    }
+    serviceRoutes.push({
+      name: route.name,
+      type: route.type,
+      routes: [],
+    });
+  }
+  return serviceRoutes;
 };

@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { StopId } from '../../stops/stops.js';
-import { indexStops, ParsedStopsMap, parseStops } from '../stops.js';
+import { indexStops, GtfsStopsMap, parseStops } from '../stops.js';
 
 describe('GTFS stops parser', () => {
   describe('parseStops', () => {
@@ -117,7 +117,7 @@ describe('GTFS stops parser', () => {
 
   describe('indexStops', () => {
     it('should correctly index parsed stops', () => {
-      const parsedStopsMap: ParsedStopsMap = new Map();
+      const parsedStopsMap: GtfsStopsMap = new Map();
 
       parsedStopsMap.set('Parent8504100', {
         id: 0,
@@ -178,7 +178,7 @@ describe('GTFS stops parser', () => {
     });
 
     it('should filter stops based on validStops set', () => {
-      const parsedStopsMap: ParsedStopsMap = new Map();
+      const parsedStopsMap: GtfsStopsMap = new Map();
 
       parsedStopsMap.set('Parent8504100', {
         id: 0,

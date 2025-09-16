@@ -186,6 +186,8 @@ export class Router {
       for (const [route, hopOnStop] of reachableRoutes.entries()) {
         let currentTrip: CurrentTrip | undefined = undefined;
         for (const currentStop of route.stopsIterator(hopOnStop)) {
+          // If we're currently on a trip,
+          // check if arrival at the stop improves the earliest arrival time
           if (currentTrip !== undefined) {
             const currentArrivalTime = route.arrivalAt(
               currentStop,
@@ -230,7 +232,7 @@ export class Router {
               markedStops.add(currentStop);
             }
           }
-          // check if we can catch a previous trip at the current stop
+          // check if we can board an earlier trip at the current stop
           // if there was no current trip, find the first one reachable
           const earliestArrivalOnPreviousRound =
             arrivalsAtPreviousRound.get(currentStop)?.arrival;

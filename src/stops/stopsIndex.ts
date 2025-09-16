@@ -6,13 +6,7 @@ import { addAll, createIndex, search, SearchResult } from 'slimsearch';
 import { generateAccentVariants } from './i18n.js';
 import { deserializeStopsMap, serializeStopsMap } from './io.js';
 import { StopsMap as ProtoStopsMap } from './proto/stops.js';
-import {
-  SourceStopId,
-  SourceStopsMap,
-  Stop,
-  StopId,
-  StopsMap,
-} from './stops.js';
+import { SourceStopId, SourceStopsMap, Stop, StopId } from './stops.js';
 
 type StopPoint = { id: StopId; lat: number; lon: number };
 
@@ -22,18 +16,18 @@ type StopPoint = { id: StopId; lat: number; lon: number };
  * to efficiently find stops based on user queries.
  */
 export class StopsIndex {
-  private readonly stopsMap: StopsMap;
+  private readonly stops: Stop[];
   private readonly sourceStopsMap: SourceStopsMap;
   private readonly textIndex;
   private readonly geoIndex: KDTree;
   private readonly stopPoints: StopPoint[];
 
-  constructor(stopsMap: StopsMap) {
-    this.stopsMap = stopsMap;
+  constructor(stops: Stop[]) {
+    this.stops = stops;
     this.sourceStopsMap = new Map<SourceStopId, StopId>();
-    for (const [id, stop] of stopsMap.entries()) {
+    stops.forEach((stop, id) => {
       this.sourceStopsMap.set(stop.sourceStopId, id);
-    }
+    });
     this.textIndex = createIndex({
       fields: ['name'],
       storeFields: ['id'],
@@ -41,25 +35,25 @@ export class StopsIndex {
       processTerm: generateAccentVariants,
     });
     const stopsSet = new Map<StopId, { id: StopId; name: string }>();
-    for (const [id, stop] of stopsMap.entries()) {
+    stops.forEach((stop, id) => {
       const effectiveStopId = stop.parent ?? id;
       if (!stopsSet.has(effectiveStopId)) {
         stopsSet.set(effectiveStopId, {
           id: effectiveStopId,
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          name: stop.parent ? this.stopsMap.get(stop.parent)!.name : stop.name,
+          name: stop.parent ? this.stops[stop.parent]!.name : stop.name,
         });
       }
-    }
+    });
     const stopsArray = Array.from(stopsSet.values());
     addAll(this.textIndex, stopsArray);
 
-    this.stopPoints = Array.from(this.stopsMap.entries())
-      .filter(([, stop]) => {
+    this.stopPoints = this.stops
+      .filter((stop) => {
         if (stop.lat && stop.lon) return true;
         return false;
       })
-      .map(([id, stop]) => ({
+      .map((stop, id) => ({
         id: id,
         lat: stop.lat as number,
         lon: stop.lon as number,
@@ -90,7 +84,7 @@ export class StopsIndex {
    * @returns The serialized binary data.
    */
   serialize(): Uint8Array {
-    const protoStopsMap: ProtoStopsMap = serializeStopsMap(this.stopsMap);
+    const protoStopsMap: ProtoStopsMap = serializeStopsMap(this.stops);
 
     const writer = new BinaryWriter();
     ProtoStopsMap.encode(protoStopsMap, writer);
@@ -103,7 +97,7 @@ export class StopsIndex {
    * @returns The total number of stops.
    */
   size(): number {
-    return this.stopsMap.size;
+    return this.stops.length;
   }
 
   /**
@@ -115,7 +109,7 @@ export class StopsIndex {
    */
   findStopsByName(query: string, maxResults = 5): Stop[] {
     const results = search(this.textIndex, query).map(
-      (result: SearchResult) => this.stopsMap.get(result.id as number) as Stop,
+      (result: SearchResult) => this.stops[result.id as number] as Stop,
     );
     return results.slice(0, maxResults);
   }
@@ -143,7 +137,7 @@ export class StopsIndex {
       radius,
     ).map((id) => {
       const stopPoint = this.stopPoints[id as number] as StopPoint;
-      return this.stopsMap.get(stopPoint.id) as Stop;
+      return this.stops[stopPoint.id] as Stop;
     });
     return nearestStops;
   }
@@ -155,7 +149,7 @@ export class StopsIndex {
    * @returns The Stop object that matches the specified ID, or undefined if not found.
    */
   findStopById(id: StopId): Stop | undefined {
-    return this.stopsMap.get(id);
+    return this.stops[id];
   }
 
   /**
@@ -180,15 +174,15 @@ export class StopsIndex {
     if (id === undefined) {
       return [];
     }
-    const stop = this.stopsMap.get(id);
+    const stop = this.stops[id];
     if (!stop) {
       return [];
     }
     const equivalentStops = stop.parent
-      ? (this.stopsMap.get(stop.parent)?.children ?? [])
+      ? (this.stops[stop.parent]?.children ?? [])
       : stop.children;
     return Array.from(new Set([id, ...equivalentStops])).map(
-      (stopId) => this.stopsMap.get(stopId) as Stop,
+      (stopId) => this.stops[stopId] as Stop,
     );
   }
 }

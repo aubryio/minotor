@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { Duration } from '../../timetable/duration.js';
-import { ParsedStopsMap } from '../stops.js';
+import { GtfsStopsMap } from '../stops.js';
 import { parseTransfers } from '../transfers.js';
 
 describe('GTFS transfers parser', () => {
@@ -16,7 +16,7 @@ describe('GTFS transfers parser', () => {
     mockedStream.push('"1100097","8014447","2","240"\n');
     mockedStream.push(null);
 
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         '1100084',
         {
@@ -95,7 +95,7 @@ describe('GTFS transfers parser', () => {
     mockedStream.push('"1100097","8014447","5","240"\n');
     mockedStream.push(null);
 
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         '1100084',
         {
@@ -150,7 +150,7 @@ describe('GTFS transfers parser', () => {
     mockedStream.push('"1100084","8014440","2","180"\n');
     mockedStream.push(null);
 
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         '1100084',
         {
@@ -185,7 +185,7 @@ describe('GTFS transfers parser', () => {
     mockedStream.push('"1100084","8014440","2","180"\n');
     mockedStream.push(null);
 
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         '1100084',
         {
@@ -220,7 +220,7 @@ describe('GTFS transfers parser', () => {
     mockedStream.push('"1100084","8014440:0:1","2"\n');
     mockedStream.push(null);
 
-    const stopsMap: ParsedStopsMap = new Map([
+    const stopsMap: GtfsStopsMap = new Map([
       [
         '1100084',
         {
@@ -266,7 +266,7 @@ describe('GTFS transfers parser', () => {
     );
     mockedStream.push(null);
 
-    const stopsMap: ParsedStopsMap = new Map();
+    const stopsMap: GtfsStopsMap = new Map();
 
     const transfers = await parseTransfers(mockedStream, stopsMap);
     assert.deepEqual(transfers, new Map());

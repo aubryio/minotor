@@ -5,7 +5,7 @@ import {
   Transfer,
   TransferType,
 } from '../timetable/timetable.js';
-import { ParsedStopsMap } from './stops.js';
+import { GtfsStopsMap } from './stops.js';
 import { TripId } from './trips.js';
 import { parseCsv } from './utils.js';
 
@@ -38,7 +38,7 @@ export type TransferEntry = {
  */
 export const parseTransfers = async (
   transfersStream: NodeJS.ReadableStream,
-  stopsMap: ParsedStopsMap,
+  stopsMap: GtfsStopsMap,
 ): Promise<TransfersMap> => {
   const transfers: TransfersMap = new Map();
 

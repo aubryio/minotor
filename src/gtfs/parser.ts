@@ -6,9 +6,9 @@ import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { standardProfile } from './profiles/standard.js';
-import { parseRoutes } from './routes.js';
+import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
-import { indexStops, parseStops } from './stops.js';
+import { parseStops } from './stops.js';
 import { parseTransfers, TransfersMap } from './transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -41,15 +41,11 @@ export class GtfsParser {
 
   /**
    * Parses a GTFS feed to extract all the data relevant to a given day in a transit-planner friendly format.
-   *
+
    * @param date The active date.
-   * @param gtfsPath A path to the zipped GTFS feed.
-   * @param gtfsProfile The GTFS profile configuration.
-   * @returns An object containing the timetable and stops map.
+   * @returns The parsed timetable.
    */
-  async parse(
-    date: Date,
-  ): Promise<{ timetable: Timetable; stopsIndex: StopsIndex }> {
+  async parseTimetable(date: Date): Promise<Timetable> {
     log.setLevel('INFO');
     const zip = new StreamZip.async({ file: this.path });
     const entries = await zip.entries();
@@ -126,57 +122,36 @@ export class GtfsParser {
     log.info(`Parsing ${STOP_TIMES_FILE}`);
     const stopTimesStart = performance.now();
     const stopTimesStream = await zip.stream(STOP_TIMES_FILE);
-    const routesAdjacency = await parseStopTimes(
+    const { routes, serviceRoutesMap } = await parseStopTimes(
       stopTimesStream,
       parsedStops,
       trips,
       validStopIds,
     );
+    const serviceRoutes = indexRoutes(validGtfsRoutes, serviceRoutesMap);
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStopIds,
-      validGtfsRoutes,
-      routesAdjacency,
+      serviceRoutes,
+      routes,
       transfers,
     );
     const stopTimesEnd = performance.now();
     log.info(
-      `${routesAdjacency.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
-    );
-
-    log.info(`Removing unused stops.`);
-    const indexStopsStart = performance.now();
-    const stops = indexStops(parsedStops, validStopIds);
-    const indexStopsEnd = performance.now();
-    log.info(
-      `${stops.size} used stop stops, ${parsedStops.size - stops.size} unused. (${(indexStopsEnd - indexStopsStart).toFixed(2)}ms)`,
+      `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
     );
 
     await zip.close();
 
-    const timetable = new Timetable(
-      stopsAdjacency,
-      routesAdjacency,
-      validGtfsRoutes,
-    );
-
-    log.info(`Building stops index.`);
-    const stopsIndexStart = performance.now();
-    const stopsIndex = new StopsIndex(stops);
-    const stopsIndexEnd = performance.now();
-    log.info(
-      `Stops index built. (${(stopsIndexEnd - stopsIndexStart).toFixed(2)}ms)`,
-    );
+    const timetable = new Timetable(stopsAdjacency, routes, serviceRoutes);
 
     log.info('Parsing complete.');
-    return { timetable, stopsIndex };
+    return timetable;
   }
 
   /**
    * Parses a GTFS feed to extract all stops.
    *
-   * @param gtfsPath A path the zipped GTFS feed.
-   * @param gtfsProfile The GTFS profile configuration.
-   * @returns An object containing the timetable and stops map.
+   * @returns An index of stops.
    */
   async parseStops(): Promise<StopsIndex> {
     const zip = new StreamZip.async({ file: this.path });
@@ -184,7 +159,7 @@ export class GtfsParser {
     log.info(`Parsing ${STOPS_FILE}`);
     const stopsStart = performance.now();
     const stopsStream = await zip.stream(STOPS_FILE);
-    const stops = indexStops(await parseStops(stopsStream));
+    const stops = await parseStops(stopsStream);
     const stopsEnd = performance.now();
 
     log.info(
@@ -193,6 +168,6 @@ export class GtfsParser {
 
     await zip.close();
 
-    return new StopsIndex(stops);
+    return new StopsIndex(Array.from(stops.values()));
   }
 }

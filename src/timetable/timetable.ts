@@ -25,15 +25,12 @@ export type Transfer = {
   minTransferTime?: Duration;
 };
 
-export type StopsAdjacency = Map<
-  StopId,
-  {
-    transfers: Transfer[];
-    routes: RouteId[];
-  }
->;
+export type StopAdjacency = {
+  transfers: Transfer[];
+  routes: RouteId[];
+};
 
-export type ServiceRouteId = string;
+export type ServiceRouteId = number;
 
 export type RouteType =
   | 'TRAM'
@@ -47,17 +44,15 @@ export type RouteType =
   | 'TROLLEYBUS'
   | 'MONORAIL';
 
-type ServiceRoute = {
+// A service refers to a collection of trips that are displayed to riders as a single service.
+// As opposed to a route which consists of the subset of trips from a service which shares the same list of stops.
+// Service is here a synonym for route in the GTFS sense.
+export type ServiceRoute = {
   type: RouteType;
   name: string;
   routes: RouteId[];
 };
 export type ServiceRouteInfo = Omit<ServiceRoute, 'routes'>;
-
-// A service refers to a collection of trips that are displayed to riders as a single service.
-// As opposed to a route which consists of the subset of trips from a service which shares the same list of stops.
-// Service is here a synonym for route in the GTFS sense.
-export type ServiceRoutesMap = Map<ServiceRouteId, ServiceRoute>;
 
 export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'TRAM',
@@ -78,18 +73,18 @@ export const CURRENT_VERSION = '0.0.5';
  * The internal transit timetable format.
  */
 export class Timetable {
-  private readonly stopsAdjacency: StopsAdjacency;
+  private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
-  private readonly routes: ServiceRoutesMap;
+  private readonly serviceRoutes: ServiceRoute[];
 
   constructor(
-    stopsAdjacency: StopsAdjacency,
+    stopsAdjacency: StopAdjacency[],
     routesAdjacency: Route[],
-    routes: ServiceRoutesMap,
+    routes: ServiceRoute[],
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
-    this.routes = routes;
+    this.serviceRoutes = routes;
   }
 
   /**
@@ -102,7 +97,7 @@ export class Timetable {
       version: CURRENT_VERSION,
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
-      routes: serializeServiceRoutesMap(this.routes),
+      serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -125,10 +120,10 @@ export class Timetable {
     }
     return new Timetable(
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      deserializeStopsAdjacency(protoTimetable.stopsAdjacency!),
+      deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      deserializeServiceRoutesMap(protoTimetable.routes!),
+      deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
     );
   }
 
@@ -150,7 +145,7 @@ export class Timetable {
    * @returns An array of transfer options available at the stop.
    */
   getTransfers(stopId: StopId): Transfer[] {
-    return this.stopsAdjacency.get(stopId)?.transfers ?? [];
+    return this.stopsAdjacency[stopId]?.transfers ?? [];
   }
 
   /**
@@ -162,7 +157,7 @@ export class Timetable {
    * @returns The service route corresponding to the provided route.
    */
   getServiceRouteInfo(route: Route): ServiceRouteInfo {
-    const serviceRoute = this.routes.get(route.serviceRoute());
+    const serviceRoute = this.serviceRoutes[route.serviceRoute()];
     if (!serviceRoute) {
       throw new Error(
         `Service route not found for route ID: ${route.serviceRoute()}`,
@@ -180,7 +175,7 @@ export class Timetable {
    * @returns An array of routes passing through the specified stop.
    */
   routesPassingThrough(stopId: StopId): Route[] {
-    const stopData = this.stopsAdjacency.get(stopId);
+    const stopData = this.stopsAdjacency[stopId];
     if (!stopData) {
       return [];
     }

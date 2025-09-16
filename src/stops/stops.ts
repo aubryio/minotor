@@ -27,10 +27,6 @@ export type Stop = {
 };
 
 /**
- * Mapping internal StopIds to Stop objects.
- */
-export type StopsMap = Map<StopId, Stop>;
-/**
  * Mapping source stopIds to internal stopIds;
  */
 export type SourceStopsMap = Map<SourceStopId, StopId>;

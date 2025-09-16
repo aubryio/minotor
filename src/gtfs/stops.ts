@@ -5,8 +5,6 @@ import {
   Platform,
   SourceStopId,
   Stop,
-  StopId,
-  StopsMap,
 } from '../stops/stops.js';
 import { parseCsv } from './utils.js';
 
@@ -31,7 +29,7 @@ type ParsedStop = Stop & {
   parentSourceId?: SourceStopId;
 };
 
-export type ParsedStopsMap = Map<SourceStopId, ParsedStop>;
+export type GtfsStopsMap = Map<SourceStopId, ParsedStop>;
 /**
  * Parses the stops.txt file from a GTFS feed.
  *
@@ -40,7 +38,7 @@ export type ParsedStopsMap = Map<SourceStopId, ParsedStop>;
  */
 export const parseStops = async (
   stopsStream: NodeJS.ReadableStream,
-): Promise<ParsedStopsMap> => {
+): Promise<GtfsStopsMap> => {
   const parsedStops = new Map<SourceStopId, ParsedStop>();
   let i = 0;
   for await (const rawLine of parseCsv(stopsStream, [
@@ -80,46 +78,6 @@ export const parseStops = async (
     }
   }
   return parsedStops;
-};
-
-/**
- * Builds the final stop map indexed by internal IDs.
- * Excludes all stops that do not have at least one valid stopId
- * as a child, a parent, or being valid itself.
- *
- * @param parsedStops - The map of parsed stops.
- * @param validStops - A set of valid stop IDs.
- * @returns A map of stops indexed by internal IDs.
- */
-export const indexStops = (
-  parsedStops: ParsedStopsMap,
-  validStops?: Set<StopId>,
-): StopsMap => {
-  const stops = new Map<StopId, Stop>();
-
-  for (const [, stop] of parsedStops) {
-    if (
-      !validStops ||
-      validStops.has(stop.id) ||
-      (stop.parent && validStops.has(stop.parent)) ||
-      stop.children.some((childId) => validStops.has(childId))
-    ) {
-      stops.set(stop.id, {
-        id: stop.id,
-        sourceStopId: stop.sourceStopId,
-        name: stop.name,
-        lat: stop.lat,
-        lon: stop.lon,
-        locationType: stop.locationType,
-        platform: stop.platform,
-        children: stop.children.filter(
-          (childId) => !validStops || validStops.has(childId),
-        ),
-        parent: stop.parent,
-      });
-    }
-  }
-  return stops;
 };
 
 const parseGtfsLocationType = (

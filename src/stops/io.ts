@@ -3,7 +3,7 @@ import {
   Stop as ProtoStop,
   StopsMap as ProtoStopsMap,
 } from './proto/stops.js';
-import { LocationType, Stop, StopsMap } from './stops.js';
+import { LocationType, Stop } from './stops.js';
 
 const CURRENT_VERSION = '0.0.2';
 const serializeStop = (stop: Stop): ProtoStop => {
@@ -19,15 +19,11 @@ const serializeStop = (stop: Stop): ProtoStop => {
   };
 };
 
-export const serializeStopsMap = (stopsMap: StopsMap): ProtoStopsMap => {
+export const serializeStopsMap = (stops: Stop[]): ProtoStopsMap => {
   const protoStopsMap: ProtoStopsMap = {
     version: CURRENT_VERSION,
-    stops: {},
+    stops: stops.map((value) => serializeStop(value)),
   };
-
-  stopsMap.forEach((value: Stop, key: number) => {
-    protoStopsMap.stops[key] = serializeStop(value);
-  });
 
   return protoStopsMap;
 };
@@ -46,18 +42,13 @@ const deserializeStop = (stopId: number, protoStop: ProtoStop): Stop => {
   };
 };
 
-export const deserializeStopsMap = (protoStopsMap: ProtoStopsMap): StopsMap => {
+export const deserializeStopsMap = (protoStopsMap: ProtoStopsMap): Stop[] => {
   if (protoStopsMap.version !== CURRENT_VERSION) {
     throw new Error(`Unsupported stopMap version ${protoStopsMap.version}`);
   }
-  const stopsMap: StopsMap = new Map();
-
-  Object.entries(protoStopsMap.stops).forEach(([key, value]) => {
-    const intKey = parseInt(key, 10);
-    stopsMap.set(intKey, deserializeStop(intKey, value));
-  });
-
-  return stopsMap;
+  return protoStopsMap.stops.map((value, intKey) =>
+    deserializeStop(intKey, value),
+  );
 };
 
 const parseProtoLocationType = (

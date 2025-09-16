@@ -13,8 +13,8 @@ enum LocationType {
 message Stop {
   string name = 1;
   string sourceStopId = 2;
-  optional double lat = 3;
-  optional double lon = 4;
+  optional float lat = 3;
+  optional float lon = 4;
   repeated uint32 children = 5;
   optional uint32 parent = 6;
   LocationType locationType = 7;
@@ -23,5 +23,5 @@ message Stop {
 
 message StopsMap {
   string version = 1;
-  map<uint32, Stop> stops = 2;
+  repeated Stop stops = 2;
 }

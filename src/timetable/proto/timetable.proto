@@ -24,7 +24,7 @@ message Route {
    * Format: [stop1, stop2, stop3, etc.]
    */
   bytes stops = 3;
-  string serviceRouteId = 4;
+  uint32 serviceRouteId = 4;
 }
 
 enum TransferType {
@@ -40,12 +40,9 @@ message Transfer {
   optional uint32 minTransferTime = 3;
 }
 
-message StopsAdjacency {
-  message StopAdjacency {
-    repeated Transfer transfers = 1;
-    repeated int32 routes = 2;
-  }
-  map<uint32, StopAdjacency> stops = 1;
+message StopAdjacency {
+  repeated Transfer transfers = 1;
+  repeated int32 routes = 2;
 }
 
 enum RouteType {
@@ -67,13 +64,9 @@ message ServiceRoute {
   repeated int32 routes = 3;
 }
 
-message ServiceRoutesMap {
-  map<string, ServiceRoute> routes = 1;
-}
-
 message Timetable {
   string version = 1;
-  StopsAdjacency stopsAdjacency = 2;
+  repeated StopAdjacency stopsAdjacency = 2;
   repeated Route routesAdjacency = 3;
-  ServiceRoutesMap routes = 4;
+  repeated ServiceRoute serviceRoutes = 4;
 }
