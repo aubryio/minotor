@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { StopId } from '../../stops/stops.js';
 import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
-import { ServiceRoutesMap } from '../../timetable/timetable.js';
+import { ServiceRoute } from '../../timetable/timetable.js';
 import { ServiceIds } from '../services.js';
 import { GtfsStopsMap } from '../stops.js';
 import { TransfersMap } from '../transfers.js';
@@ -25,15 +25,15 @@ describe('buildStopsAdjacencyStructure', () => {
         new Uint16Array(),
         new Uint8Array(),
         new Uint32Array([0, 1]),
-        'service1',
+        0,
       ),
     ];
     const transfersMap: TransfersMap = new Map([
       [0, [{ destination: 1, type: 'RECOMMENDED' }]],
     ]);
-    const serviceRoutes: ServiceRoutesMap = new Map([
-      ['service1', { type: 'BUS', name: 'B1', routes: [] }],
-    ]);
+    const serviceRoutes: ServiceRoute[] = [
+      { type: 'BUS', name: 'B1', routes: [] },
+    ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStops,
@@ -51,7 +51,7 @@ describe('buildStopsAdjacencyStructure', () => {
         },
       ],
     ]);
-    assert.deepEqual(serviceRoutes.get('service1')?.routes, [0]);
+    assert.deepEqual(serviceRoutes[0]?.routes, [0]);
   });
 
   it('should ignore transfers to invalid stops', () => {
@@ -61,15 +61,15 @@ describe('buildStopsAdjacencyStructure', () => {
         new Uint16Array(),
         new Uint8Array(),
         new Uint32Array([0, 1]),
-        'service1',
+        0,
       ),
     ];
     const transfersMap: TransfersMap = new Map([
       [0, [{ destination: 2, type: 'RECOMMENDED' }]],
     ]);
-    const serviceRoutes: ServiceRoutesMap = new Map([
-      ['service1', { type: 'BUS', name: 'B1', routes: [] }],
-    ]);
+    const serviceRoutes: ServiceRoute[] = [
+      { type: 'BUS', name: 'B1', routes: [] },
+    ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStops,
@@ -94,7 +94,7 @@ describe('buildStopsAdjacencyStructure', () => {
         },
       ],
     ]);
-    assert.deepEqual(serviceRoutes.get('service1')?.routes, [0]);
+    assert.deepEqual(serviceRoutes[0]?.routes, [0]);
   });
 });
 describe('GTFS trips parser', () => {
@@ -106,10 +106,10 @@ describe('GTFS trips parser', () => {
     mockedStream.push(null);
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
-    const validRouteIds: ServiceRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1', routes: [0] }],
-      ['routeB', { type: 'TRAM', name: 'T1', routes: [1] }],
-    ]);
+    const validRouteIds: ServiceRoute[] = [
+      { type: 'BUS', name: 'B1', routes: [0] },
+      { type: 'TRAM', name: 'T1', routes: [1] },
+    ];
 
     const trips = await parseTrips(
       mockedStream,

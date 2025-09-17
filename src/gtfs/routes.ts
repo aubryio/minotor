@@ -68,18 +68,20 @@ export const indexRoutes = (
   gtfsRoutesMap: GtfsRoutesMap,
   serviceRoutesMap: Map<GtfsRouteId, ServiceRouteId>,
 ): ServiceRoute[] => {
-  const serviceRoutes: ServiceRoute[] = [];
-  for (const [routeId] of serviceRoutesMap) {
-    const route = gtfsRoutesMap.get(routeId);
+  const serviceRoutes: ServiceRoute[] = new Array<ServiceRoute>(
+    serviceRoutesMap.size,
+  );
+  for (const [gtfsRouteId, serviceRouteId] of serviceRoutesMap) {
+    const route = gtfsRoutesMap.get(gtfsRouteId);
     if (route === undefined) {
-      log.warn(`Route ${routeId} not found.`);
+      log.warn(`Route ${gtfsRouteId} not found.`);
       continue;
     }
-    serviceRoutes.push({
+    serviceRoutes[serviceRouteId] = {
       name: route.name,
       type: route.type,
       routes: [],
-    });
+    };
   }
   return serviceRoutes;
 };

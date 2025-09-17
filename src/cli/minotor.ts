@@ -68,9 +68,9 @@ program
       }
       const parser = new GtfsParser(gtfsPath, profiles[options.profileName]);
       const stopsIndex = await parser.parseStops();
+      fs.writeFileSync(options.stopsOutputPath, stopsIndex.serialize());
       const timetable = await parser.parseTimetable(new Date(options.date));
       fs.writeFileSync(options.timetableOutputPath, timetable.serialize());
-      fs.writeFileSync(options.stopsOutputPath, stopsIndex.serialize());
     },
   );
 

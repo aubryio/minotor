@@ -197,15 +197,19 @@ export const buildStopsAdjacencyStructure = (
   serviceRoutes: ServiceRoute[],
   routes: Route[],
   transfersMap: TransfersMap,
+  nbStops: number,
 ): StopAdjacency[] => {
-  const stopsAdjacency = new Array<StopAdjacency>(validStops.size);
+  // TODO somehow works when it's a map
+  const stopsAdjacency = new Array<StopAdjacency>(nbStops);
+  for (let i = 0; i < nbStops; i++) {
+    stopsAdjacency[i] = { routes: [], transfers: [] };
+  }
   routes.forEach((route, index) => {
     for (const stop of route.stopsIterator()) {
-      if (!stopsAdjacency[stop] && validStops.has(stop)) {
-        stopsAdjacency[stop] = { routes: [], transfers: [] };
+      if (validStops.has(stop)) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        stopsAdjacency[stop]!.routes.push(index);
       }
-
-      stopsAdjacency[stop]?.routes.push(index);
     }
     const serviceRoute = serviceRoutes[route.serviceRoute()];
     if (serviceRoute === undefined) {
@@ -216,11 +220,11 @@ export const buildStopsAdjacencyStructure = (
     serviceRoute.routes.push(index);
   });
   for (const [stop, transfers] of transfersMap) {
-    const stopAdjacency = stopsAdjacency[stop];
-    if (stopAdjacency) {
+    if (validStops.has(stop)) {
       for (const transfer of transfers) {
         if (validStops.has(transfer.destination)) {
-          stopAdjacency.transfers.push(transfer);
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          stopsAdjacency[stop]!.transfers.push(transfer);
         }
       }
     }
@@ -283,7 +287,7 @@ export const parseStopTimes = async (
       }
       routeBuilder = {
         serviceRouteId,
-        stops: [...stops],
+        stops,
         trips: [],
       };
       routeBuilders.set(routeId, routeBuilder);
@@ -294,10 +298,10 @@ export const parseStopTimes = async (
 
     routeBuilder.trips.push({
       firstDeparture,
-      arrivalTimes: [...arrivalTimes],
-      departureTimes: [...departureTimes],
-      pickUpTypes: [...pickUpTypes],
-      dropOffTypes: [...dropOffTypes],
+      arrivalTimes: arrivalTimes,
+      departureTimes: departureTimes,
+      pickUpTypes: pickUpTypes,
+      dropOffTypes: dropOffTypes,
     });
 
     stops = [];

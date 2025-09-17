@@ -41,7 +41,7 @@ export class GtfsParser {
 
   /**
    * Parses a GTFS feed to extract all the data relevant to a given day in a transit-planner friendly format.
-
+   * TODO allow to pass a stopIndex if already available.
    * @param date The active date.
    * @returns The parsed timetable.
    */
@@ -129,17 +129,24 @@ export class GtfsParser {
       validStopIds,
     );
     const serviceRoutes = indexRoutes(validGtfsRoutes, serviceRoutesMap);
+    const stopTimesEnd = performance.now();
+    log.info(
+      `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
+    );
+    log.info('Building stops adjacency structure');
+    const stopsAdjacencyStart = performance.now();
     const stopsAdjacency = buildStopsAdjacencyStructure(
       validStopIds,
       serviceRoutes,
       routes,
       transfers,
-    );
-    const stopTimesEnd = performance.now();
-    log.info(
-      `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
+      parsedStops.size,
     );
 
+    const stopsAdjacencyEnd = performance.now();
+    log.info(
+      `${stopsAdjacency.length} valid stops in the structure. (${(stopsAdjacencyEnd - stopsAdjacencyStart).toFixed(2)}ms)`,
+    );
     await zip.close();
 
     const timetable = new Timetable(stopsAdjacency, routes, serviceRoutes);
