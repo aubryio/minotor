@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
 import { StopId } from '../stops/stops.js';
@@ -200,7 +201,8 @@ export class Timetable {
       return [];
     }
     const routes: Route[] = [];
-    for (const routeId of stopData.routes) {
+    for (let i = 0; i < stopData.routes.length; i++) {
+      const routeId = stopData.routes[i]!;
       const route = this.routesAdjacency[routeId];
       if (route) {
         routes.push(route);
@@ -223,14 +225,17 @@ export class Timetable {
     transportModes: Set<RouteType> = ALL_TRANSPORT_MODES,
   ): Map<Route, StopId> {
     const reachableRoutes = new Map<Route, StopId>();
-    for (const originStop of fromStops) {
+    const fromStopsArray = Array.from(fromStops);
+    for (let i = 0; i < fromStopsArray.length; i++) {
+      const originStop = fromStopsArray[i]!;
       const validRoutes = this.routesPassingThrough(originStop).filter(
         (route) => {
           const serviceRoute = this.getServiceRouteInfo(route);
           return transportModes.has(serviceRoute.type);
         },
       );
-      for (const route of validRoutes) {
+      for (let j = 0; j < validRoutes.length; j++) {
+        const route = validRoutes[j]!;
         const hopOnStop = reachableRoutes.get(route);
         if (hopOnStop) {
           if (route.isBefore(originStop, hopOnStop)) {

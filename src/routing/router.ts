@@ -56,7 +56,9 @@ export class Router {
   ): void {
     const { options } = query;
     const newlyMarkedStops: Set<StopId> = new Set();
-    for (const stop of markedStops) {
+    const markedStopsArray = Array.from(markedStops);
+    for (let i = 0; i < markedStopsArray.length; i++) {
+      const stop = markedStopsArray[i]!;
       const currentArrival = arrivalsAtCurrentRound.get(stop);
       if (!currentArrival) continue;
       // Skip transfers if the last leg was also a transfer
@@ -65,7 +67,9 @@ export class Router {
         continue;
       }
 
-      for (const transfer of this.timetable.getTransfers(stop)) {
+      const transfers = this.timetable.getTransfers(stop);
+      for (let j = 0; j < transfers.length; j++) {
+        const transfer = transfers[j]!;
         let transferTime: Duration;
         if (transfer.minTransferTime) {
           transferTime = transfer.minTransferTime;
@@ -100,7 +104,9 @@ export class Router {
         }
       }
     }
-    for (const newStop of newlyMarkedStops) {
+    const newlyMarkedStopsArray = Array.from(newlyMarkedStops);
+    for (let i = 0; i < newlyMarkedStopsArray.length; i++) {
+      const newStop = newlyMarkedStopsArray[i]!;
       markedStops.add(newStop);
     }
   }
@@ -117,7 +123,8 @@ export class Router {
     destinations: Stop[],
   ): Time {
     let earliestArrivalAtAnyDestination = UNREACHED;
-    for (const destination of destinations) {
+    for (let i = 0; i < destinations.length; i++) {
+      const destination = destinations[i]!;
       const arrival =
         earliestArrivals.get(destination.id)?.arrival ?? UNREACHED;
       earliestArrivalAtAnyDestination = Time.min(
@@ -149,7 +156,8 @@ export class Router {
     // Stops that have been improved at round k-1
     const markedStops = new Set<StopId>();
 
-    for (const originStop of origins) {
+    for (let i = 0; i < origins.length; i++) {
+      const originStop = origins[i]!;
       markedStops.add(originStop.id);
       earliestArrivals.set(originStop.id, {
         arrival: departureTime,
@@ -183,9 +191,13 @@ export class Router {
       );
       markedStops.clear();
       // for each route that can be reached with at least round - 1 trips
-      for (const [route, hopOnStop] of reachableRoutes.entries()) {
+      const reachableRoutesArray = Array.from(reachableRoutes.entries());
+      for (let i = 0; i < reachableRoutesArray.length; i++) {
+        const [route, hopOnStop] = reachableRoutesArray[i]!;
         let currentTrip: CurrentTrip | undefined = undefined;
-        for (const currentStop of route.stopsIterator(hopOnStop)) {
+        const startIndex = route.stopIndex(hopOnStop);
+        for (let j = startIndex; j < route.getNbStops(); j++) {
+          const currentStop = route.stops[j]!;
           // If we're currently on a trip,
           // check if arrival at the stop improves the earliest arrival time
           if (currentTrip !== undefined) {

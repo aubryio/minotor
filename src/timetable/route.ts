@@ -81,7 +81,7 @@ export class Route {
    * A binary array of stopIds in the route.
    * [stop1, stop2, stop3,...]
    */
-  private readonly stops: Uint32Array;
+  public readonly stops: Uint32Array;
   /**
    * A reverse mapping of each stop with their index in the route:
    * {
@@ -270,36 +270,6 @@ export class Route {
   }
 
   /**
-   * Iterates over the stops in the route, starting from an optional specified stop.
-   * If no start stop is provided, the iteration begins from the first stop in the route.
-   *
-   * @param [startStopId] - (Optional) The StopId of the stop to start the iteration from.
-   * @returns An IterableIterator of StopIds, starting from the specified stop or the first stop.
-   * @throws An error if the specified start stop is not found in the route.
-   */
-  stopsIterator(startStopId?: StopId): IterableIterator<StopId> {
-    const startIndex =
-      startStopId !== undefined ? this.stopIndices.get(startStopId) : 0;
-    if (startIndex === undefined) {
-      throw new Error(
-        `Start stop ${startStopId} not found in route ${this.serviceRouteId}`,
-      );
-    }
-
-    function* generator(
-      stops: Uint32Array,
-      startIndex: number,
-    ): IterableIterator<StopId> {
-      for (let i = startIndex; i < stops.length; i++) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        yield stops[i]!;
-      }
-    }
-
-    return generator(this.stops, startIndex);
-  }
-
-  /**
    * Finds the earliest trip that can be taken from a specific stop on a given route,
    * optionally constrained by a latest trip index and a time before which the trip
    * should not depart.
@@ -349,7 +319,7 @@ export class Route {
    * @param stopId The StopId of the stop to locate in the route.
    * @returns The index of the stop in the route.
    */
-  private stopIndex(stopId: StopId): number {
+  public stopIndex(stopId: StopId): number {
     const stopIndex = this.stopIndices.get(stopId);
     if (stopIndex === undefined) {
       throw new Error(

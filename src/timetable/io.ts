@@ -4,7 +4,6 @@ import {
   RouteType as ProtoRouteType,
   ServiceRoute as ProtoServiceRoute,
   StopAdjacency as ProtoStopAdjacency,
-  Transfer as ProtoTransfer,
   TransferType as ProtoTransferType,
 } from './proto/timetable.js';
 import { Route } from './route.js';
@@ -171,20 +170,33 @@ export const serializeServiceRoutesMap = (
 export const deserializeStopsAdjacency = (
   protoStopsAdjacency: ProtoStopAdjacency[],
 ): StopAdjacency[] => {
-  return protoStopsAdjacency.map((value) => {
-    return {
-      transfers: value.transfers.map(
-        (transfer: ProtoTransfer): Transfer => ({
-          destination: transfer.destination,
-          type: parseTransferType(transfer.type),
-          ...(transfer.minTransferTime !== undefined && {
-            minTransferTime: Duration.fromSeconds(transfer.minTransferTime),
-          }),
+  const result: StopAdjacency[] = [];
+
+  for (let i = 0; i < protoStopsAdjacency.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const value = protoStopsAdjacency[i]!;
+    const transfers: Transfer[] = [];
+
+    for (let j = 0; j < value.transfers.length; j++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const transfer = value.transfers[j]!;
+      const newTransfer: Transfer = {
+        destination: transfer.destination,
+        type: parseTransferType(transfer.type),
+        ...(transfer.minTransferTime !== undefined && {
+          minTransferTime: Duration.fromSeconds(transfer.minTransferTime),
         }),
-      ),
+      };
+      transfers.push(newTransfer);
+    }
+
+    result.push({
+      transfers: transfers,
       routes: value.routes,
-    };
-  });
+    });
+  }
+
+  return result;
 };
 
 export const deserializeRoutesAdjacency = (
@@ -192,7 +204,9 @@ export const deserializeRoutesAdjacency = (
 ): Route[] => {
   const routesAdjacency: Route[] = [];
 
-  protoRoutesAdjacency.forEach((value) => {
+  for (let i = 0; i < protoRoutesAdjacency.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const value = protoRoutesAdjacency[i]!;
     const stops = bytesToUint32Array(value.stops);
     routesAdjacency.push(
       new Route(
@@ -202,7 +216,7 @@ export const deserializeRoutesAdjacency = (
         value.serviceRouteId,
       ),
     );
-  });
+  }
 
   return routesAdjacency;
 };
@@ -210,13 +224,19 @@ export const deserializeRoutesAdjacency = (
 export const deserializeServiceRoutesMap = (
   protoServiceRoutes: ProtoServiceRoute[],
 ): ServiceRoute[] => {
-  return protoServiceRoutes.map((value) => {
-    return {
+  const result: ServiceRoute[] = [];
+
+  for (let i = 0; i < protoServiceRoutes.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const value = protoServiceRoutes[i]!;
+    result.push({
       type: parseRouteType(value.type),
       name: value.name,
       routes: value.routes,
-    };
-  });
+    });
+  }
+
+  return result;
 };
 
 const parseTransferType = (type: ProtoTransferType): TransferType => {

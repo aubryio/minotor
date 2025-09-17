@@ -25,17 +25,14 @@ export class StopsIndex {
   constructor(stops: Stop[]) {
     this.stops = stops;
     this.sourceStopsMap = new Map<SourceStopId, StopId>();
-    stops.forEach((stop, id) => {
-      this.sourceStopsMap.set(stop.sourceStopId, id);
-    });
-    this.textIndex = createIndex({
-      fields: ['name'],
-      storeFields: ['id'],
-      searchOptions: { prefix: true, fuzzy: 0.2 },
-      processTerm: generateAccentVariants,
-    });
     const stopsSet = new Map<StopId, { id: StopId; name: string }>();
-    stops.forEach((stop, id) => {
+    this.stopPoints = [];
+    for (let id = 0; id < stops.length; id++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const stop = stops[id]!;
+
+      this.sourceStopsMap.set(stop.sourceStopId, id);
+
       const effectiveStopId = stop.parent ?? id;
       if (!stopsSet.has(effectiveStopId)) {
         stopsSet.set(effectiveStopId, {
@@ -44,22 +41,27 @@ export class StopsIndex {
           name: stop.parent ? this.stops[stop.parent]!.name : stop.name,
         });
       }
+
+      if (stop.lat && stop.lon) {
+        this.stopPoints.push({
+          id: id,
+          lat: stop.lat,
+          lon: stop.lon,
+        });
+      }
+    }
+    this.textIndex = createIndex({
+      fields: ['name'],
+      storeFields: ['id'],
+      searchOptions: { prefix: true, fuzzy: 0.2 },
+      processTerm: generateAccentVariants,
     });
     const stopsArray = Array.from(stopsSet.values());
     addAll(this.textIndex, stopsArray);
-
-    this.stopPoints = this.stops
-      .filter((stop) => {
-        if (stop.lat && stop.lon) return true;
-        return false;
-      })
-      .map((stop, id) => ({
-        id: id,
-        lat: stop.lat as number,
-        lon: stop.lon as number,
-      }));
     this.geoIndex = new KDTree(this.stopPoints.length);
-    for (const { lat, lon } of this.stopPoints) {
+    for (let i = 0; i < this.stopPoints.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const { lat, lon } = this.stopPoints[i]!;
       this.geoIndex.add(lon, lat);
     }
     this.geoIndex.finish();

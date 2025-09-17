@@ -402,7 +402,7 @@ export const StopAdjacency: MessageFns<StopAdjacency> = {
     }
     writer.uint32(18).fork();
     for (const v of message.routes) {
-      writer.int32(v);
+      writer.uint32(v);
     }
     writer.join();
     return writer;
@@ -425,7 +425,7 @@ export const StopAdjacency: MessageFns<StopAdjacency> = {
         }
         case 2: {
           if (tag === 16) {
-            message.routes.push(reader.int32());
+            message.routes.push(reader.uint32());
 
             continue;
           }
@@ -433,7 +433,7 @@ export const StopAdjacency: MessageFns<StopAdjacency> = {
           if (tag === 18) {
             const end2 = reader.uint32() + reader.pos;
             while (reader.pos < end2) {
-              message.routes.push(reader.int32());
+              message.routes.push(reader.uint32());
             }
 
             continue;
@@ -495,7 +495,7 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
     }
     writer.uint32(26).fork();
     for (const v of message.routes) {
-      writer.int32(v);
+      writer.uint32(v);
     }
     writer.join();
     return writer;
@@ -526,7 +526,7 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
         }
         case 3: {
           if (tag === 24) {
-            message.routes.push(reader.int32());
+            message.routes.push(reader.uint32());
 
             continue;
           }
@@ -534,7 +534,7 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
           if (tag === 26) {
             const end2 = reader.uint32() + reader.pos;
             while (reader.pos < end2) {
-              message.routes.push(reader.int32());
+              message.routes.push(reader.uint32());
             }
 
             continue;

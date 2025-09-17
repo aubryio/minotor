@@ -204,8 +204,12 @@ export const buildStopsAdjacencyStructure = (
   for (let i = 0; i < nbStops; i++) {
     stopsAdjacency[i] = { routes: [], transfers: [] };
   }
-  routes.forEach((route, index) => {
-    for (const stop of route.stopsIterator()) {
+  for (let index = 0; index < routes.length; index++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const route = routes[index]!;
+    for (let j = 0; j < route.getNbStops(); j++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const stop = route.stops[j]!;
       if (activeStops.has(stop)) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         stopsAdjacency[stop]!.routes.push(index);
@@ -218,9 +222,11 @@ export const buildStopsAdjacencyStructure = (
       );
     }
     serviceRoute.routes.push(index);
-  });
+  }
   for (const [stop, transfers] of transfersMap) {
-    for (const transfer of transfers) {
+    for (let i = 0; i < transfers.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const transfer = transfers[i]!;
       if (activeStops.has(stop) || activeStops.has(transfer.destination)) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         stopsAdjacency[stop]!.transfers.push(transfer);

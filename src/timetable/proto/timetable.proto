@@ -42,7 +42,7 @@ message Transfer {
 
 message StopAdjacency {
   repeated Transfer transfers = 1;
-  repeated int32 routes = 2;
+  repeated uint32 routes = 2;
 }
 
 enum RouteType {
@@ -61,7 +61,7 @@ enum RouteType {
 message ServiceRoute {
   RouteType type = 1;
   string name = 2;
-  repeated int32 routes = 3;
+  repeated uint32 routes = 3;
 }
 
 message Timetable {
