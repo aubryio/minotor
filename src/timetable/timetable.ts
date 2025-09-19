@@ -68,7 +68,7 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'MONORAIL',
 ]);
 
-export const CURRENT_VERSION = '0.0.6';
+export const CURRENT_VERSION = '0.0.7';
 
 /**
  * The internal transit timetable format.

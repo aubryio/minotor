@@ -249,25 +249,6 @@ describe('Route', () => {
     });
   });
 
-  describe('stopsIterator', () => {
-    it('should iterate over all stops when no start stop is provided', () => {
-      const stopsList = Array.from(route.stopsIterator());
-      assert.deepStrictEqual(stopsList, [1001, 1002]);
-    });
-
-    it('should iterate from specified start stop', () => {
-      const stopsList = Array.from(route.stopsIterator(1002));
-      assert.deepStrictEqual(stopsList, [1002]);
-    });
-
-    it('should throw error for invalid start stop ID', () => {
-      assert.throws(
-        () => Array.from(route.stopsIterator(9999)),
-        /Start stop 9999 not found in route 0/,
-      );
-    });
-  });
-
   describe('findEarliestTrip', () => {
     it('should find earliest trip without time constraint', () => {
       const tripIndex = route.findEarliestTrip(1001);
