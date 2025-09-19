@@ -41,7 +41,7 @@ export class GtfsParser {
 
   /**
    * Parses a GTFS feed to extract all the data relevant to a given day in a transit-planner friendly format.
-   * TODO allow to pass a stopIndex if already available.
+   *
    * @param date The active date.
    * @returns The parsed timetable.
    */
@@ -51,8 +51,8 @@ export class GtfsParser {
     const entries = await zip.entries();
     const datetime = DateTime.fromJSDate(date);
 
-    const validServiceIds: ServiceIds = new Set();
-    const validStopIds = new Set<StopId>();
+    const activeServiceIds: ServiceIds = new Set();
+    const activeStopIds = new Set<StopId>();
 
     log.info(`Parsing ${STOPS_FILE}`);
     const stopsStart = performance.now();
@@ -67,10 +67,10 @@ export class GtfsParser {
       log.info(`Parsing ${CALENDAR_FILE}`);
       const calendarStart = performance.now();
       const calendarStream = await zip.stream(CALENDAR_FILE);
-      await parseCalendar(calendarStream, validServiceIds, datetime);
+      await parseCalendar(calendarStream, activeServiceIds, datetime);
       const calendarEnd = performance.now();
       log.info(
-        `${validServiceIds.size} valid services. (${(calendarEnd - calendarStart).toFixed(2)}ms)`,
+        `${activeServiceIds.size} valid services. (${(calendarEnd - calendarStart).toFixed(2)}ms)`,
       );
     }
 
@@ -78,10 +78,10 @@ export class GtfsParser {
       log.info(`Parsing ${CALENDAR_DATES_FILE}`);
       const calendarDatesStart = performance.now();
       const calendarDatesStream = await zip.stream(CALENDAR_DATES_FILE);
-      await parseCalendarDates(calendarDatesStream, validServiceIds, datetime);
+      await parseCalendarDates(calendarDatesStream, activeServiceIds, datetime);
       const calendarDatesEnd = performance.now();
       log.info(
-        `${validServiceIds.size} valid services. (${(calendarDatesEnd - calendarDatesStart).toFixed(2)}ms)`,
+        `${activeServiceIds.size} valid services. (${(calendarDatesEnd - calendarDatesStart).toFixed(2)}ms)`,
       );
     }
 
@@ -99,7 +99,7 @@ export class GtfsParser {
     const tripsStream = await zip.stream(TRIPS_FILE);
     const trips = await parseTrips(
       tripsStream,
-      validServiceIds,
+      activeServiceIds,
       validGtfsRoutes,
     );
     const tripsEnd = performance.now();
@@ -126,7 +126,7 @@ export class GtfsParser {
       stopTimesStream,
       parsedStops,
       trips,
-      validStopIds,
+      activeStopIds,
     );
     const serviceRoutes = indexRoutes(validGtfsRoutes, serviceRoutesMap);
     const stopTimesEnd = performance.now();
@@ -136,11 +136,11 @@ export class GtfsParser {
     log.info('Building stops adjacency structure');
     const stopsAdjacencyStart = performance.now();
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      validStopIds,
       serviceRoutes,
       routes,
       transfers,
       parsedStops.size,
+      activeStopIds,
     );
 
     const stopsAdjacencyEnd = performance.now();
@@ -158,6 +158,7 @@ export class GtfsParser {
   /**
    * Parses a GTFS feed to extract all stops.
    *
+   * @param activeStops The set of active stop IDs to include in the index.
    * @returns An index of stops.
    */
   async parseStops(): Promise<StopsIndex> {

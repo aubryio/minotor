@@ -5,7 +5,7 @@ import {
 } from './proto/stops.js';
 import { LocationType, Stop } from './stops.js';
 
-const CURRENT_VERSION = '0.0.2';
+const CURRENT_VERSION = '0.0.3';
 const serializeStop = (stop: Stop): ProtoStop => {
   return {
     name: stop.name,

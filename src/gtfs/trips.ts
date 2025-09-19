@@ -193,11 +193,11 @@ export const parseTrips = async (
 };
 
 export const buildStopsAdjacencyStructure = (
-  validStops: Set<StopId>,
   serviceRoutes: ServiceRoute[],
   routes: Route[],
   transfersMap: TransfersMap,
   nbStops: number,
+  activeStops: Set<StopId>,
 ): StopAdjacency[] => {
   // TODO somehow works when it's a map
   const stopsAdjacency = new Array<StopAdjacency>(nbStops);
@@ -206,7 +206,7 @@ export const buildStopsAdjacencyStructure = (
   }
   routes.forEach((route, index) => {
     for (const stop of route.stopsIterator()) {
-      if (validStops.has(stop)) {
+      if (activeStops.has(stop)) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         stopsAdjacency[stop]!.routes.push(index);
       }
@@ -220,12 +220,12 @@ export const buildStopsAdjacencyStructure = (
     serviceRoute.routes.push(index);
   });
   for (const [stop, transfers] of transfersMap) {
-    if (validStops.has(stop)) {
-      for (const transfer of transfers) {
-        if (validStops.has(transfer.destination)) {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          stopsAdjacency[stop]!.transfers.push(transfer);
-        }
+    for (const transfer of transfers) {
+      if (activeStops.has(stop) || activeStops.has(transfer.destination)) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        stopsAdjacency[stop]!.transfers.push(transfer);
+        activeStops.add(transfer.destination);
+        activeStops.add(stop);
       }
     }
   }
@@ -237,15 +237,15 @@ export const buildStopsAdjacencyStructure = (
  *
  * @param stopTimesStream The readable stream containing the stop times data.
  * @param stopsMap A map of parsed stops from the GTFS feed.
- * @param validTripIds A map of valid trip IDs to corresponding route IDs.
- * @param validStopIds A set of valid stop IDs.
+ * @param activeTripIds A map of valid trip IDs to corresponding route IDs.
+ * @param activeStopIds A set of valid stop IDs.
  * @returns A mapping of route IDs to route details. The routes returned correspond to the set of trips from GTFS that share the same stop list.
  */
 export const parseStopTimes = async (
   stopTimesStream: NodeJS.ReadableStream,
   stopsMap: GtfsStopsMap,
-  validTripIds: TripIdsMap,
-  validStopIds: Set<StopId>,
+  activeTripIds: TripIdsMap,
+  activeStopIds: Set<StopId>,
 ): Promise<{
   routes: Route[];
   serviceRoutesMap: Map<GtfsRouteId, ServiceRouteId>;
@@ -254,7 +254,7 @@ export const parseStopTimes = async (
    * Adds a trip to the appropriate route builder
    */
   const addTrip = (currentTripId: TripId) => {
-    const gtfsRouteId = validTripIds.get(currentTripId);
+    const gtfsRouteId = activeTripIds.get(currentTripId);
 
     if (!gtfsRouteId || stops.length === 0) {
       stops = [];
@@ -292,7 +292,7 @@ export const parseStopTimes = async (
       };
       routeBuilders.set(routeId, routeBuilder);
       for (const stop of stops) {
-        validStopIds.add(stop);
+        activeStopIds.add(stop);
       }
     }
 

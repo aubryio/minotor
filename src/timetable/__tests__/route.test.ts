@@ -56,7 +56,7 @@ describe('Route', () => {
   );
 
   const stops = new Uint32Array([1001, 1002]);
-  const serviceRouteId = 'test-route-1';
+  const serviceRouteId = 0;
 
   const route = new Route(stopTimes, pickUpDropOffTypes, stops, serviceRouteId);
 
@@ -71,10 +71,10 @@ describe('Route', () => {
         new Uint16Array([]),
         new Uint8Array([]),
         new Uint32Array([]),
-        'empty-route',
+        1,
       );
       assert.strictEqual(emptyRoute.getNbStops(), 0);
-      assert.strictEqual(emptyRoute.serviceRoute(), 'empty-route');
+      assert.strictEqual(emptyRoute.serviceRoute(), 1);
     });
   });
 
@@ -104,14 +104,14 @@ describe('Route', () => {
     it('should throw error when stopA is not found', () => {
       assert.throws(
         () => route.isBefore(9999, 1002),
-        /Stop index undefined not found in route test-route-1/,
+        /Stop index undefined not found in route 0/,
       );
     });
 
     it('should throw error when stopB is not found', () => {
       assert.throws(
         () => route.isBefore(1001, 9999),
-        /Stop index undefined not found in route test-route-1/,
+        /Stop index undefined not found in route 0/,
       );
     });
   });
@@ -148,7 +148,7 @@ describe('Route', () => {
     it('should throw error for invalid stop ID', () => {
       assert.throws(
         () => route.arrivalAt(9999, 0),
-        /Stop index for 9999 not found in route test-route-1/,
+        /Stop index for 9999 not found in route 0/,
       );
     });
 
@@ -180,7 +180,7 @@ describe('Route', () => {
     it('should throw error for invalid stop ID', () => {
       assert.throws(
         () => route.departureFrom(9999, 0),
-        /Stop index for 9999 not found in route test-route-1/,
+        /Stop index for 9999 not found in route 0/,
       );
     });
 
@@ -211,7 +211,7 @@ describe('Route', () => {
     it('should throw error for invalid stop ID', () => {
       assert.throws(
         () => route.pickUpTypeFrom(9999, 0),
-        /Stop index for 9999 not found in route test-route-1/,
+        /Stop index for 9999 not found in route 0/,
       );
     });
 
@@ -237,7 +237,7 @@ describe('Route', () => {
     it('should throw error for invalid stop ID', () => {
       assert.throws(
         () => route.dropOffTypeAt(9999, 0),
-        /Stop index for 9999 not found in route test-route-1/,
+        /Stop index for 9999 not found in route 0/,
       );
     });
 
@@ -263,7 +263,7 @@ describe('Route', () => {
     it('should throw error for invalid start stop ID', () => {
       assert.throws(
         () => Array.from(route.stopsIterator(9999)),
-        /Start stop 9999 not found in route test-route-1/,
+        /Start stop 9999 not found in route 0/,
       );
     });
   });
@@ -318,7 +318,7 @@ describe('Route', () => {
     it('should throw error for invalid stop ID', () => {
       assert.throws(
         () => route.findEarliestTrip(9999),
-        /Stop index for 9999 not found in route test-route-1/,
+        /Stop index for 9999 not found in route 0/,
       );
     });
   });

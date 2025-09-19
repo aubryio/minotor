@@ -7,41 +7,33 @@ import { NOT_AVAILABLE, REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
 import {
   RouteType,
-  ServiceRoutesMap,
-  StopsAdjacency,
+  ServiceRoute,
+  StopAdjacency,
   Timetable,
 } from '../timetable.js';
 
 describe('Timetable', () => {
-  const stopsAdjacency: StopsAdjacency = new Map([
-    [
-      1,
-      {
-        transfers: [{ destination: 2, type: 'RECOMMENDED' }],
-        routes: [0, 1],
-      },
-    ],
-    [
-      2,
-      {
-        transfers: [
-          {
-            destination: 1,
-            type: 'GUARANTEED',
-            minTransferTime: Duration.fromMinutes(3),
-          },
-        ],
-        routes: [1, 0],
-      },
-    ],
-    [
-      3,
-      {
-        transfers: [],
-        routes: [],
-      },
-    ],
-  ]);
+  const stopsAdjacency: StopAdjacency[] = [
+    { transfers: [], routes: [] },
+    {
+      transfers: [{ destination: 2, type: 'RECOMMENDED' }],
+      routes: [0, 1],
+    },
+    {
+      transfers: [
+        {
+          destination: 1,
+          type: 'GUARANTEED',
+          minTransferTime: Duration.fromMinutes(3),
+        },
+      ],
+      routes: [1, 0],
+    },
+    {
+      transfers: [],
+      routes: [],
+    },
+  ];
 
   const route1 = new Route(
     new Uint16Array([
@@ -59,7 +51,7 @@ describe('Timetable', () => {
       [REGULAR, REGULAR, REGULAR, REGULAR],
     ),
     new Uint32Array([1, 2]),
-    'gtfs1',
+    0,
   );
   const route2 = new Route(
     new Uint16Array([
@@ -70,13 +62,13 @@ describe('Timetable', () => {
     ]),
     encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
     new Uint32Array([2, 1]),
-    'gtfs2',
+    1,
   );
   const routesAdjacency = [route1, route2];
-  const routes: ServiceRoutesMap = new Map([
-    ['gtfs1', { type: 'RAIL', name: 'Route 1', routes: [0] }],
-    ['gtfs2', { type: 'RAIL', name: 'Route 2', routes: [1] }],
-  ]);
+  const routes: ServiceRoute[] = [
+    { type: 'RAIL', name: 'Route 1', routes: [0] },
+    { type: 'RAIL', name: 'Route 2', routes: [1] },
+  ];
 
   const sampleTimetable: Timetable = new Timetable(
     stopsAdjacency,

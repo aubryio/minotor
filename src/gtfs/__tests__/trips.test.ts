@@ -6,6 +6,7 @@ import { StopId } from '../../stops/stops.js';
 import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import { ServiceRoute } from '../../timetable/timetable.js';
+import { GtfsRoutesMap } from '../routes.js';
 import { ServiceIds } from '../services.js';
 import { GtfsStopsMap } from '../stops.js';
 import { TransfersMap } from '../transfers.js';
@@ -36,10 +37,11 @@ describe('buildStopsAdjacencyStructure', () => {
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      validStops,
       serviceRoutes,
       routesAdjacency,
       transfersMap,
+      2,
+      validStops,
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
@@ -47,6 +49,18 @@ describe('buildStopsAdjacencyStructure', () => {
         0,
         {
           routes: [0],
+          transfers: [
+            {
+              destination: 1,
+              type: 'RECOMMENDED',
+            },
+          ],
+        },
+      ],
+      [
+        1,
+        {
+          routes: [],
           transfers: [],
         },
       ],
@@ -65,17 +79,18 @@ describe('buildStopsAdjacencyStructure', () => {
       ),
     ];
     const transfersMap: TransfersMap = new Map([
-      [0, [{ destination: 2, type: 'RECOMMENDED' }]],
+      [3, [{ destination: 2, type: 'RECOMMENDED' }]],
     ]);
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      validStops,
       serviceRoutes,
       routesAdjacency,
       transfersMap,
+      4,
+      validStops,
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
@@ -93,6 +108,20 @@ describe('buildStopsAdjacencyStructure', () => {
           transfers: [],
         },
       ],
+      [
+        2,
+        {
+          routes: [],
+          transfers: [],
+        },
+      ],
+      [
+        3,
+        {
+          routes: [],
+          transfers: [],
+        },
+      ],
     ]);
     assert.deepEqual(serviceRoutes[0]?.routes, [0]);
   });
@@ -106,10 +135,10 @@ describe('GTFS trips parser', () => {
     mockedStream.push(null);
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
-    const validRouteIds: ServiceRoute[] = [
-      { type: 'BUS', name: 'B1', routes: [0] },
-      { type: 'TRAM', name: 'T1', routes: [1] },
-    ];
+    const validRouteIds: GtfsRoutesMap = new Map([
+      ['routeA', { type: 'BUS', name: 'B1' }],
+      ['routeB', { type: 'TRAM', name: 'T1' }],
+    ]);
 
     const trips = await parseTrips(
       mockedStream,
@@ -133,9 +162,9 @@ describe('GTFS trips parser', () => {
     mockedStream.push(null);
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
-    const validRouteIds: ServiceRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1', routes: [0] }],
-      ['routeB', { type: 'TRAM', name: 'T1', routes: [1] }],
+    const validRouteIds: GtfsRoutesMap = new Map([
+      ['routeA', { type: 'BUS', name: 'B1' }],
+      ['routeB', { type: 'TRAM', name: 'T1' }],
     ]);
 
     const trips = await parseTrips(
@@ -154,9 +183,9 @@ describe('GTFS trips parser', () => {
     mockedStream.push(null);
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
-    const validRouteIds: ServiceRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1', routes: [0] }],
-      ['routeB', { type: 'TRAM', name: 'T1', routes: [1] }],
+    const validRouteIds: GtfsRoutesMap = new Map([
+      ['routeA', { type: 'BUS', name: 'B1' }],
+      ['routeB', { type: 'TRAM', name: 'T1' }],
     ]);
 
     const trips = await parseTrips(
@@ -206,13 +235,13 @@ describe('GTFS stop times parser', () => {
         },
       ],
     ]);
-    const routes = await parseStopTimes(
+    const result = await parseStopTimes(
       mockedStream,
       stopsMap,
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(routes, [
+    assert.deepEqual(result.routes, [
       new Route(
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
@@ -222,7 +251,7 @@ describe('GTFS stop times parser', () => {
         ]),
         encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
         new Uint32Array([0, 1]),
-        'routeA',
+        0,
       ),
     ]);
   });
@@ -266,13 +295,13 @@ describe('GTFS stop times parser', () => {
       ],
     ]);
 
-    const routes = await parseStopTimes(
+    const result = await parseStopTimes(
       mockedStream,
       stopsMap,
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(routes, [
+    assert.deepEqual(result.routes, [
       new Route(
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
@@ -289,7 +318,7 @@ describe('GTFS stop times parser', () => {
           [REGULAR, REGULAR, REGULAR, REGULAR],
         ),
         new Uint32Array([0, 1]),
-        'routeA',
+        0,
       ),
     ]);
   });
@@ -333,13 +362,13 @@ describe('GTFS stop times parser', () => {
       ],
     ]);
 
-    const routes = await parseStopTimes(
+    const result = await parseStopTimes(
       mockedStream,
       stopsMap,
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(routes, [
+    assert.deepEqual(result.routes, [
       new Route(
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
@@ -356,7 +385,7 @@ describe('GTFS stop times parser', () => {
           [REGULAR, REGULAR, REGULAR, REGULAR],
         ),
         new Uint32Array([0, 1]),
-        'routeA',
+        0,
       ),
     ]);
   });
@@ -399,13 +428,13 @@ describe('GTFS stop times parser', () => {
       ],
     ]);
 
-    const routes = await parseStopTimes(
+    const result = await parseStopTimes(
       mockedStream,
       stopsMap,
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(routes, [
+    assert.deepEqual(result.routes, [
       new Route(
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
@@ -415,7 +444,7 @@ describe('GTFS stop times parser', () => {
         ]),
         encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
         new Uint32Array([0, 1]),
-        'routeA',
+        0,
       ),
       new Route(
         new Uint16Array([
@@ -424,7 +453,7 @@ describe('GTFS stop times parser', () => {
         ]),
         encodePickUpDropOffTypes([REGULAR], [REGULAR]),
         new Uint32Array([0]),
-        'routeA',
+        0,
       ),
     ]);
   });
@@ -463,13 +492,13 @@ describe('GTFS stop times parser', () => {
       ],
     ]);
 
-    const routes = await parseStopTimes(
+    const result = await parseStopTimes(
       mockedStream,
       stopsMap,
       validTripIds,
       validStopIds,
     );
-    assert.deepEqual(routes, [
+    assert.deepEqual(result.routes, [
       new Route(
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
@@ -477,7 +506,7 @@ describe('GTFS stop times parser', () => {
         ]),
         encodePickUpDropOffTypes([REGULAR], [REGULAR]),
         new Uint32Array([0]),
-        'routeA',
+        0,
       ),
     ]);
   });

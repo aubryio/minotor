@@ -67,7 +67,7 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'MONORAIL',
 ]);
 
-export const CURRENT_VERSION = '0.0.5';
+export const CURRENT_VERSION = '0.0.6';
 
 /**
  * The internal transit timetable format.
@@ -76,6 +76,7 @@ export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
   private readonly serviceRoutes: ServiceRoute[];
+  private readonly activeStops: Set<StopId>;
 
   constructor(
     stopsAdjacency: StopAdjacency[],
@@ -85,6 +86,14 @@ export class Timetable {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
+    this.activeStops = new Set<StopId>();
+    for (let i = 0; i < stopsAdjacency.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const stop = stopsAdjacency[i]!;
+      if (stop.routes.length > 0 || stop.transfers.length > 0) {
+        this.activeStops.add(i);
+      }
+    }
   }
 
   /**
@@ -119,12 +128,23 @@ export class Timetable {
       );
     }
     return new Timetable(
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
     );
+  }
+
+  /**
+   * Checks if the given stop is active on the timetable.
+   * An active stop is a stop reached by a route that is active on the timetable
+   * or by a transfer reachable from an active route.
+   *
+   * @param stopId - The ID of the stop to check.
+   * @returns True if the stop is active, false otherwise.
+   */
+  isActive(stopId: StopId): boolean {
+    return this.activeStops.has(stopId);
   }
 
   /**

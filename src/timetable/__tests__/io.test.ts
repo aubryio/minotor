@@ -12,31 +12,25 @@ import {
 } from '../io.js';
 import { REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
-import { ServiceRoutesMap, StopsAdjacency } from '../timetable.js';
+import { ServiceRoute, StopAdjacency } from '../timetable.js';
 
 describe('Timetable IO', () => {
-  const stopsAdjacency: StopsAdjacency = new Map([
-    [
-      1,
-      {
-        transfers: [{ destination: 2, type: 'RECOMMENDED' }],
-        routes: [0],
-      },
-    ],
-    [
-      2,
-      {
-        transfers: [
-          {
-            destination: 1,
-            type: 'GUARANTEED',
-            minTransferTime: Duration.fromMinutes(3),
-          },
-        ],
-        routes: [1],
-      },
-    ],
-  ]);
+  const stopsAdjacency: StopAdjacency[] = [
+    {
+      transfers: [{ destination: 2, type: 'RECOMMENDED' }],
+      routes: [0],
+    },
+    {
+      transfers: [
+        {
+          destination: 1,
+          type: 'GUARANTEED',
+          minTransferTime: Duration.fromMinutes(3),
+        },
+      ],
+      routes: [1],
+    },
+  ];
   const routesAdjacency = [
     new Route(
       new Uint16Array([
@@ -45,7 +39,7 @@ describe('Timetable IO', () => {
       ]),
       new Uint8Array([REGULAR, REGULAR]),
       new Uint32Array([1, 2]),
-      'gtfs1',
+      0,
     ),
     new Route(
       new Uint16Array([
@@ -54,31 +48,29 @@ describe('Timetable IO', () => {
       ]),
       new Uint8Array([REGULAR, REGULAR]),
       new Uint32Array([2, 1]),
-      'gtfs2',
+      1,
     ),
   ];
-  const routes: ServiceRoutesMap = new Map([
-    ['gtfs1', { type: 'RAIL', name: 'Route 1', routes: [0] }],
-    ['gtfs2', { type: 'RAIL', name: 'Route 2', routes: [1] }],
-  ]);
-  const stopsAdjacencyProto = {
-    stops: {
-      '1': {
-        transfers: [{ destination: 2, type: 0 }],
-        routes: [0],
-      },
-      '2': {
-        transfers: [
-          {
-            destination: 1,
-            type: 1,
-            minTransferTime: 180,
-          },
-        ],
-        routes: [1],
-      },
+  const routes: ServiceRoute[] = [
+    { type: 'RAIL', name: 'Route 1', routes: [0] },
+    { type: 'RAIL', name: 'Route 2', routes: [1] },
+  ];
+  const stopsAdjacencyProto = [
+    {
+      transfers: [{ destination: 2, type: 0 }],
+      routes: [0],
     },
-  };
+    {
+      transfers: [
+        {
+          destination: 1,
+          type: 1,
+          minTransferTime: 180,
+        },
+      ],
+      routes: [1],
+    },
+  ];
 
   const routesAdjacencyProto = [
     {
@@ -90,7 +82,7 @@ describe('Timetable IO', () => {
       ),
       pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
       stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
-      serviceRouteId: 'gtfs1',
+      serviceRouteId: 0,
     },
     {
       stopTimes: new Uint8Array(
@@ -101,16 +93,14 @@ describe('Timetable IO', () => {
       ),
       pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
       stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
-      serviceRouteId: 'gtfs2',
+      serviceRouteId: 1,
     },
   ];
 
-  const routesProto = {
-    routes: {
-      gtfs1: { type: 2, name: 'Route 1', routes: [0] },
-      gtfs2: { type: 2, name: 'Route 2', routes: [1] },
-    },
-  };
+  const routesProto = [
+    { type: 2, name: 'Route 1', routes: [0] },
+    { type: 2, name: 'Route 2', routes: [1] },
+  ];
 
   it('should serialize a stops adjacency matrix to a Uint8Array', () => {
     const serializedData = serializeStopsAdjacency(stopsAdjacency);

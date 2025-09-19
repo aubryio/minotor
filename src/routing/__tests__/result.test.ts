@@ -10,7 +10,7 @@ import { ReachingTime, TripLeg } from '../router.js';
 
 describe('Result', () => {
   const stop1: Stop = {
-    id: 1,
+    id: 0,
     sourceStopId: 'stop1',
     name: 'Lausanne',
     lat: 0,
@@ -21,7 +21,7 @@ describe('Result', () => {
   };
 
   const stop2: Stop = {
-    id: 2,
+    id: 1,
     sourceStopId: 'stop2',
     name: 'Fribourg',
     lat: 0,
@@ -32,7 +32,7 @@ describe('Result', () => {
   };
 
   const stop3: Stop = {
-    id: 3,
+    id: 2,
     sourceStopId: 'stop3',
     name: 'Bern',
     lat: 0,
@@ -43,7 +43,7 @@ describe('Result', () => {
   };
 
   const stop4: Stop = {
-    id: 4,
+    id: 3,
     sourceStopId: 'stop4',
     name: 'Olten',
     lat: 0,
@@ -54,49 +54,49 @@ describe('Result', () => {
   };
 
   const parentStop: Stop = {
-    id: 6,
+    id: 4,
     sourceStopId: 'parent',
     name: 'Basel',
     lat: 0,
     lon: 0,
-    children: [7, 8],
+    children: [5, 6],
     parent: undefined,
     locationType: 'SIMPLE_STOP_OR_PLATFORM',
   };
 
   const childStop1: Stop = {
-    id: 7,
+    id: 5,
     sourceStopId: 'child1',
     name: 'Basel Pl. 1',
     lat: 0,
     lon: 0,
     children: [],
-    parent: 6,
+    parent: 4,
     locationType: 'SIMPLE_STOP_OR_PLATFORM',
   };
 
   const childStop2: Stop = {
-    id: 8,
+    id: 6,
     sourceStopId: 'child2',
     name: 'Basel Pl. 2',
     lat: 0,
     lon: 0,
     children: [],
-    parent: 6,
+    parent: 4,
     locationType: 'SIMPLE_STOP_OR_PLATFORM',
   };
 
-  const stopsMap = new Map([
-    [1, stop1],
-    [2, stop2],
-    [3, stop3],
-    [4, stop4],
-    [6, parentStop],
-    [7, childStop1],
-    [8, childStop2],
-  ]);
+  const stopsArray = [
+    stop1,
+    stop2,
+    stop3,
+    stop4,
+    parentStop,
+    childStop1,
+    childStop2,
+  ];
 
-  const mockStopsIndex = new StopsIndex(stopsMap);
+  const mockStopsIndex = new StopsIndex(stopsArray);
 
   const mockQuery = new Query.Builder()
     .from('stop1')
@@ -122,7 +122,7 @@ describe('Result', () => {
 
     it('should return undefined for unreachable destination', () => {
       const earliestArrivals = new Map([
-        [2, { arrival: Time.fromHMS(8, 30, 0), legNumber: 0, origin: 1 }],
+        [1, { arrival: Time.fromHMS(8, 30, 0), legNumber: 0, origin: 0 }],
       ]);
       const earliestArrivalsPerRound: Map<StopId, TripLeg>[] = [];
 
@@ -139,8 +139,8 @@ describe('Result', () => {
 
     it('should return route to closest destination when multiple destinations exist', () => {
       const earliestArrivals = new Map([
-        [3, { arrival: Time.fromHMS(9, 0, 0), legNumber: 0, origin: 1 }], // faster
-        [4, { arrival: Time.fromHMS(9, 30, 0), legNumber: 0, origin: 1 }], // slower
+        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 0, origin: 0 }], // faster
+        [3, { arrival: Time.fromHMS(9, 30, 0), legNumber: 0, origin: 0 }], // slower
       ]);
 
       const vehicleLegTo3 = {
@@ -154,11 +154,11 @@ describe('Result', () => {
       const earliestArrivalsPerRound = [
         new Map([
           [
-            3,
+            2,
             {
               arrival: Time.fromHMS(9, 0, 0),
               legNumber: 0,
-              origin: 1,
+              origin: 0,
               leg: vehicleLegTo3,
             } as TripLeg,
           ],
@@ -188,18 +188,18 @@ describe('Result', () => {
       };
 
       const earliestArrivals = new Map([
-        [7, { arrival: Time.fromHMS(9, 0, 0), legNumber: 0, origin: 1 }], // child1 - faster
-        [8, { arrival: Time.fromHMS(9, 30, 0), legNumber: 0, origin: 1 }], // child2 - slower
+        [5, { arrival: Time.fromHMS(9, 0, 0), legNumber: 0, origin: 0 }], // child1 - faster
+        [6, { arrival: Time.fromHMS(9, 30, 0), legNumber: 0, origin: 0 }], // child2 - slower
       ]);
 
       const earliestArrivalsPerRound = [
         new Map([
           [
-            7,
+            5,
             {
               arrival: Time.fromHMS(9, 0, 0),
               legNumber: 0,
-              origin: 1,
+              origin: 0,
               leg: vehicleLegToChild1,
             } as TripLeg,
           ],
@@ -230,17 +230,17 @@ describe('Result', () => {
 
       // Simple case: origin stop 1, destination stop 3, direct connection
       const earliestArrivals = new Map([
-        [3, { arrival: Time.fromHMS(9, 0, 0), legNumber: 0, origin: 1 }],
+        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 0, origin: 0 }],
       ]);
 
       const earliestArrivalsPerRound = [
         new Map([
           [
-            3,
+            2,
             {
               arrival: Time.fromHMS(9, 0, 0),
               legNumber: 0,
-              origin: 1,
+              origin: 0,
               leg: vehicleLeg,
             } as TripLeg,
           ],
@@ -266,9 +266,9 @@ describe('Result', () => {
       const arrivalTime = {
         arrival: Time.fromHMS(9, 0, 0),
         legNumber: 1,
-        origin: 1,
+        origin: 0,
       };
-      const earliestArrivals = new Map([[3, arrivalTime]]);
+      const earliestArrivals = new Map([[2, arrivalTime]]);
 
       const result = new Result(
         mockQuery,
@@ -283,7 +283,7 @@ describe('Result', () => {
 
     it('should return undefined for unreachable stop', () => {
       const earliestArrivals = new Map([
-        [3, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1, origin: 1 }],
+        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1, origin: 0 }],
       ]);
 
       const result = new Result(
@@ -301,17 +301,17 @@ describe('Result', () => {
       const earlierArrival = {
         arrival: Time.fromHMS(9, 0, 0),
         legNumber: 1,
-        origin: 1,
+        origin: 0,
       };
       const laterArrival = {
         arrival: Time.fromHMS(9, 30, 0),
         legNumber: 1,
-        origin: 1,
+        origin: 0,
       };
 
       const earliestArrivals = new Map([
-        [7, earlierArrival], // child1 - faster
-        [8, laterArrival], // child2 - slower
+        [6, earlierArrival], // child1 - faster
+        [7, laterArrival], // child2 - slower
       ]);
 
       const result = new Result(
@@ -329,27 +329,27 @@ describe('Result', () => {
       const tripLeg1 = {
         arrival: Time.fromHMS(8, 30, 0),
         legNumber: 0,
-        origin: 1,
+        origin: 0,
       };
       const tripLeg2 = {
         arrival: Time.fromHMS(9, 0, 0),
         legNumber: 1,
-        origin: 1,
+        origin: 0,
       };
       const tripLeg3 = {
         arrival: Time.fromHMS(9, 30, 0),
         legNumber: 2,
-        origin: 1,
+        origin: 0,
       };
 
       const earliestArrivals = new Map([
-        [3, tripLeg2], // 1 transfer
+        [2, tripLeg2], // 1 transfer
       ]);
 
       const earliestArrivalsPerRound = [
-        new Map([[3, tripLeg1]]), // Round 0 (start)
-        new Map([[3, tripLeg3]]), // Round 1 (no transfers)
-        new Map([[3, tripLeg2]]), // Round 2 (1 transfers)
+        new Map([[2, tripLeg1]]), // Round 0 (start)
+        new Map([[2, tripLeg3]]), // Round 1 (no transfers)
+        new Map([[2, tripLeg2]]), // Round 2 (1 transfers)
       ];
 
       const result = new Result(
@@ -369,11 +369,11 @@ describe('Result', () => {
     it('should handle non-existent stops', () => {
       const earliestArrivals = new Map([
         [
-          3,
+          2,
           {
             arrival: Time.fromHMS(9, 0, 0),
             legNumber: 1,
-            origin: 1,
+            origin: 0,
           } as ReachingTime,
         ],
       ]);

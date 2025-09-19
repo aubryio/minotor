@@ -21,9 +21,8 @@ describe('GTFS parser', () => {
   });
 
   it('should correctly parse timetable from GTFS feed', async () => {
-    const { timetable, stopsIndex } = await parser.parse(
-      new Date('2007-01-10'),
-    );
+    const timetable = await parser.parseTimetable(new Date('2007-01-10'));
+    const stopsIndex = await parser.parseStops();
 
     const furCreekResId =
       stopsIndex.findStopBySourceStopId('FUR_CREEK_RES')?.id;
@@ -33,7 +32,7 @@ describe('GTFS parser', () => {
 
     const route = timetable.getRoute(3);
     assert(route);
-    assert.strictEqual(route.serviceRoute(), 'AB');
+    assert.strictEqual(route.serviceRoute(), 2);
     const beattyAirportId =
       stopsIndex.findStopBySourceStopId('BEATTY_AIRPORT')?.id;
     const bullfrogId = stopsIndex.findStopBySourceStopId('BULLFROG')?.id;
@@ -48,8 +47,8 @@ describe('GTFS parser', () => {
 
     const routes = timetable.routesPassingThrough(furCreekResId);
     assert.strictEqual(routes.length, 2);
-    assert.strictEqual(routes[0]?.serviceRoute(), 'BFC');
-    assert.strictEqual(routes[1]?.serviceRoute(), 'BFC');
+    assert.strictEqual(routes[0]?.serviceRoute(), 3);
+    assert.strictEqual(routes[1]?.serviceRoute(), 3);
 
     const serviceRoute = timetable.getServiceRouteInfo(route);
     assert(serviceRoute);

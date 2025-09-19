@@ -1,14 +1,14 @@
 import assert from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
 
-import { StopsMap } from '../../stops/stops.js';
+import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Duration } from '../../timetable/duration.js';
 import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import {
-  ServiceRoutesMap,
-  StopsAdjacency,
+  ServiceRoute,
+  StopAdjacency,
   Timetable,
 } from '../../timetable/timetable.js';
 import { Query } from '../query.js';
@@ -21,11 +21,11 @@ describe('Router', () => {
     let timetable: Timetable;
 
     beforeEach(() => {
-      const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: [0] }],
-        [1, { transfers: [], routes: [0] }],
-        [2, { transfers: [], routes: [0] }],
-      ]);
+      const stopsAdjacency: StopAdjacency[] = [
+        { transfers: [], routes: [0] },
+        { transfers: [], routes: [0] },
+        { transfers: [], routes: [0] },
+      ];
 
       const routesAdjacency = [
         new Route(
@@ -46,61 +46,49 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([0, 1, 2]),
-          'service_route1',
+          0,
         ),
       ];
 
-      const routes: ServiceRoutesMap = new Map([
-        [
-          'service_route1',
-          {
-            type: 'BUS',
-            name: 'Line 1',
-            routes: [0],
-          },
-        ],
-      ]);
+      const routes: ServiceRoute[] = [
+        {
+          type: 'BUS',
+          name: 'Line 1',
+          routes: [0],
+        },
+      ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
-      const stopsMap: StopsMap = new Map([
-        [
-          0,
-          {
-            id: 0,
-            sourceStopId: 'stop1',
-            name: 'Stop 1',
-            lat: 1.0,
-            lon: 1.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          1,
-          {
-            id: 1,
-            sourceStopId: 'stop2',
-            name: 'Stop 2',
-            lat: 2.0,
-            lon: 2.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          2,
-          {
-            id: 2,
-            sourceStopId: 'stop3',
-            name: 'Stop 3',
-            lat: 3.0,
-            lon: 3.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-      ]);
-      const stopsIndex = new StopsIndex(stopsMap);
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 2,
+          sourceStopId: 'stop3',
+          name: 'Stop 3',
+          lat: 3.0,
+          lon: 3.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
+      const stopsIndex = new StopsIndex(stops);
       router = new Router(timetable, stopsIndex);
     });
 
@@ -150,13 +138,13 @@ describe('Router', () => {
     let timetable: Timetable;
 
     beforeEach(() => {
-      const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: [0] }],
-        [1, { transfers: [], routes: [0, 1] }],
-        [2, { transfers: [], routes: [0] }],
-        [3, { transfers: [], routes: [1] }],
-        [4, { transfers: [], routes: [1] }],
-      ]);
+      const stopsAdjacency: StopAdjacency[] = [
+        { transfers: [], routes: [0] },
+        { transfers: [], routes: [0, 1] },
+        { transfers: [], routes: [0] },
+        { transfers: [], routes: [1] },
+        { transfers: [], routes: [1] },
+      ];
       const routesAdjacency = [
         new Route(
           new Uint16Array([
@@ -176,7 +164,7 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([0, 1, 2]),
-          'service_route1',
+          0,
         ),
         new Route(
           new Uint16Array([
@@ -196,95 +184,74 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([3, 1, 4]),
-          'service_route2',
+          1,
         ),
       ];
 
-      const routes: ServiceRoutesMap = new Map([
-        [
-          'service_route1',
-          {
-            type: 'BUS',
-            name: 'Line 1',
-            routes: [0],
-          },
-        ],
-        [
-          'service_route2',
-          {
-            type: 'RAIL',
-            name: 'Line 2',
-            routes: [1],
-          },
-        ],
-      ]);
+      const routes: ServiceRoute[] = [
+        {
+          type: 'BUS',
+          name: 'Line 1',
+          routes: [0],
+        },
+        {
+          type: 'RAIL',
+          name: 'Line 2',
+          routes: [1],
+        },
+      ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
 
-      const stopsMap: StopsMap = new Map([
-        [
-          0,
-          {
-            id: 0,
-            sourceStopId: 'stop1',
-            name: 'Stop 1',
-            lat: 1.0,
-            lon: 1.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          1,
-          {
-            id: 1,
-            sourceStopId: 'stop2',
-            name: 'Stop 2',
-            lat: 2.0,
-            lon: 2.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          2,
-          {
-            id: 2,
-            sourceStopId: 'stop3',
-            name: 'Stop 3',
-            lat: 3.0,
-            lon: 3.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          3,
-          {
-            id: 3,
-            sourceStopId: 'stop4',
-            name: 'Stop 4',
-            lat: 4.0,
-            lon: 4.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          4,
-          {
-            id: 4,
-            sourceStopId: 'stop5',
-            name: 'Stop 5',
-            lat: 5.0,
-            lon: 5.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-      ]);
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 2,
+          sourceStopId: 'stop3',
+          name: 'Stop 3',
+          lat: 3.0,
+          lon: 3.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 3,
+          sourceStopId: 'stop4',
+          name: 'Stop 4',
+          lat: 4.0,
+          lon: 4.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 4,
+          sourceStopId: 'stop5',
+          name: 'Stop 5',
+          lat: 5.0,
+          lon: 5.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
 
-      const stopsIndex = new StopsIndex(stopsMap);
+      const stopsIndex = new StopsIndex(stops);
       router = new Router(timetable, stopsIndex);
     });
 
@@ -322,26 +289,23 @@ describe('Router', () => {
     let timetable: Timetable;
 
     beforeEach(() => {
-      const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: [0] }],
-        [
-          1,
-          {
-            transfers: [
-              {
-                destination: 4,
-                type: 'REQUIRES_MINIMAL_TIME',
-                minTransferTime: Duration.fromSeconds(300),
-              },
-            ],
-            routes: [0],
-          },
-        ],
-        [2, { transfers: [], routes: [0] }],
-        [3, { transfers: [], routes: [1] }],
-        [4, { transfers: [], routes: [1] }],
-        [5, { transfers: [], routes: [1] }],
-      ]);
+      const stopsAdjacency: StopAdjacency[] = [
+        { transfers: [], routes: [0] },
+        {
+          transfers: [
+            {
+              destination: 4,
+              type: 'REQUIRES_MINIMAL_TIME',
+              minTransferTime: Duration.fromSeconds(300),
+            },
+          ],
+          routes: [0],
+        },
+        { transfers: [], routes: [0] },
+        { transfers: [], routes: [1] },
+        { transfers: [], routes: [1] },
+        { transfers: [], routes: [1] },
+      ];
 
       const routesAdjacency = [
         new Route(
@@ -362,7 +326,7 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([0, 1, 2]),
-          'service_route1',
+          0,
         ),
         new Route(
           new Uint16Array([
@@ -382,105 +346,81 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([3, 4, 5]),
-          'service_route2',
+          1,
         ),
       ];
 
-      const routes: ServiceRoutesMap = new Map([
-        [
-          'service_route1',
-          {
-            type: 'BUS',
-            name: 'Line 1',
-            routes: [0],
-          },
-        ],
-        [
-          'service_route2',
-          {
-            type: 'RAIL',
-            name: 'Line 2',
-            routes: [1],
-          },
-        ],
-      ]);
+      const routes: ServiceRoute[] = [
+        {
+          type: 'BUS',
+          name: 'Line 1',
+          routes: [0],
+        },
+        {
+          type: 'RAIL',
+          name: 'Line 2',
+          routes: [1],
+        },
+      ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
-      const stopsMap: StopsMap = new Map([
-        [
-          0,
-          {
-            id: 0,
-            sourceStopId: 'stop1',
-            name: 'Stop 1',
-            lat: 1.0,
-            lon: 1.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          1,
-          {
-            id: 1,
-            sourceStopId: 'stop2',
-            name: 'Stop 2',
-            lat: 2.0,
-            lon: 2.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          2,
-          {
-            id: 2,
-            sourceStopId: 'stop3',
-            name: 'Stop 3',
-            lat: 3.0,
-            lon: 3.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          3,
-          {
-            id: 3,
-            sourceStopId: 'stop4',
-            name: 'Stop 4',
-            lat: 4.0,
-            lon: 4.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          4,
-          {
-            id: 4,
-            sourceStopId: 'stop5',
-            name: 'Stop 5',
-            lat: 5.0,
-            lon: 5.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          5,
-          {
-            id: 5,
-            sourceStopId: 'stop6',
-            name: 'Stop 6',
-            lat: 6.0,
-            lon: 6.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-      ]);
-      const stopsIndex = new StopsIndex(stopsMap);
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 2,
+          sourceStopId: 'stop3',
+          name: 'Stop 3',
+          lat: 3.0,
+          lon: 3.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 3,
+          sourceStopId: 'stop4',
+          name: 'Stop 4',
+          lat: 4.0,
+          lon: 4.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 4,
+          sourceStopId: 'stop5',
+          name: 'Stop 5',
+          lat: 5.0,
+          lon: 5.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 5,
+          sourceStopId: 'stop6',
+          name: 'Stop 6',
+          lat: 6.0,
+          lon: 6.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
+      const stopsIndex = new StopsIndex(stops);
       router = new Router(timetable, stopsIndex);
     });
 
@@ -518,13 +458,13 @@ describe('Router', () => {
     let timetable: Timetable;
 
     beforeEach(() => {
-      const stopsAdjacency: StopsAdjacency = new Map([
-        [0, { transfers: [], routes: [0] }],
-        [1, { transfers: [], routes: [0, 1] }],
-        [2, { transfers: [], routes: [0] }],
-        [3, { transfers: [], routes: [1] }],
-        [4, { transfers: [], routes: [1] }],
-      ]);
+      const stopsAdjacency: StopAdjacency[] = [
+        { transfers: [], routes: [0, 2] },
+        { transfers: [], routes: [0, 1] },
+        { transfers: [], routes: [0] },
+        { transfers: [], routes: [1] },
+        { transfers: [], routes: [1, 2] },
+      ];
 
       const routesAdjacency = [
         new Route(
@@ -545,7 +485,7 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([0, 1, 2]),
-          'service_route1',
+          0,
         ),
         new Route(
           new Uint16Array([
@@ -565,7 +505,7 @@ describe('Router', () => {
             REGULAR,
           ]),
           new Uint32Array([3, 1, 4]),
-          'service_route2',
+          1,
         ),
         new Route(
           new Uint16Array([
@@ -576,101 +516,77 @@ describe('Router', () => {
           ]),
           new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
           new Uint32Array([0, 4]),
-          'service_route3',
+          2,
         ),
       ];
 
-      const routes: ServiceRoutesMap = new Map([
-        [
-          'service_route1',
-          {
-            type: 'BUS',
-            name: 'Line 1',
-            routes: [0],
-          },
-        ],
-        [
-          'service_route2',
-          {
-            type: 'RAIL',
-            name: 'Line 2',
-            routes: [1],
-          },
-        ],
-        [
-          'service_route3',
-          {
-            type: 'FERRY',
-            name: 'Line 3',
-            routes: [2],
-          },
-        ],
-      ]);
+      const routes: ServiceRoute[] = [
+        {
+          type: 'BUS',
+          name: 'Line 1',
+          routes: [0],
+        },
+        {
+          type: 'RAIL',
+          name: 'Line 2',
+          routes: [1],
+        },
+        {
+          type: 'FERRY',
+          name: 'Line 3',
+          routes: [2],
+        },
+      ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
-      const stopsMap: StopsMap = new Map([
-        [
-          0,
-          {
-            id: 0,
-            sourceStopId: 'stop1',
-            name: 'Stop 1',
-            lat: 1.0,
-            lon: 1.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          1,
-          {
-            id: 1,
-            sourceStopId: 'stop2',
-            name: 'Stop 2',
-            lat: 2.0,
-            lon: 2.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          2,
-          {
-            id: 2,
-            sourceStopId: 'stop3',
-            name: 'Stop 3',
-            lat: 3.0,
-            lon: 3.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          3,
-          {
-            id: 3,
-            sourceStopId: 'stop4',
-            name: 'Stop 4',
-            lat: 4.0,
-            lon: 4.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-        [
-          4,
-          {
-            id: 4,
-            sourceStopId: 'stop5',
-            name: 'Stop 5',
-            lat: 5.0,
-            lon: 5.0,
-            children: [],
-            locationType: 'SIMPLE_STOP_OR_PLATFORM',
-          },
-        ],
-      ]);
-      const stopsIndex = new StopsIndex(stopsMap);
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 2,
+          sourceStopId: 'stop3',
+          name: 'Stop 3',
+          lat: 3.0,
+          lon: 3.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 3,
+          sourceStopId: 'stop4',
+          name: 'Stop 4',
+          lat: 4.0,
+          lon: 4.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 4,
+          sourceStopId: 'stop5',
+          name: 'Stop 5',
+          lat: 5.0,
+          lon: 5.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
+      const stopsIndex = new StopsIndex(stops);
       router = new Router(timetable, stopsIndex);
     });
 
