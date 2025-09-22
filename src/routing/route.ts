@@ -38,11 +38,8 @@ export type VehicleLeg = BaseLeg & {
   route: ServiceRouteInfo;
   departureTime: Time;
   arrivalTime: Time;
-  // TODO support pick up and drop off types
-  /*
   pickUpType: PickUpDropOffType;
   dropOffType: PickUpDropOffType;
-  */
 };
 
 export type Leg = Transfer | VehicleLeg;

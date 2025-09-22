@@ -31,18 +31,24 @@ enum TransferType {
   RECOMMENDED_TRANSFER_POINT = 0;
   TIMED_TRANSFER = 1;
   REQUIRES_MINIMAL_TIME = 2;
-  IN_SEAT_TRANSFER = 3;
+  NOT_POSSIBLE = 3;
+  IN_SEAT_TRANSFER = 4;
+  REQUIRES_ALIGHTING_AND_REBOARDING = 5;
 }
 
 message Transfer {
   uint32 destination = 1;
   TransferType type = 2;
   optional uint32 minTransferTime = 3;
+  optional uint32 toServiceRoute = 4;
+  optional uint32 toTrip = 5;
 }
 
 message StopAdjacency {
-  repeated Transfer transfers = 1;
-  repeated uint32 routes = 2;
+  repeated uint32 routes = 1;
+  optional repeated Transfer stopTransfers = 2;
+  optional map<uint32, repeated Transfer> routeTransfers = 3;
+  optional map<uint32, repeated Transfer> Transfer tripTransfers = 4;
 }
 
 enum RouteType {

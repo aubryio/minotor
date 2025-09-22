@@ -6,7 +6,7 @@ import {
   TransferType,
 } from '../timetable/timetable.js';
 import { GtfsStopsMap } from './stops.js';
-import { TripId } from './trips.js';
+import { GtfsTripId } from './trips.js';
 import { parseCsv } from './utils.js';
 
 export type GtfsTransferType =
@@ -22,8 +22,8 @@ export type TransfersMap = Map<StopId, Transfer[]>;
 export type TransferEntry = {
   from_stop_id?: SourceStopId;
   to_stop_id?: SourceStopId;
-  from_trip_id?: TripId;
-  to_trip_id?: TripId;
+  from_trip_id?: GtfsTripId;
+  to_trip_id?: GtfsTripId;
   from_route_id?: ServiceRouteId;
   to_route_id?: ServiceRouteId;
   transfer_type: GtfsTransferType;
@@ -48,28 +48,33 @@ export const parseTransfers = async (
   ])) {
     const transferEntry = rawLine as TransferEntry;
 
-    if (
-      transferEntry.transfer_type === 3 ||
-      transferEntry.transfer_type === 5
-    ) {
-      continue;
-    }
     if (transferEntry.from_trip_id && transferEntry.to_trip_id) {
       console.warn(
         `Unsupported transfer between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
       );
       continue;
     }
-    if (transferEntry.from_route_id && transferEntry.to_route_id) {
-      console.warn(
-        `Unsupported transfer between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
-      );
-      continue;
-    }
+
     if (!transferEntry.from_stop_id || !transferEntry.to_stop_id) {
+      // TODO support trip-to-trip transfers without stops
       console.warn(`Missing transfer origin or destination stop.`);
       continue;
     }
+
+    const fieldsSet = [
+      transferEntry.from_route_id,
+      transferEntry.to_route_id,
+      transferEntry.from_trip_id,
+      transferEntry.to_trip_id,
+    ].filter((field) => field !== undefined && field !== '').length;
+
+    if (fieldsSet !== 0 && fieldsSet !== 4) {
+      console.warn(
+        `Invalid transfer entry: from_route_id, to_route_id, from_trip_id, and to_trip_id must all be set or all be unset between ${transferEntry.from_stop_id} and ${transferEntry.to_stop_id}.`,
+      );
+      continue;
+    }
+
     if (transferEntry.transfer_type === 2 && !transferEntry.min_transfer_time) {
       console.info(
         `Missing minimum transfer time between ${transferEntry.from_stop_id} and ${transferEntry.to_stop_id}.`,
@@ -107,7 +112,11 @@ const parseGtfsTransferType = (
       return 'GUARANTEED';
     case 2:
       return 'REQUIRES_MINIMAL_TIME';
+    case 3:
+      return 'NOT_POSSIBLE';
     case 4:
       return 'IN_SEAT';
+    case 5:
+      return 'REQUIRES_ALIGHTING_AND_REBOARDING';
   }
 };

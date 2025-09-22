@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
+import { MarkedStop } from '../routing/router.js';
 import { StopId } from '../stops/stops.js';
 import { Duration } from './duration.js';
 import {
@@ -12,22 +13,28 @@ import {
   serializeStopsAdjacency,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
-import { Route, RouteId } from './route.js';
+import { Route, RouteId, TripId } from './route.js';
 
 export type TransferType =
   | 'RECOMMENDED'
   | 'GUARANTEED'
   | 'REQUIRES_MINIMAL_TIME'
-  | 'IN_SEAT';
+  | 'NOT_POSSIBLE'
+  | 'IN_SEAT'
+  | 'REQUIRES_ALIGHTING_AND_REBOARDING';
 
 export type Transfer = {
   destination: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+  toServiceRoute?: ServiceRouteId;
+  toTrip?: TripId;
 };
 
 export type StopAdjacency = {
-  transfers: Transfer[];
+  stopTransfers?: Transfer[];
+  routeTransfers?: Map<ServiceRouteId, Transfer[]>;
+  tripTransfers?: Map<TripId, Transfer[]>;
   routes: RouteId[];
 };
 
@@ -70,31 +77,39 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
 
 export const CURRENT_VERSION = '0.0.7';
 
+const EMPTY_TRANSFERS: ReadonlyArray<Transfer> = Object.freeze([]);
+const EMPTY_ROUTES: ReadonlyArray<Route> = Object.freeze([]);
+
 /**
  * The internal transit timetable format.
  */
 export class Timetable {
-  private readonly stopsAdjacency: StopAdjacency[];
-  private readonly routesAdjacency: Route[];
-  private readonly serviceRoutes: ServiceRoute[];
-  private readonly activeStops: Set<StopId>;
+  private readonly stopsAdjacency: ReadonlyArray<StopAdjacency>;
+  private readonly routesAdjacency: ReadonlyArray<Route>;
+  private readonly serviceRoutes: ReadonlyArray<ServiceRoute>;
+  private readonly activeStops: ReadonlySet<StopId>;
 
   constructor(
-    stopsAdjacency: StopAdjacency[],
-    routesAdjacency: Route[],
-    routes: ServiceRoute[],
+    stopsAdjacency: ReadonlyArray<StopAdjacency>,
+    routesAdjacency: ReadonlyArray<Route>,
+    routes: ReadonlyArray<ServiceRoute>,
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
-    this.activeStops = new Set<StopId>();
+    const activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const stop = stopsAdjacency[i]!;
-      if (stop.routes.length > 0 || stop.transfers.length > 0) {
-        this.activeStops.add(i);
+      if (
+        stop.routes.length > 0 ||
+        (stop.stopTransfers !== undefined && stop.stopTransfers.length > 0) ||
+        (stop.routeTransfers !== undefined && stop.routeTransfers.size > 0) ||
+        (stop.tripTransfers !== undefined && stop.tripTransfers.size > 0)
+      ) {
+        activeStops.add(i);
       }
     }
+    this.activeStops = activeStops;
   }
 
   /**
@@ -160,13 +175,42 @@ export class Timetable {
   }
 
   /**
-   * Retrieves all transfer options available at the specified stop.
+   * Retrieves transfer options available at the specified stop, optionally filtered
+   * by the originating service route or trip.
    *
-   * @param stopId - The ID of the stop to get transfers for.
-   * @returns An array of transfer options available at the stop.
+   * @param stopId - The ID of the stop to retrieve transfers from.
+   * @param fromServiceRoute - Optional service route ID to filter transfers from.
+   * @param fromTrip - Optional trip ID to filter transfers from.
+   * @returns An array of transfer options available at the stop, filtered by the specified criteria.
    */
-  getTransfers(stopId: StopId): Transfer[] {
-    return this.stopsAdjacency[stopId]?.transfers ?? [];
+  getTransfers(
+    stopId: StopId,
+    fromServiceRoute?: ServiceRouteId,
+    fromTrip?: TripId,
+  ): ReadonlyArray<Transfer> {
+    const stop = this.stopsAdjacency[stopId];
+    if (!stop) return EMPTY_TRANSFERS;
+    const transfers: Transfer[] = [];
+
+    if (stop.stopTransfers) {
+      transfers.push(...stop.stopTransfers);
+    }
+
+    if (fromServiceRoute !== undefined && stop.routeTransfers) {
+      const routeTransfers = stop.routeTransfers.get(fromServiceRoute);
+      if (routeTransfers) {
+        transfers.push(...routeTransfers);
+      }
+    }
+
+    if (fromTrip !== undefined && stop.tripTransfers) {
+      const tripTransfers = stop.tripTransfers.get(fromTrip);
+      if (tripTransfers) {
+        transfers.push(...tripTransfers);
+      }
+    }
+
+    return transfers;
   }
 
   /**
@@ -195,10 +239,10 @@ export class Timetable {
    * @param stopId - The ID of the stop to find routes for.
    * @returns An array of routes passing through the specified stop.
    */
-  routesPassingThrough(stopId: StopId): Route[] {
+  routesPassingThrough(stopId: StopId): ReadonlyArray<Route> {
     const stopData = this.stopsAdjacency[stopId];
     if (!stopData) {
-      return [];
+      return EMPTY_ROUTES;
     }
     const routes: Route[] = [];
     for (let i = 0; i < stopData.routes.length; i++) {
@@ -221,29 +265,33 @@ export class Timetable {
    * @returns A map of reachable routes to the first stop available to hop on each route.
    */
   findReachableRoutes(
-    fromStops: Set<StopId>,
+    fromStops: Set<MarkedStop>,
     transportModes: Set<RouteType> = ALL_TRANSPORT_MODES,
   ): Map<Route, StopId> {
     const reachableRoutes = new Map<Route, StopId>();
     const fromStopsArray = Array.from(fromStops);
     for (let i = 0; i < fromStopsArray.length; i++) {
       const originStop = fromStopsArray[i]!;
-      const validRoutes = this.routesPassingThrough(originStop).filter(
-        (route) => {
+      const routesPassingThrough = this.routesPassingThrough(originStop.stopId);
+      for (let j = 0; j < routesPassingThrough.length; j++) {
+        const route = routesPassingThrough[j]!;
+
+        // Check if the transport mode is allowed
+        if (transportModes.size > 0) {
           const serviceRoute = this.getServiceRouteInfo(route);
-          return transportModes.has(serviceRoute.type);
-        },
-      );
-      for (let j = 0; j < validRoutes.length; j++) {
-        const route = validRoutes[j]!;
+          if (!transportModes.has(serviceRoute.type)) {
+            continue;
+          }
+        }
+
         const hopOnStop = reachableRoutes.get(route);
         if (hopOnStop) {
-          if (route.isBefore(originStop, hopOnStop)) {
+          if (route.isBefore(originStop.stopId, hopOnStop)) {
             // if the current stop is before the existing hop on stop, replace it
-            reachableRoutes.set(route, originStop);
+            reachableRoutes.set(route, originStop.stopId);
           }
         } else {
-          reachableRoutes.set(route, originStop);
+          reachableRoutes.set(route, originStop.stopId);
         }
       }
     }

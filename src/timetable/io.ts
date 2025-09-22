@@ -121,7 +121,7 @@ const bytesToUint16Array = (bytes: Uint8Array): Uint16Array => {
 };
 
 export const serializeStopsAdjacency = (
-  stopsAdjacency: StopAdjacency[],
+  stopsAdjacency: ReadonlyArray<StopAdjacency>,
 ): ProtoStopAdjacency[] => {
   return stopsAdjacency.map((value) => {
     return {
@@ -138,7 +138,7 @@ export const serializeStopsAdjacency = (
 };
 
 export const serializeRoutesAdjacency = (
-  routesAdjacency: Route[],
+  routesAdjacency: ReadonlyArray<Route>,
 ): ProtoRoute[] => {
   const protoRoutesAdjacency: ProtoRoute[] = [];
 
@@ -156,7 +156,7 @@ export const serializeRoutesAdjacency = (
 };
 
 export const serializeServiceRoutesMap = (
-  serviceRoutes: ServiceRoute[],
+  serviceRoutes: ReadonlyArray<ServiceRoute>,
 ): ProtoServiceRoute[] => {
   return serviceRoutes.map((value) => {
     return {
@@ -247,8 +247,12 @@ const parseTransferType = (type: ProtoTransferType): TransferType => {
       return 'GUARANTEED';
     case ProtoTransferType.REQUIRES_MINIMAL_TIME:
       return 'REQUIRES_MINIMAL_TIME';
+    case ProtoTransferType.NOT_POSSIBLE:
+      return 'NOT_POSSIBLE';
     case ProtoTransferType.IN_SEAT_TRANSFER:
       return 'IN_SEAT';
+    case ProtoTransferType.REQUIRES_ALIGHTING_AND_REBOARDING:
+      return 'REQUIRES_ALIGHTING_AND_REBOARDING';
     case ProtoTransferType.UNRECOGNIZED:
       throw new Error('Unrecognized protobuf transfer type.');
   }
@@ -262,8 +266,12 @@ const serializeTransferType = (type: TransferType): ProtoTransferType => {
       return ProtoTransferType.TIMED_TRANSFER;
     case 'REQUIRES_MINIMAL_TIME':
       return ProtoTransferType.REQUIRES_MINIMAL_TIME;
+    case 'NOT_POSSIBLE':
+      return ProtoTransferType.NOT_POSSIBLE;
     case 'IN_SEAT':
       return ProtoTransferType.IN_SEAT_TRANSFER;
+    case 'REQUIRES_ALIGHTING_AND_REBOARDING':
+      return ProtoTransferType.REQUIRES_ALIGHTING_AND_REBOARDING;
   }
 };
 
