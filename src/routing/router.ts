@@ -28,7 +28,7 @@ type CurrentTrip = {
 };
 
 /**
- * A public transportation network router utilizing the RAPTOR algorithm for
+ * A public transportation network router implementing the RAPTOR algorithm for
  * efficient journey planning and routing. For more information on the RAPTOR
  * algorithm, refer to its detailed explanation in the research paper:
  * https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
@@ -252,10 +252,10 @@ export class Router {
             earliestArrivalOnPreviousRound !== undefined &&
             (currentTrip === undefined ||
               earliestArrivalOnPreviousRound.isBefore(
-                route.arrivalAt(currentStop, currentTrip.tripIndex),
+                route.departureFrom(currentStop, currentTrip.tripIndex),
               ) ||
               earliestArrivalOnPreviousRound.equals(
-                route.arrivalAt(currentStop, currentTrip.tripIndex),
+                route.departureFrom(currentStop, currentTrip.tripIndex),
               ))
           ) {
             const earliestTrip = route.findEarliestTrip(

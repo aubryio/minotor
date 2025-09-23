@@ -286,32 +286,33 @@ export class Route {
     after: Time = Time.origin(),
     beforeTrip?: TripIndex,
   ): TripIndex | undefined {
-    const maxTripIndex =
-      beforeTrip !== undefined
-        ? Math.min(beforeTrip - 1, this.nbTrips - 1)
-        : this.nbTrips - 1;
-    if (maxTripIndex < 0) {
-      return undefined;
-    }
-    let earliestTripIndex: TripIndex | undefined;
-    let lowTrip = 0;
-    let highTrip = maxTripIndex;
+    if (this.nbTrips <= 0) return undefined;
 
-    while (lowTrip <= highTrip) {
-      const midTrip = Math.floor((lowTrip + highTrip) / 2);
-      const departure = this.departureFrom(stopId, midTrip);
-      const pickUpType = this.pickUpTypeFrom(stopId, midTrip);
-      if (
-        (departure.isAfter(after) || departure.equals(after)) &&
-        pickUpType !== 'NOT_AVAILABLE'
-      ) {
-        earliestTripIndex = midTrip;
-        highTrip = midTrip - 1;
+    let hi = this.nbTrips - 1;
+    if (beforeTrip !== undefined) hi = Math.min(hi, beforeTrip - 1);
+    if (hi < 0) return undefined;
+
+    let lo = 0;
+    let lb = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1;
+      const depMid = this.departureFrom(stopId, mid);
+      if (depMid.isBefore(after)) {
+        lo = mid + 1;
       } else {
-        lowTrip = midTrip + 1;
+        lb = mid;
+        hi = mid - 1;
       }
     }
-    return earliestTripIndex;
+    if (lb === -1) return undefined;
+
+    for (let t = lb; t < (beforeTrip ?? this.nbTrips); t++) {
+      const pickup = this.pickUpTypeFrom(stopId, t);
+      if (pickup !== 'NOT_AVAILABLE') {
+        return t;
+      }
+    }
+    return undefined;
   }
 
   /**
