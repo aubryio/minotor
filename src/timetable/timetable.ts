@@ -184,9 +184,7 @@ export class Timetable {
         `Service route not found for route ID: ${route.serviceRoute()}`,
       );
     }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { routes, ...serviceRouteInfo } = serviceRoute;
-    return serviceRouteInfo;
+    return { type: serviceRoute.type, name: serviceRoute.name };
   }
 
   /**

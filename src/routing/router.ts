@@ -190,6 +190,10 @@ export class Router {
         options.transportModes,
       );
       markedStops.clear();
+      const earliestArrivalAtAnyDestination = this.earliestArrivalAtAnyStop(
+        earliestArrivals,
+        destinations,
+      );
       // for each route that can be reached with at least round - 1 trips
       const reachableRoutesArray = Array.from(reachableRoutes.entries());
       for (let i = 0; i < reachableRoutesArray.length; i++) {
@@ -214,9 +218,7 @@ export class Router {
             if (
               currentDropOffType !== 'NOT_AVAILABLE' &&
               currentArrivalTime.isBefore(earliestArrivalAtCurrentStop) &&
-              currentArrivalTime.isBefore(
-                this.earliestArrivalAtAnyStop(earliestArrivals, destinations),
-              )
+              currentArrivalTime.isBefore(earliestArrivalAtAnyDestination)
             ) {
               const bestHopOnDepartureTime = route.departureFrom(
                 currentTrip.bestHopOnStop,

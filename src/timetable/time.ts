@@ -193,9 +193,16 @@ export class Time {
     if (times.length === 0) {
       throw new Error('At least one Time instance is required.');
     }
-    return times.reduce((maxTime, currentTime) => {
-      return currentTime.isAfter(maxTime) ? currentTime : maxTime;
-    });
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    let maxTime = times[0]!;
+    for (let i = 1; i < times.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      if (times[i]!.minutesSinceMidnight > maxTime.minutesSinceMidnight) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        maxTime = times[i]!;
+      }
+    }
+    return maxTime;
   }
 
   /**
@@ -208,9 +215,16 @@ export class Time {
     if (times.length === 0) {
       throw new Error('At least one Time instance is required.');
     }
-    return times.reduce((minTime, currentTime) => {
-      return currentTime.isBefore(minTime) ? currentTime : minTime;
-    });
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    let minTime = times[0]!;
+    for (let i = 1; i < times.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      if (times[i]!.minutesSinceMidnight < minTime.minutesSinceMidnight) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        minTime = times[i]!;
+      }
+    }
+    return minTime;
   }
 
   /**
@@ -220,7 +234,7 @@ export class Time {
    * @returns True if the current Time instance is after the other Time instance, otherwise false.
    */
   isAfter(otherTime: Time): boolean {
-    return this.minutesSinceMidnight > otherTime.toMinutes();
+    return this.minutesSinceMidnight > otherTime.minutesSinceMidnight;
   }
 
   /**
@@ -230,7 +244,7 @@ export class Time {
    * @returns True if the current Time instance is before the other Time instance, otherwise false.
    */
   isBefore(otherTime: Time): boolean {
-    return this.minutesSinceMidnight < otherTime.toMinutes();
+    return this.minutesSinceMidnight < otherTime.minutesSinceMidnight;
   }
 
   /**
@@ -240,6 +254,6 @@ export class Time {
    * @returns True if the current Time instance is equal to the other Time instance, otherwise false.
    */
   equals(otherTime: Time): boolean {
-    return this.minutesSinceMidnight === otherTime.toMinutes();
+    return this.minutesSinceMidnight === otherTime.minutesSinceMidnight;
   }
 }
