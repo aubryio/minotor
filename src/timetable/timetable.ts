@@ -12,7 +12,7 @@ import {
   serializeStopsAdjacency,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
-import { Route, RouteId } from './route.js';
+import { Route, RouteId, TripId } from './route.js';
 
 export type TransferType =
   | 'RECOMMENDED'
@@ -26,8 +26,15 @@ export type Transfer = {
   minTransferTime?: Duration;
 };
 
+export type TripContinuation = {
+  atStop: StopId;
+  onRoute: RouteId;
+  onTrip: TripId;
+};
+
 export type StopAdjacency = {
-  transfers: Transfer[];
+  transfers?: Transfer[];
+  tripContinuations?: Map<TripId, TripContinuation[]>;
   routes: RouteId[];
 };
 
@@ -79,6 +86,9 @@ export class Timetable {
   private readonly serviceRoutes: ServiceRoute[];
   private readonly activeStops: Set<StopId>;
 
+  private static readonly EMPTY_TRANSFERS: Transfer[] = [];
+  private static readonly EMPTY_TRIP_CONTINUATIONS: TripContinuation[] = [];
+
   constructor(
     stopsAdjacency: StopAdjacency[],
     routesAdjacency: Route[],
@@ -89,9 +99,8 @@ export class Timetable {
     this.serviceRoutes = routes;
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const stop = stopsAdjacency[i]!;
-      if (stop.routes.length > 0 || stop.transfers.length > 0) {
+      if (stop.routes.length > 0 || stop.transfers || stop.tripContinuations) {
         this.activeStops.add(i);
       }
     }
@@ -166,7 +175,21 @@ export class Timetable {
    * @returns An array of transfer options available at the stop.
    */
   getTransfers(stopId: StopId): Transfer[] {
-    return this.stopsAdjacency[stopId]?.transfers ?? [];
+    return this.stopsAdjacency[stopId]?.transfers ?? Timetable.EMPTY_TRANSFERS;
+  }
+
+  /**
+   * Retrieves all trip continuation options available at the specified stop for a given trip.
+   *
+   * @param stopId - The ID of the stop to get trip continuations for.
+   * @param tripId - The ID of the trip to get continuations for.
+   * @returns An array of trip continuation options available at the stop for the specified trip.
+   */
+  getContinuousTrips(stopId: StopId, tripId: TripId): TripContinuation[] {
+    return (
+      this.stopsAdjacency[stopId]?.tripContinuations?.get(tripId) ??
+      Timetable.EMPTY_TRIP_CONTINUATIONS
+    );
   }
 
   /**

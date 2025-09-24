@@ -1,5 +1,6 @@
 import { SourceStopId, Stop } from '../stops/stops.js';
 import { Duration } from '../timetable/duration.js';
+import { TripId } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
 import { ServiceRouteInfo, TransferType } from '../timetable/timetable.js';
 
@@ -36,6 +37,7 @@ export type Transfer = BaseLeg & {
 
 export type VehicleLeg = BaseLeg & {
   route: ServiceRouteInfo;
+  trip: TripId;
   departureTime: Time;
   arrivalTime: Time;
   // TODO support pick up and drop off types

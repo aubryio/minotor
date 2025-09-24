@@ -3,7 +3,7 @@ import { Query } from './routing/query.js';
 import { Result } from './routing/result.js';
 import type { Leg, Transfer, VehicleLeg } from './routing/route.js';
 import { Route } from './routing/route.js';
-import type { ReachingTime } from './routing/router.js';
+import type { Arrival } from './routing/router.js';
 import { Router } from './routing/router.js';
 import type { LocationType, SourceStopId, StopId } from './stops/stops.js';
 import type { Stop } from './stops/stops.js';
@@ -30,9 +30,9 @@ export {
 };
 
 export type {
+  Arrival,
   Leg,
   LocationType,
-  ReachingTime,
   RouteType,
   ServiceRouteInfo,
   SourceStopId,

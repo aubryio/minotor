@@ -26,11 +26,19 @@ export const MUST_PHONE_AGENCY = 2;
 export const MUST_COORDINATE_WITH_DRIVER = 3;
 
 /*
- * A trip index corresponds to the index of the
- * first stop time in the trip divided by the number of stops
- * in the given route
+ * A trip route index corresponds to the index of a given trip in a route.
  */
-export type TripIndex = number;
+export type TripRouteIndex = number;
+
+/*
+ * A stop route index corresponds to the index of a given stop in a route.
+ */
+export type StopRouteIndex = number;
+
+/*
+ * Global trip identifier.
+ */
+export type TripId = number;
 
 const pickUpDropOffTypeMap: PickUpDropOffType[] = [
   'REGULAR',
@@ -59,6 +67,7 @@ const toPickupDropOffType = (numericalType: number): PickUpDropOffType => {
  * A route identifies all trips of a given service route sharing the same list of stops.
  */
 export class Route {
+  public readonly id: RouteId;
   /**
    * Arrivals and departures encoded as minutes from midnight.
    * Format: [arrival1, departure1, arrival2, departure2, etc.]
@@ -90,7 +99,7 @@ export class Route {
    *   ...
    * }
    */
-  private readonly stopIndices: Map<StopId, number>;
+  private readonly stopIndices: Map<StopId, StopRouteIndex>;
   /**
    * The identifier of the route as a service shown to users.
    */
@@ -107,18 +116,20 @@ export class Route {
   private readonly nbTrips: number;
 
   constructor(
+    id: RouteId,
     stopTimes: Uint16Array,
     pickUpDropOffTypes: Uint8Array,
     stops: Uint32Array,
     serviceRouteId: ServiceRouteId,
   ) {
+    this.id = id;
     this.stopTimes = stopTimes;
     this.pickUpDropOffTypes = pickUpDropOffTypes;
     this.stops = stops;
     this.serviceRouteId = serviceRouteId;
     this.nbStops = stops.length;
     this.nbTrips = this.stopTimes.length / (this.stops.length * 2);
-    this.stopIndices = new Map<number, number>();
+    this.stopIndices = new Map<StopId, StopRouteIndex>();
     for (let i = 0; i < stops.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.stopIndices.set(stops[i]!, i);
@@ -188,7 +199,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The arrival time at the specified stop and trip as a Time object.
    */
-  arrivalAt(stopId: StopId, tripIndex: TripIndex): Time {
+  arrivalAt(stopId: StopId, tripIndex: TripRouteIndex): Time {
     const arrivalIndex =
       (tripIndex * this.stops.length + this.stopIndex(stopId)) * 2;
     const arrival = this.stopTimes[arrivalIndex];
@@ -207,7 +218,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The departure time at the specified stop and trip as a Time object.
    */
-  departureFrom(stopId: StopId, tripIndex: TripIndex): Time {
+  departureFrom(stopId: StopId, tripIndex: TripRouteIndex): Time {
     const departureIndex =
       (tripIndex * this.stops.length + this.stopIndex(stopId)) * 2 + 1;
     const departure = this.stopTimes[departureIndex];
@@ -226,7 +237,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The pick-up type at the specified stop and trip.
    */
-  pickUpTypeFrom(stopId: StopId, tripIndex: TripIndex): PickUpDropOffType {
+  pickUpTypeFrom(stopId: StopId, tripIndex: TripRouteIndex): PickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + this.stopIndex(stopId);
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
@@ -251,7 +262,7 @@ export class Route {
    * @param tripIndex - The index of the trip.
    * @returns The drop-off type at the specified stop and trip.
    */
-  dropOffTypeAt(stopId: StopId, tripIndex: TripIndex): PickUpDropOffType {
+  dropOffTypeAt(stopId: StopId, tripIndex: TripRouteIndex): PickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + this.stopIndex(stopId);
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
@@ -284,8 +295,8 @@ export class Route {
   findEarliestTrip(
     stopId: StopId,
     after: Time = Time.origin(),
-    beforeTrip?: TripIndex,
-  ): TripIndex | undefined {
+    beforeTrip?: TripRouteIndex,
+  ): TripRouteIndex | undefined {
     if (this.nbTrips <= 0) return undefined;
 
     let hi = this.nbTrips - 1;
@@ -320,7 +331,7 @@ export class Route {
    * @param stopId The StopId of the stop to locate in the route.
    * @returns The index of the stop in the route.
    */
-  public stopIndex(stopId: StopId): number {
+  public stopIndex(stopId: StopId): StopRouteIndex {
     const stopIndex = this.stopIndices.get(stopId);
     if (stopIndex === undefined) {
       throw new Error(
