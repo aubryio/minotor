@@ -19,14 +19,14 @@ import { GtfsTime, toTime } from './time.js';
 import { TransfersMap } from './transfers.js';
 import { hashIds, parseCsv } from './utils.js';
 
-export type TripId = string;
+export type GtfsTripId = string;
 
-export type TripIdsMap = Map<TripId, GtfsRouteId>;
+export type TripIdsMap = Map<GtfsTripId, GtfsRouteId>;
 
 type TripEntry = {
   route_id: GtfsRouteId;
   service_id: ServiceId;
-  trip_id: TripId;
+  trip_id: GtfsTripId;
 };
 
 export type GtfsPickupDropOffType =
@@ -37,7 +37,7 @@ export type GtfsPickupDropOffType =
   | '3'; // Must coordinate with driver
 
 type StopTimeEntry = {
-  trip_id: TripId;
+  trip_id: GtfsTripId;
   arrival_time?: GtfsTime;
   departure_time?: GtfsTime;
   stop_id: SourceStopId;
@@ -259,7 +259,7 @@ export const parseStopTimes = async (
   /**
    * Adds a trip to the appropriate route builder
    */
-  const addTrip = (currentTripId: TripId) => {
+  const addTrip = (currentTripId: GtfsTripId) => {
     const gtfsRouteId = activeTripIds.get(currentTripId);
 
     if (!gtfsRouteId || stops.length === 0) {
@@ -330,7 +330,7 @@ export const parseStopTimes = async (
   let departureTimes: number[] = [];
   let pickUpTypes: SerializedPickUpDropOffType[] = [];
   let dropOffTypes: SerializedPickUpDropOffType[] = [];
-  let currentTripId: TripId | undefined = undefined;
+  let currentTripId: GtfsTripId | undefined = undefined;
 
   for await (const rawLine of parseCsv(stopTimesStream, ['stop_sequence'])) {
     const line = rawLine as StopTimeEntry;

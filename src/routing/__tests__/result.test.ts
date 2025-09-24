@@ -6,7 +6,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Time } from '../../timetable/time.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { ReachingTime, TripLeg } from '../router.js';
+import { Arrival, TripLeg } from '../router.js';
 
 describe('Result', () => {
   const stop1: Stop = {
@@ -106,7 +106,7 @@ describe('Result', () => {
 
   describe('bestRoute', () => {
     it('should return undefined when no route exists', () => {
-      const earliestArrivals = new Map<StopId, ReachingTime>();
+      const earliestArrivals = new Map<StopId, Arrival>();
       const earliestArrivalsPerRound: Map<StopId, TripLeg>[] = [];
 
       const result = new Result(
@@ -374,7 +374,7 @@ describe('Result', () => {
             arrival: Time.fromHMS(9, 0, 0),
             legNumber: 1,
             origin: 0,
-          } as ReachingTime,
+          } as Arrival,
         ],
       ]);
 

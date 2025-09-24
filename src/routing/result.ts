@@ -2,23 +2,20 @@ import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { Query } from './query.js';
 import { Leg, Route } from './route.js';
-import { ReachingTime, TripLeg } from './router.js';
+import { Arrival, RoutingState } from './router.js';
 
 export class Result {
   private readonly query: Query;
-  public readonly earliestArrivals: Map<StopId, ReachingTime>;
-  public readonly earliestArrivalsPerRound: Map<StopId, TripLeg>[];
+  public readonly routingState: RoutingState;
   private readonly stopsIndex: StopsIndex;
 
   constructor(
     query: Query,
-    earliestArrivals: Map<StopId, ReachingTime>,
-    earliestArrivalsPerRound: Map<StopId, TripLeg>[],
+    routingState: RoutingState,
     stopsIndex: StopsIndex,
   ) {
     this.query = query;
-    this.earliestArrivals = earliestArrivals;
-    this.earliestArrivalsPerRound = earliestArrivalsPerRound;
+    this.routingState = routingState;
     this.stopsIndex = stopsIndex;
   }
 
@@ -41,9 +38,11 @@ export class Result {
     );
 
     let fastestDestination: StopId | undefined = undefined;
-    let fastestTime: ReachingTime | undefined = undefined;
+    let fastestTime: Arrival | undefined = undefined;
     for (const destination of destinations) {
-      const arrivalTime = this.earliestArrivals.get(destination.id);
+      const arrivalTime = this.routingState.earliestArrivals.get(
+        destination.id,
+      );
       if (arrivalTime !== undefined) {
         if (
           fastestTime === undefined ||
@@ -61,13 +60,14 @@ export class Result {
     const route: Leg[] = [];
     let currentStop = fastestDestination;
     let round = fastestTime.legNumber;
-    while (fastestTime.origin !== currentStop) {
-      const tripLeg = this.earliestArrivalsPerRound[round]?.get(currentStop);
+    while (this.routingState.origins.includes(currentStop)) {
+      const tripLeg =
+        this.routingState.earliestArrivalsPerRound[round]?.get(currentStop);
       if (!tripLeg?.leg) {
         throw new Error(
           `No leg found for a trip leg: start stop=${
             tripLeg?.leg?.from.id ?? 'unknown'
-          }, end stop=${currentStop}, round=${round}, origin=${fastestTime.origin}`,
+          }, end stop=${currentStop}, round=${round}`,
         );
       }
       route.unshift(tripLeg.leg);
@@ -86,18 +86,15 @@ export class Result {
    * @param maxTransfers The optional maximum number of transfers allowed.
    * @returns The arrival time if the target stop is reachable, otherwise undefined.
    */
-  arrivalAt(
-    stop: SourceStopId,
-    maxTransfers?: number,
-  ): ReachingTime | undefined {
+  arrivalAt(stop: SourceStopId, maxTransfers?: number): Arrival | undefined {
     const equivalentStops = this.stopsIndex.equivalentStops(stop);
-    let earliestArrival: ReachingTime | undefined = undefined;
+    let earliestArrival: Arrival | undefined = undefined;
 
     const relevantArrivals =
       maxTransfers !== undefined
         ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          this.earliestArrivalsPerRound[maxTransfers + 1]!
-        : this.earliestArrivals;
+          this.routingState.earliestArrivalsPerRound[maxTransfers + 1]!
+        : this.routingState.earliestArrivals;
 
     for (const equivalentStop of equivalentStops) {
       const arrivalTime = relevantArrivals.get(equivalentStop.id);
