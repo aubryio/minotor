@@ -58,7 +58,13 @@ describe('Route', () => {
   const stops = new Uint32Array([1001, 1002]);
   const serviceRouteId = 0;
 
-  const route = new Route(stopTimes, pickUpDropOffTypes, stops, serviceRouteId);
+  const route = new Route(
+    0,
+    stopTimes,
+    pickUpDropOffTypes,
+    stops,
+    serviceRouteId,
+  );
 
   describe('constructor', () => {
     it('should create a route with correct properties', () => {
@@ -68,6 +74,7 @@ describe('Route', () => {
 
     it('should handle empty route', () => {
       const emptyRoute = new Route(
+        0,
         new Uint16Array([]),
         new Uint8Array([]),
         new Uint32Array([]),
@@ -104,14 +111,14 @@ describe('Route', () => {
     it('should throw error when stopA is not found', () => {
       assert.throws(
         () => route.isBefore(9999, 1002),
-        /Stop index undefined not found in route 0/,
+        /Stop index not found for 9999 in route 0/,
       );
     });
 
     it('should throw error when stopB is not found', () => {
       assert.throws(
         () => route.isBefore(1001, 9999),
-        /Stop index undefined not found in route 0/,
+        /Stop index not found for 9999 in route 0/,
       );
     });
   });

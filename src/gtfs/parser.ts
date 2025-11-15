@@ -9,7 +9,11 @@ import { standardProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
-import { parseTransfers, TransfersMap } from './transfers.js';
+import {
+  parseTransfers,
+  TransfersMap,
+  TripContinuationsMap,
+} from './transfers.js';
 import {
   buildStopsAdjacencyStructure,
   parseStopTimes,
@@ -108,21 +112,27 @@ export class GtfsParser {
     );
 
     let transfers = new Map() as TransfersMap;
+    let tripContinuations = new Map() as TripContinuationsMap;
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
       const transfersStream = await zip.stream(TRANSFERS_FILE);
-      transfers = await parseTransfers(transfersStream, parsedStops);
+      const {
+        transfers: parsedTransfers,
+        tripContinuations: parsedTripContinuations,
+      } = await parseTransfers(transfersStream, parsedStops);
+      transfers = parsedTransfers;
+      tripContinuations = parsedTripContinuations;
       const transfersEnd = performance.now();
       log.info(
-        `${transfers.size} valid transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+        `${transfers.size} valid transfers and ${tripContinuations.size} trip continuations. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
     log.info(`Parsing ${STOP_TIMES_FILE}`);
     const stopTimesStart = performance.now();
     const stopTimesStream = await zip.stream(STOP_TIMES_FILE);
-    const { routes, serviceRoutesMap } = await parseStopTimes(
+    const { routes, serviceRoutesMap, tripsMapping } = await parseStopTimes(
       stopTimesStream,
       parsedStops,
       trips,
@@ -136,9 +146,11 @@ export class GtfsParser {
     log.info('Building stops adjacency structure');
     const stopsAdjacencyStart = performance.now();
     const stopsAdjacency = buildStopsAdjacencyStructure(
+      tripsMapping,
       serviceRoutes,
       routes,
       transfers,
+      tripContinuations,
       parsedStops.size,
       activeStopIds,
     );

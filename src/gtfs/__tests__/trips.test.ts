@@ -9,37 +9,56 @@ import { ServiceRoute } from '../../timetable/timetable.js';
 import { GtfsRoutesMap } from '../routes.js';
 import { ServiceIds } from '../services.js';
 import { GtfsStopsMap } from '../stops.js';
-import { TransfersMap } from '../transfers.js';
+import { TransfersMap, TripContinuationsMap } from '../transfers.js';
 import {
   buildStopsAdjacencyStructure,
   encodePickUpDropOffTypes,
+  GtfsTripIdsMap,
   parseStopTimes,
   parseTrips,
-  TripIdsMap,
+  TripsMapping,
 } from '../trips.js';
 
 describe('buildStopsAdjacencyStructure', () => {
   it('should correctly build stops adjacency for valid routes and transfers', () => {
     const validStops: Set<StopId> = new Set([0]);
-    const routesAdjacency = [
-      new Route(
-        new Uint16Array(),
-        new Uint8Array(),
-        new Uint32Array([0, 1]),
-        0,
-      ),
+    const routes = [
+      Route.of({
+        id: 0,
+        serviceRouteId: 0,
+        trips: [
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: Time.fromHMS(8, 0, 0),
+                departureTime: Time.fromHMS(8, 0, 0),
+              },
+              {
+                id: 1,
+                arrivalTime: Time.fromHMS(8, 5, 0),
+                departureTime: Time.fromHMS(8, 5, 0),
+              },
+            ],
+          },
+        ],
+      }),
     ];
     const transfersMap: TransfersMap = new Map([
       [0, [{ destination: 1, type: 'RECOMMENDED' }]],
     ]);
+    const tripContinuationsMap: TripContinuationsMap = new Map();
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
+    const tripsMapping: TripsMapping = new Map();
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
+      tripsMapping,
       serviceRoutes,
-      routesAdjacency,
+      routes,
       transfersMap,
+      tripContinuationsMap,
       2,
       validStops,
     );
@@ -61,7 +80,6 @@ describe('buildStopsAdjacencyStructure', () => {
         1,
         {
           routes: [],
-          transfers: [],
         },
       ],
     ]);
@@ -70,25 +88,43 @@ describe('buildStopsAdjacencyStructure', () => {
 
   it('should ignore transfers to invalid stops', () => {
     const validStops: Set<StopId> = new Set([0, 1]);
-    const routesAdjacency = [
-      new Route(
-        new Uint16Array(),
-        new Uint8Array(),
-        new Uint32Array([0, 1]),
-        0,
-      ),
+    const routes = [
+      Route.of({
+        id: 0,
+        serviceRouteId: 0,
+        trips: [
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: Time.fromHMS(8, 0, 0),
+                departureTime: Time.fromHMS(8, 0, 0),
+              },
+              {
+                id: 1,
+                arrivalTime: Time.fromHMS(8, 5, 0),
+                departureTime: Time.fromHMS(8, 5, 0),
+              },
+            ],
+          },
+        ],
+      }),
     ];
     const transfersMap: TransfersMap = new Map([
       [3, [{ destination: 2, type: 'RECOMMENDED' }]],
     ]);
+    const tripContinuationsMap: TripContinuationsMap = new Map();
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
+    const tripsMapping: TripsMapping = new Map();
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
+      tripsMapping,
       serviceRoutes,
-      routesAdjacency,
+      routes,
       transfersMap,
+      tripContinuationsMap,
       4,
       validStops,
     );
@@ -98,32 +134,226 @@ describe('buildStopsAdjacencyStructure', () => {
         0,
         {
           routes: [0],
-          transfers: [],
         },
       ],
       [
         1,
         {
           routes: [0],
-          transfers: [],
         },
       ],
       [
         2,
         {
           routes: [],
-          transfers: [],
         },
       ],
       [
         3,
         {
           routes: [],
-          transfers: [],
         },
       ],
     ]);
     assert.deepEqual(serviceRoutes[0]?.routes, [0]);
+  });
+
+  it('should correctly handle trip continuations', () => {
+    const validStops: Set<StopId> = new Set([0, 1]);
+    const routes = [
+      Route.of({
+        id: 0,
+        serviceRouteId: 0,
+        trips: [
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: Time.fromHMS(8, 0, 0),
+                departureTime: Time.fromHMS(8, 0, 0),
+              },
+            ],
+          },
+        ],
+      }),
+      Route.of({
+        id: 1,
+        serviceRouteId: 0,
+        trips: [
+          {
+            stops: [
+              {
+                id: 1,
+                arrivalTime: Time.fromHMS(8, 30, 0),
+                departureTime: Time.fromHMS(8, 30, 0),
+              },
+            ],
+          },
+        ],
+      }),
+    ];
+    const transfersMap: TransfersMap = new Map();
+    const tripContinuationsMap: TripContinuationsMap = new Map([
+      [0, [{ fromTrip: 'trip1', toTrip: 'trip2', hopOnStop: 1 }]],
+    ]);
+    const serviceRoutes: ServiceRoute[] = [
+      { type: 'BUS', name: 'B1', routes: [] },
+    ];
+    const tripsMapping: TripsMapping = new Map([
+      ['trip1', { routeId: 0, tripRouteIndex: 0 }],
+      ['trip2', { routeId: 1, tripRouteIndex: 0 }],
+    ]);
+
+    const stopsAdjacency = buildStopsAdjacencyStructure(
+      tripsMapping,
+      serviceRoutes,
+      routes,
+      transfersMap,
+      tripContinuationsMap,
+      2,
+      validStops,
+    );
+
+    assert.deepEqual(Array.from(stopsAdjacency.entries()), [
+      [
+        0,
+        {
+          routes: [0],
+          tripContinuations: new Map([
+            [0, [{ hopOnStop: 1, routeId: 1, tripIndex: 0 }]],
+          ]),
+        },
+      ],
+      [
+        1,
+        {
+          routes: [1],
+        },
+      ],
+    ]);
+  });
+
+  it('should ignore trip continuations with invalid trip IDs', () => {
+    const validStops: Set<StopId> = new Set([0]);
+    const routes = [
+      Route.of({
+        id: 0,
+        serviceRouteId: 0,
+        trips: [
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: Time.fromHMS(8, 0, 0),
+                departureTime: Time.fromHMS(8, 0, 0),
+              },
+            ],
+          },
+        ],
+      }),
+    ];
+    const transfersMap: TransfersMap = new Map();
+    const tripContinuationsMap: TripContinuationsMap = new Map([
+      [
+        0,
+        [{ fromTrip: 'invalid_trip', toTrip: 'invalid_trip2', hopOnStop: 1 }],
+      ],
+    ]);
+    const serviceRoutes: ServiceRoute[] = [
+      { type: 'BUS', name: 'B1', routes: [] },
+    ];
+    const tripsMapping: TripsMapping = new Map([
+      ['trip1', { routeId: 0, tripRouteIndex: 0 }],
+    ]);
+
+    const stopsAdjacency = buildStopsAdjacencyStructure(
+      tripsMapping,
+      serviceRoutes,
+      routes,
+      transfersMap,
+      tripContinuationsMap,
+      1,
+      validStops,
+    );
+
+    assert.deepEqual(Array.from(stopsAdjacency.entries()), [
+      [
+        0,
+        {
+          routes: [0],
+          tripContinuations: new Map(),
+        },
+      ],
+    ]);
+  });
+
+  it('should ignore trip continuations for inactive stops', () => {
+    const validStops: Set<StopId> = new Set([0]); // Only stop 0 is active
+    const routes = [
+      Route.of({
+        id: 0,
+        serviceRouteId: 0,
+        trips: [
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: Time.fromHMS(8, 0, 0),
+                departureTime: Time.fromHMS(8, 0, 0),
+              },
+            ],
+          },
+        ],
+      }),
+    ];
+    const transfersMap: TransfersMap = new Map();
+    const tripContinuationsMap: TripContinuationsMap = new Map([
+      [2, [{ fromTrip: 'trip1', toTrip: 'trip2', hopOnStop: 3 }]], // Stop 2 and 3 are inactive
+    ]);
+    const serviceRoutes: ServiceRoute[] = [
+      { type: 'BUS', name: 'B1', routes: [] },
+    ];
+    const tripsMapping: TripsMapping = new Map([
+      ['trip1', { routeId: 0, tripRouteIndex: 0 }],
+      ['trip2', { routeId: 0, tripRouteIndex: 1 }],
+    ]);
+
+    const stopsAdjacency = buildStopsAdjacencyStructure(
+      tripsMapping,
+      serviceRoutes,
+      routes,
+      transfersMap,
+      tripContinuationsMap,
+      4, // 4 stops total but only stop 0 is active
+      validStops,
+    );
+
+    assert.deepEqual(Array.from(stopsAdjacency.entries()), [
+      [
+        0,
+        {
+          routes: [0],
+        },
+      ],
+      [
+        1,
+        {
+          routes: [],
+        },
+      ],
+      [
+        2,
+        {
+          routes: [],
+        },
+      ],
+      [
+        3,
+        {
+          routes: [],
+        },
+      ],
+    ]);
   });
 });
 describe('GTFS trips parser', () => {
@@ -207,7 +437,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripA","08:10:00","08:15:00","stop2","2","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
+    const validTripIds: GtfsTripIdsMap = new Map([['tripA', 'routeA']]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
     const stopsMap: GtfsStopsMap = new Map([
       [
@@ -243,6 +473,7 @@ describe('GTFS stop times parser', () => {
     );
     assert.deepEqual(result.routes, [
       new Route(
+        0,
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
           Time.fromHMS(8, 5, 0).toMinutes(),
@@ -254,6 +485,10 @@ describe('GTFS stop times parser', () => {
         0,
       ),
     ]);
+    assert.deepEqual(
+      result.tripsMapping,
+      new Map([['tripA', { routeId: 0, tripRouteIndex: 0 }]]),
+    );
   });
 
   it('should create same route for same GTFS route with same stops', async () => {
@@ -267,7 +502,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripB","09:10:00","09:15:00","stop2","2","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([
+    const validTripIds: GtfsTripIdsMap = new Map([
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
@@ -303,6 +538,7 @@ describe('GTFS stop times parser', () => {
     );
     assert.deepEqual(result.routes, [
       new Route(
+        0,
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
           Time.fromHMS(8, 5, 0).toMinutes(),
@@ -321,6 +557,13 @@ describe('GTFS stop times parser', () => {
         0,
       ),
     ]);
+    assert.deepEqual(
+      result.tripsMapping,
+      new Map([
+        ['tripA', { routeId: 0, tripRouteIndex: 0 }],
+        ['tripB', { routeId: 0, tripRouteIndex: 1 }],
+      ]),
+    );
   });
 
   it('should support unsorted trips within a route', async () => {
@@ -334,7 +577,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripA","08:10:00","08:15:00","stop2","2","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([
+    const validTripIds: GtfsTripIdsMap = new Map([
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
@@ -370,6 +613,7 @@ describe('GTFS stop times parser', () => {
     );
     assert.deepEqual(result.routes, [
       new Route(
+        0,
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
           Time.fromHMS(8, 5, 0).toMinutes(),
@@ -400,7 +644,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripB","09:00:00","09:15:00","stop1","1","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([
+    const validTripIds: GtfsTripIdsMap = new Map([
       ['tripA', 'routeA'],
       ['tripB', 'routeA'],
     ]);
@@ -436,6 +680,7 @@ describe('GTFS stop times parser', () => {
     );
     assert.deepEqual(result.routes, [
       new Route(
+        0,
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
           Time.fromHMS(8, 5, 0).toMinutes(),
@@ -447,6 +692,7 @@ describe('GTFS stop times parser', () => {
         0,
       ),
       new Route(
+        1,
         new Uint16Array([
           Time.fromHMS(9, 0, 0).toMinutes(),
           Time.fromHMS(9, 15, 0).toMinutes(),
@@ -467,7 +713,7 @@ describe('GTFS stop times parser', () => {
     mockedStream.push('"tripA","08:10:00","08:15:00","stop2","1","0","0"\n');
     mockedStream.push(null);
 
-    const validTripIds: TripIdsMap = new Map([['tripA', 'routeA']]);
+    const validTripIds: GtfsTripIdsMap = new Map([['tripA', 'routeA']]);
     const validStopIds: Set<StopId> = new Set([0, 1]);
     const stopsMap: GtfsStopsMap = new Map([
       [
@@ -500,6 +746,7 @@ describe('GTFS stop times parser', () => {
     );
     assert.deepEqual(result.routes, [
       new Route(
+        0,
         new Uint16Array([
           Time.fromHMS(8, 0, 0).toMinutes(),
           Time.fromHMS(8, 5, 0).toMinutes(),
@@ -509,5 +756,80 @@ describe('GTFS stop times parser', () => {
         0,
       ),
     ]);
+    assert.deepEqual(
+      result.tripsMapping,
+      new Map([['tripA', { routeId: 0, tripRouteIndex: 0 }]]),
+    );
+  });
+
+  it('should create trip continuations mapping correctly', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type\n',
+    );
+    mockedStream.push('"trip1","08:00:00","08:05:00","stop1","1","0","0"\n');
+    mockedStream.push('"trip1","08:10:00","08:15:00","stop2","2","0","0"\n');
+    mockedStream.push('"trip2","09:00:00","09:05:00","stop3","1","0","0"\n');
+    mockedStream.push(null);
+
+    const validTripIds: GtfsTripIdsMap = new Map([
+      ['trip1', 'routeA'],
+      ['trip2', 'routeB'],
+    ]);
+    const validStopIds: Set<StopId> = new Set([0, 1, 2]);
+    const stopsMap: GtfsStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop3',
+        {
+          id: 2,
+          sourceStopId: 'stop3',
+          name: 'Stop 3',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
+
+    const result = await parseStopTimes(
+      mockedStream,
+      stopsMap,
+      validTripIds,
+      validStopIds,
+    );
+
+    assert.deepEqual(
+      result.tripsMapping,
+      new Map([
+        ['trip1', { routeId: 0, tripRouteIndex: 0 }],
+        ['trip2', { routeId: 1, tripRouteIndex: 0 }],
+      ]),
+    );
+    assert.deepEqual(
+      result.serviceRoutesMap,
+      new Map([
+        ['routeA', 0],
+        ['routeB', 1],
+      ]),
+    );
   });
 });

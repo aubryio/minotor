@@ -40,9 +40,21 @@ message Transfer {
   optional uint32 minTransferTime = 3;
 }
 
+message TripBoarding {
+  uint32 hopOnStop = 1;
+  uint32 routeId = 2;
+  uint32 tripIndex = 3;
+}
+
+message TripContinuationEntry {
+  uint32 key = 1;
+  repeated TripBoarding value = 2;
+}
+
 message StopAdjacency {
-  repeated Transfer transfers = 1;
-  repeated uint32 routes = 2;
+  repeated uint32 routes = 1;
+  repeated Transfer transfers = 2;
+  repeated TripContinuationEntry tripContinuations = 3;
 }
 
 enum RouteType {

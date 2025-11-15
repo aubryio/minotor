@@ -5,7 +5,7 @@ import { Stop } from '../../stops/stops.js';
 import { Duration } from '../../timetable/duration.js';
 import { Time } from '../../timetable/time.js';
 import { ServiceRouteInfo, TransferType } from '../../timetable/timetable.js';
-import { Route } from '../route.js';
+import { Route, VehicleLeg } from '../route.js';
 
 describe('Route', () => {
   const stopA: Stop = {
@@ -50,12 +50,14 @@ describe('Route', () => {
     name: 'Route 2',
   };
 
-  const vehicleLeg = {
+  const vehicleLeg: VehicleLeg = {
     from: stopA,
     to: stopB,
     route: serviceRoute,
     departureTime: Time.fromHMS(8, 0, 0),
     arrivalTime: Time.fromHMS(8, 30, 0),
+    pickUpType: 'REGULAR',
+    dropOffType: 'REGULAR',
   };
 
   const transferLeg = {
@@ -65,12 +67,14 @@ describe('Route', () => {
     minTransferTime: Duration.fromMinutes(5),
   };
 
-  const secondVehicleLeg = {
+  const secondVehicleLeg: VehicleLeg = {
     from: stopC,
     to: stopD,
     route: serviceRoute2,
     departureTime: Time.fromHMS(8, 40, 0),
     arrivalTime: Time.fromHMS(9, 0, 0),
+    pickUpType: 'REGULAR',
+    dropOffType: 'REGULAR',
   };
 
   it('should calculate the correct departure time', () => {

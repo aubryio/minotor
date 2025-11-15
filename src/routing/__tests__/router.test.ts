@@ -4,13 +4,15 @@ import { beforeEach, describe, it } from 'node:test';
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Duration } from '../../timetable/duration.js';
-import { REGULAR, Route } from '../../timetable/route.js';
+import { Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import {
   ServiceRoute,
   StopAdjacency,
   Timetable,
+  TripBoarding,
 } from '../../timetable/timetable.js';
+import { encode } from '../../timetable/tripId.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
 import { Router } from '../router.js';
@@ -22,32 +24,37 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { transfers: [], routes: [0] },
-        { transfers: [], routes: [0] },
-        { transfers: [], routes: [0] },
+        { routes: [0] },
+        { routes: [0] },
+        { routes: [0] },
       ];
 
       const routesAdjacency = [
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:00:00').toMinutes(),
-            Time.fromString('08:10:00').toMinutes(),
-            Time.fromString('08:15:00').toMinutes(),
-            Time.fromString('08:25:00').toMinutes(),
-            Time.fromString('08:35:00').toMinutes(),
-            Time.fromString('08:45:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([0, 1, 2]),
-          0,
-        ),
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: Time.fromString('08:00:00'),
+                  departureTime: Time.fromString('08:10:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:15:00'),
+                  departureTime: Time.fromString('08:25:00'),
+                },
+                {
+                  id: 2,
+                  arrivalTime: Time.fromString('08:35:00'),
+                  departureTime: Time.fromString('08:45:00'),
+                },
+              ],
+            },
+          ],
+        }),
       ];
 
       const routes: ServiceRoute[] = [
@@ -100,7 +107,6 @@ describe('Router', () => {
         .build();
 
       const result: Result = router.route(query);
-
       const bestRoute = result.bestRoute();
       assert.strictEqual(bestRoute?.legs.length, 1);
     });
@@ -139,53 +145,63 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { transfers: [], routes: [0] },
-        { transfers: [], routes: [0, 1] },
-        { transfers: [], routes: [0] },
-        { transfers: [], routes: [1] },
-        { transfers: [], routes: [1] },
+        { routes: [0] },
+        { routes: [0, 1] },
+        { routes: [0] },
+        { routes: [1] },
+        { routes: [1] },
       ];
       const routesAdjacency = [
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:00:00').toMinutes(),
-            Time.fromString('08:15:00').toMinutes(),
-            Time.fromString('08:30:00').toMinutes(),
-            Time.fromString('08:45:00').toMinutes(),
-            Time.fromString('09:00:00').toMinutes(),
-            Time.fromString('09:10:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([0, 1, 2]),
-          0,
-        ),
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:05:00').toMinutes(),
-            Time.fromString('08:20:00').toMinutes(),
-            Time.fromString('09:00:00').toMinutes(),
-            Time.fromString('09:15:00').toMinutes(),
-            Time.fromString('09:20:00').toMinutes(),
-            Time.fromString('09:35:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([3, 1, 4]),
-          1,
-        ),
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: Time.fromString('08:00:00'),
+                  departureTime: Time.fromString('08:15:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:30:00'),
+                  departureTime: Time.fromString('08:45:00'),
+                },
+                {
+                  id: 2,
+                  arrivalTime: Time.fromString('09:00:00'),
+                  departureTime: Time.fromString('09:10:00'),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 3,
+                  arrivalTime: Time.fromString('08:05:00'),
+                  departureTime: Time.fromString('08:20:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('09:00:00'),
+                  departureTime: Time.fromString('09:15:00'),
+                },
+                {
+                  id: 4,
+                  arrivalTime: Time.fromString('09:20:00'),
+                  departureTime: Time.fromString('09:35:00'),
+                },
+              ],
+            },
+          ],
+        }),
       ];
 
       const routes: ServiceRoute[] = [
@@ -263,7 +279,6 @@ describe('Router', () => {
         .build();
 
       const result: Result = router.route(query);
-
       const bestRoute = result.bestRoute();
       assert.strictEqual(bestRoute?.legs.length, 2);
     });
@@ -290,7 +305,7 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { transfers: [], routes: [0] },
+        { routes: [0] },
         {
           transfers: [
             {
@@ -301,53 +316,63 @@ describe('Router', () => {
           ],
           routes: [0],
         },
-        { transfers: [], routes: [0] },
-        { transfers: [], routes: [1] },
-        { transfers: [], routes: [1] },
-        { transfers: [], routes: [1] },
+        { routes: [0] },
+        { routes: [1] },
+        { routes: [1] },
+        { routes: [1] },
       ];
 
       const routesAdjacency = [
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:00:00').toMinutes(),
-            Time.fromString('08:15:00').toMinutes(),
-            Time.fromString('08:25:00').toMinutes(),
-            Time.fromString('08:35:00').toMinutes(),
-            Time.fromString('08:45:00').toMinutes(),
-            Time.fromString('08:55:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([0, 1, 2]),
-          0,
-        ),
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:10:00').toMinutes(),
-            Time.fromString('08:20:00').toMinutes(),
-            Time.fromString('08:40:00').toMinutes(),
-            Time.fromString('08:50:00').toMinutes(),
-            Time.fromString('09:00:00').toMinutes(),
-            Time.fromString('09:10:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([3, 4, 5]),
-          1,
-        ),
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: Time.fromString('08:00:00'),
+                  departureTime: Time.fromString('08:15:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:25:00'),
+                  departureTime: Time.fromString('08:35:00'),
+                },
+                {
+                  id: 2,
+                  arrivalTime: Time.fromString('08:45:00'),
+                  departureTime: Time.fromString('08:55:00'),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 3,
+                  arrivalTime: Time.fromString('08:10:00'),
+                  departureTime: Time.fromString('08:20:00'),
+                },
+                {
+                  id: 4,
+                  arrivalTime: Time.fromString('08:40:00'),
+                  departureTime: Time.fromString('08:50:00'),
+                },
+                {
+                  id: 5,
+                  arrivalTime: Time.fromString('09:10:00'),
+                  departureTime: Time.fromString('09:10:00'),
+                },
+              ],
+            },
+          ],
+        }),
       ];
 
       const routes: ServiceRoute[] = [
@@ -459,65 +484,84 @@ describe('Router', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { transfers: [], routes: [0, 2] },
-        { transfers: [], routes: [0, 1] },
-        { transfers: [], routes: [0] },
-        { transfers: [], routes: [1] },
-        { transfers: [], routes: [1, 2] },
+        { routes: [0, 2] },
+        { routes: [0, 1] },
+        { routes: [0] },
+        { routes: [1] },
+        { routes: [1, 2] },
       ];
 
       const routesAdjacency = [
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:00:00').toMinutes(),
-            Time.fromString('08:15:00').toMinutes(),
-            Time.fromString('08:30:00').toMinutes(),
-            Time.fromString('08:45:00').toMinutes(),
-            Time.fromString('09:00:00').toMinutes(),
-            Time.fromString('09:15:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([0, 1, 2]),
-          0,
-        ),
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:10:00').toMinutes(),
-            Time.fromString('08:25:00').toMinutes(),
-            Time.fromString('08:50:00').toMinutes(),
-            Time.fromString('09:05:00').toMinutes(),
-            Time.fromString('09:10:00').toMinutes(),
-            Time.fromString('09:25:00').toMinutes(),
-          ]),
-          new Uint8Array([
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-            REGULAR,
-          ]),
-          new Uint32Array([3, 1, 4]),
-          1,
-        ),
-        new Route(
-          new Uint16Array([
-            Time.fromString('08:00:00').toMinutes(),
-            Time.fromString('08:15:00').toMinutes(),
-            Time.fromString('09:45:00').toMinutes(),
-            Time.fromString('10:00:00').toMinutes(),
-          ]),
-          new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
-          new Uint32Array([0, 4]),
-          2,
-        ),
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: Time.fromString('08:00:00'),
+                  departureTime: Time.fromString('08:15:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:30:00'),
+                  departureTime: Time.fromString('08:45:00'),
+                },
+                {
+                  id: 2,
+                  arrivalTime: Time.fromString('09:00:00'),
+                  departureTime: Time.fromString('09:15:00'),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 3,
+                  arrivalTime: Time.fromString('08:10:00'),
+                  departureTime: Time.fromString('08:25:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:50:00'),
+                  departureTime: Time.fromString('09:05:00'),
+                },
+                {
+                  id: 4,
+                  arrivalTime: Time.fromString('09:10:00'),
+                  departureTime: Time.fromString('09:25:00'),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 2,
+          serviceRouteId: 2,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: Time.fromString('08:00:00'),
+                  departureTime: Time.fromString('08:15:00'),
+                },
+                {
+                  id: 4,
+                  arrivalTime: Time.fromString('09:45:00'),
+                  departureTime: Time.fromString('10:00:00'),
+                },
+              ],
+            },
+          ],
+        }),
       ];
 
       const routes: ServiceRoute[] = [
@@ -601,6 +645,168 @@ describe('Router', () => {
 
       const bestRoute = result.bestRoute();
       assert.strictEqual(bestRoute?.legs.length, 2);
+    });
+  });
+
+  describe('with route continuation (in-seat transfer)', () => {
+    let router: Router;
+    let timetable: Timetable;
+
+    beforeEach(() => {
+      // Setup: Route 0 continues as Route 1 at stop 1
+      const tripContinuations: TripBoarding[] = [
+        { hopOnStop: 1, routeId: 1, tripIndex: 0 },
+      ];
+
+      const stopsAdjacency: StopAdjacency[] = [
+        { routes: [0] },
+        {
+          routes: [0, 1],
+          tripContinuations: new Map([
+            [encode(0, 0), tripContinuations], // Route 0, trip 0 continues as route 1
+          ]),
+        },
+        { routes: [1] },
+        { routes: [1] },
+      ];
+
+      const routesAdjacency = [
+        // Route 0: stops 0 -> 1
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: Time.fromString('08:00:00'),
+                  departureTime: Time.fromString('08:10:00'),
+                },
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:15:00'),
+                  departureTime: Time.fromString('08:25:00'),
+                },
+              ],
+            },
+          ],
+        }),
+        // Route 1: stops 1 -> 2 -> 3 (continuation from route 0)
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 1,
+                  arrivalTime: Time.fromString('08:15:00'),
+                  departureTime: Time.fromString('08:25:00'),
+                },
+                {
+                  id: 2,
+                  arrivalTime: Time.fromString('08:35:00'),
+                  departureTime: Time.fromString('08:45:00'),
+                },
+                {
+                  id: 3,
+                  arrivalTime: Time.fromString('08:55:00'),
+                  departureTime: Time.fromString('09:05:00'),
+                },
+              ],
+            },
+          ],
+        }),
+      ];
+
+      const routes: ServiceRoute[] = [
+        {
+          type: 'BUS',
+          name: 'Line 1',
+          routes: [0],
+        },
+        {
+          type: 'BUS',
+          name: 'Line 2',
+          routes: [1],
+        },
+      ];
+
+      timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
+
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Stop 1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Stop 2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 2,
+          sourceStopId: 'stop3',
+          name: 'Stop 3',
+          lat: 3.0,
+          lon: 3.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 3,
+          sourceStopId: 'stop4',
+          name: 'Stop 4',
+          lat: 4.0,
+          lon: 4.0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
+
+      const stopsIndex = new StopsIndex(stops);
+      router = new Router(timetable, stopsIndex);
+    });
+
+    it('should find a route using continuation (in-seat transfer)', () => {
+      const query = new Query.Builder()
+        .from('stop1')
+        .to('stop4')
+        .departureTime(Time.fromString('08:00:00'))
+        .build();
+
+      const result: Result = router.route(query);
+      const bestRoute = result.bestRoute();
+
+      // Should find a route with only 1 leg because the continuation allows
+      // staying on the same vehicle when it changes route numbers
+      assert.strictEqual(bestRoute?.legs.length, 1);
+    });
+
+    it('should correctly calculate arrival time with continuation', () => {
+      const query = new Query.Builder()
+        .from('stop1')
+        .to('stop4')
+        .departureTime(Time.fromString('08:00:00'))
+        .build();
+
+      const result: Result = router.route(query);
+
+      const timeToStop4 = result.arrivalAt('stop4');
+      assert.strictEqual(
+        timeToStop4?.arrival.toMinutes(),
+        Time.fromString('08:55:00').toMinutes(),
+      );
     });
   });
 });
