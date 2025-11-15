@@ -19,7 +19,11 @@ import { GtfsRouteId, GtfsRoutesMap } from './routes.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTime, toTime } from './time.js';
-import { TransfersMap, TripContinuationsMap } from './transfers.js';
+import {
+  GuaranteedTripTransfersMap,
+  TransfersMap,
+  TripContinuationsMap,
+} from './transfers.js';
 import { hashIds, parseCsv } from './utils.js';
 
 export type GtfsTripId = string;
@@ -214,15 +218,45 @@ export const buildStopsAdjacencyStructure = (
   routes: Route[],
   transfersMap: TransfersMap,
   tripContinuationsMap: TripContinuationsMap,
+  guaranteedTripTransfersMap: GuaranteedTripTransfersMap,
   nbStops: number,
   activeStops: Set<StopId>,
 ): StopAdjacency[] => {
   const stopsAdjacency = new Array<StopAdjacency>(nbStops);
+
+  // Initialize stops adjacency structure
   for (let i = 0; i < nbStops; i++) {
     stopsAdjacency[i] = {
       routes: [],
     };
   }
+  buildRouteAdjacency(stopsAdjacency, serviceRoutes, routes, activeStops);
+  processStandardTransfers(stopsAdjacency, transfersMap, activeStops);
+  processTripContinuations(
+    stopsAdjacency,
+    tripContinuationsMap,
+    tripsMapping,
+    activeStops,
+  );
+  processGuaranteedTripTransfers(
+    stopsAdjacency,
+    guaranteedTripTransfersMap,
+    tripsMapping,
+    activeStops,
+  );
+
+  return stopsAdjacency;
+};
+
+/**
+ * Builds the route adjacency structure for stops
+ */
+const buildRouteAdjacency = (
+  stopsAdjacency: StopAdjacency[],
+  serviceRoutes: ServiceRoute[],
+  routes: Route[],
+  activeStops: Set<StopId>,
+): void => {
   for (let index = 0; index < routes.length; index++) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = routes[index]!;
@@ -242,6 +276,16 @@ export const buildStopsAdjacencyStructure = (
     }
     serviceRoute.routes.push(index);
   }
+};
+
+/**
+ * Processes standard transfers (stop-to-stop transfers)
+ */
+const processStandardTransfers = (
+  stopsAdjacency: StopAdjacency[],
+  transfersMap: TransfersMap,
+  activeStops: Set<StopId>,
+): void => {
   for (const [stop, transfers] of transfersMap) {
     for (let i = 0; i < transfers.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -258,6 +302,17 @@ export const buildStopsAdjacencyStructure = (
       }
     }
   }
+};
+
+/**
+ * Processes trip continuations (in-seat transfers)
+ */
+const processTripContinuations = (
+  stopsAdjacency: StopAdjacency[],
+  tripContinuationsMap: TripContinuationsMap,
+  tripsMapping: TripsMapping,
+  activeStops: Set<StopId>,
+): void => {
   for (const [stop, tripContinuations] of tripContinuationsMap) {
     for (let i = 0; i < tripContinuations.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -293,7 +348,50 @@ export const buildStopsAdjacencyStructure = (
       }
     }
   }
-  return stopsAdjacency;
+};
+
+/**
+ * Processes guaranteed trip transfers (timed transfers)
+ */
+const processGuaranteedTripTransfers = (
+  stopsAdjacency: StopAdjacency[],
+  guaranteedTripTransfersMap: GuaranteedTripTransfersMap,
+  tripsMapping: TripsMapping,
+  activeStops: Set<StopId>,
+): void => {
+  for (const [stop, guaranteedTransfers] of guaranteedTripTransfersMap) {
+    for (let i = 0; i < guaranteedTransfers.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const guaranteedTransfer = guaranteedTransfers[i]!;
+      if (activeStops.has(stop)) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const stopAdj = stopsAdjacency[stop]!;
+        if (!stopAdj.guaranteedTripTransfers) {
+          stopAdj.guaranteedTripTransfers = new Map();
+        }
+        const originTrip = tripsMapping.get(guaranteedTransfer.fromTrip);
+        const destinationTrip = tripsMapping.get(guaranteedTransfer.toTrip);
+        if (destinationTrip === undefined || originTrip === undefined) {
+          continue;
+        }
+        const destinationTripId = encode(
+          destinationTrip.routeId,
+          destinationTrip.tripRouteIndex,
+        );
+        const tripId = encode(originTrip.routeId, originTrip.tripRouteIndex);
+        const existingTransfers = stopAdj.guaranteedTripTransfers.get(tripId);
+        if (existingTransfers) {
+          existingTransfers.add(destinationTripId);
+        } else {
+          stopAdj.guaranteedTripTransfers.set(
+            tripId,
+            new Set([destinationTripId]),
+          );
+        }
+        activeStops.add(stop);
+      }
+    }
+  }
 };
 
 /**

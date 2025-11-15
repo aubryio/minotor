@@ -435,25 +435,86 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
                 ? ` (Pl. ${destStop.platform})`
                 : '';
 
-              const destRoute = timetable.getRoute(continuation.routeId);
-              const destServiceRouteInfo = destRoute
-                ? timetable.getServiceRouteInfo(destRoute)
-                : null;
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              const destRoute = timetable.getRoute(continuation.routeId)!;
+              const destServiceRouteInfo =
+                timetable.getServiceRouteInfo(destRoute);
 
-              const originTime = route.departureFrom(stop.id, tripIndex);
-              const continuationTime = destRoute?.departureFrom(
+              const originTime = route.arrivalAt(stop.id, tripIndex);
+
+              const continuationTime = destRoute.departureFrom(
                 continuation.hopOnStop,
                 continuation.tripIndex,
               );
-              const continuationTimeStr = continuationTime
-                ? ` at ${continuationTime.toString()}`
-                : '';
+
               console.log(
                 `${continuationIndex}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
-                  `Route ${continuation.routeId} (${destServiceRouteInfo?.name ?? 'Unknown'}) Trip ${continuation.tripIndex}${continuationTimeStr} ` +
+                  `Route ${continuation.routeId} (${destServiceRouteInfo.name}) Trip ${continuation.tripIndex} at ${continuationTime.toString()} ` +
                   `at ${destStop?.name ?? 'Unknown'}${destPlatform} (${continuation.hopOnStop}, ${destStop?.sourceStopId ?? 'N/A'})`,
               );
               continuationIndex++;
+            }
+          }
+        }
+
+        let totalGuaranteedTransfers = 0;
+        const guaranteedTransfersByTrip = new Map<
+          string,
+          {
+            route: Route;
+            tripIndex: number;
+            guaranteedTransfers: { routeId: number; tripIndex: number }[];
+          }
+        >();
+
+        routes.forEach((route: Route) => {
+          for (let tripIndex = 0; tripIndex < route.getNbTrips(); tripIndex++) {
+            const guaranteedTransfers = timetable.getGuaranteedTransfers(
+              stop.id,
+              route.id,
+              tripIndex,
+            );
+            if (guaranteedTransfers.length > 0) {
+              totalGuaranteedTransfers += guaranteedTransfers.length;
+              const tripKey = `${route.id}-${tripIndex}`;
+              guaranteedTransfersByTrip.set(tripKey, {
+                route,
+                tripIndex,
+                guaranteedTransfers,
+              });
+            }
+          }
+        });
+
+        console.log(
+          `Number of guaranteed trip transfers: ${totalGuaranteedTransfers}`,
+        );
+
+        if (totalGuaranteedTransfers > 0) {
+          console.log('\n--- Guaranteed Trip Transfers ---');
+          let transferIndex = 1;
+          for (const [, value] of guaranteedTransfersByTrip) {
+            const { route, tripIndex, guaranteedTransfers } = value;
+            const serviceRouteInfo = timetable.getServiceRouteInfo(route);
+            const originTime = route.arrivalAt(stop.id, tripIndex);
+
+            for (const guaranteedTrip of guaranteedTransfers) {
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              const destRoute = timetable.getRoute(guaranteedTrip.routeId)!;
+              const destServiceRouteInfo =
+                timetable.getServiceRouteInfo(destRoute);
+
+              const destinationTime = destRoute.departureFrom(
+                stop.id,
+                guaranteedTrip.tripIndex,
+              );
+
+              console.log(
+                `${transferIndex}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
+                  `Route ${guaranteedTrip.routeId} (${destServiceRouteInfo.name}) Trip ${guaranteedTrip.tripIndex} at ${destinationTime.toString()} ` +
+                  `(guaranteed transfer at same stop)`,
+              );
+              transferIndex++;
             }
           }
         }

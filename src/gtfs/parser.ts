@@ -10,6 +10,7 @@ import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
 import {
+  GuaranteedTripTransfersMap,
   parseTransfers,
   TransfersMap,
   TripContinuationsMap,
@@ -113,6 +114,7 @@ export class GtfsParser {
 
     let transfers = new Map() as TransfersMap;
     let tripContinuations = new Map() as TripContinuationsMap;
+    let guaranteedTripTransfers = new Map() as GuaranteedTripTransfersMap;
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
@@ -120,12 +122,14 @@ export class GtfsParser {
       const {
         transfers: parsedTransfers,
         tripContinuations: parsedTripContinuations,
+        guaranteedTripTransfers: parsedGuaranteedTripTransfers,
       } = await parseTransfers(transfersStream, parsedStops);
       transfers = parsedTransfers;
       tripContinuations = parsedTripContinuations;
+      guaranteedTripTransfers = parsedGuaranteedTripTransfers;
       const transfersEnd = performance.now();
       log.info(
-        `${transfers.size} valid transfers and ${tripContinuations.size} trip continuations. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+        `${transfers.size} valid transfers, ${tripContinuations.size} stops with trip continuations, and ${guaranteedTripTransfers.size} stops with guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
@@ -151,6 +155,7 @@ export class GtfsParser {
       routes,
       transfers,
       tripContinuations,
+      guaranteedTripTransfers,
       parsedStops.size,
       activeStopIds,
     );

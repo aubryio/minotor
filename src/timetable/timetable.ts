@@ -13,7 +13,7 @@ import {
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
 import { Route, RouteId, TripRouteIndex } from './route.js';
-import { encode, TripId } from './tripId.js';
+import { decode, encode, Trip, TripId } from './tripId.js';
 
 export type TransferType =
   | 'RECOMMENDED'
@@ -27,15 +27,14 @@ export type Transfer = {
   minTransferTime?: Duration;
 };
 
-export type TripBoarding = {
+export type TripBoarding = Trip & {
   hopOnStop: StopId;
-  routeId: RouteId;
-  tripIndex: TripRouteIndex;
 };
 
 export type StopAdjacency = {
   transfers?: Transfer[];
   tripContinuations?: Map<TripId, TripBoarding[]>;
+  guaranteedTripTransfers?: Map<TripId, Set<TripId>>;
   routes: RouteId[];
 };
 
@@ -78,7 +77,7 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
 
 const EMPTY_TRIP_CONTINUATIONS: TripBoarding[] = [];
 
-export const CURRENT_VERSION = '0.0.8';
+export const CURRENT_VERSION = '0.0.9';
 
 /**
  * The internal transit timetable format.
@@ -206,6 +205,70 @@ export class Timetable {
       stopAdjacency.tripContinuations?.get(encode(routeId, tripIndex)) ||
       EMPTY_TRIP_CONTINUATIONS
     );
+  }
+
+  /**
+   * Retrieves guaranteed trip transfers for a specific trip at a stop.
+   *
+   * @param stopId - The ID of the stop to get guaranteed transfers for.
+   * @param routeId - The ID of the route for the origin trip.
+   * @param tripIndex - The index of the origin trip.
+   * @returns An array of Trip objects that have guaranteed transfers from the specified trip.
+   */
+  getGuaranteedTransfers(
+    stopId: StopId,
+    routeId: RouteId,
+    tripIndex: TripRouteIndex,
+  ): Trip[] {
+    const stopAdjacency = this.stopsAdjacency[stopId];
+    if (!stopAdjacency || !stopAdjacency.guaranteedTripTransfers) {
+      return [];
+    }
+    const guaranteedTripIds =
+      stopAdjacency.guaranteedTripTransfers.get(encode(routeId, tripIndex)) ||
+      new Set();
+
+    const results: Trip[] = [];
+    for (const tripId of guaranteedTripIds) {
+      const [routeId, tripIndex] = decode(tripId);
+      results.push({
+        routeId,
+        tripIndex,
+      });
+    }
+    return results;
+  }
+
+  /**
+   * Checks if a transfer between two specific trips at a given stop is guaranteed.
+   *
+   * @param stopId - The ID of the stop where the transfer occurs.
+   * @param originRouteId - The ID of the route for the origin trip.
+   * @param originTripIndex - The index of the origin trip.
+   * @param destinationRouteId - The ID of the route for the destination trip.
+   * @param destinationTripIndex - The index of the destination trip.
+   * @returns True if the transfer is guaranteed, false otherwise.
+   */
+  isTransferGuaranteed(
+    stopId: StopId,
+    originRouteId: RouteId,
+    originTripIndex: TripRouteIndex,
+    destinationRouteId: RouteId,
+    destinationTripIndex: TripRouteIndex,
+  ): boolean {
+    const stopAdjacency = this.stopsAdjacency[stopId];
+    if (!stopAdjacency || !stopAdjacency.guaranteedTripTransfers) {
+      return false;
+    }
+
+    const originTripId = encode(originRouteId, originTripIndex);
+    const destinationTripId = encode(destinationRouteId, destinationTripIndex);
+
+    const guaranteedTransfers =
+      stopAdjacency.guaranteedTripTransfers.get(originTripId);
+    return guaranteedTransfers
+      ? guaranteedTransfers.has(destinationTripId)
+      : false;
   }
 
   /**

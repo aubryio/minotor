@@ -7,6 +7,11 @@ const TRIP_INDEX_MASK = (1 << TRIP_INDEX_BITS) - 1;
 // A TripId encodes a route ID and trip index into a value
 export type TripId = number;
 
+export type Trip = {
+  routeId: RouteId;
+  tripIndex: TripRouteIndex;
+};
+
 /**
  * Encodes a route ID and trip index into a single trip ID.
  * @param routeId - The route identifier, needs to fit on 17 bits

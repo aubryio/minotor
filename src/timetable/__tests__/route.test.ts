@@ -292,7 +292,7 @@ describe('Route', () => {
     });
 
     it('should return undefined when beforeTrip is 0', () => {
-      const tripIndex = route.findEarliestTrip(1001, Time.origin(), 0);
+      const tripIndex = route.findEarliestTrip(1001, Time.ORIGIN, 0);
       assert.strictEqual(tripIndex, undefined);
     });
 

@@ -47,14 +47,20 @@ message TripBoarding {
 }
 
 message TripContinuationEntry {
-  uint32 key = 1;
-  repeated TripBoarding value = 2;
+  uint32 fromTripId = 1;
+  repeated TripBoarding boardings = 2;
+}
+
+message GuaranteedTripTransferEntry {
+  uint32 fromTripId = 1;
+  repeated uint32 guaranteedTripIds = 2;
 }
 
 message StopAdjacency {
   repeated uint32 routes = 1;
   repeated Transfer transfers = 2;
   repeated TripContinuationEntry tripContinuations = 3;
+  repeated GuaranteedTripTransferEntry guaranteedTripTransfers = 4;
 }
 
 enum RouteType {
