@@ -6,7 +6,7 @@ import {
   TransferType,
 } from '../timetable/timetable.js';
 import { GtfsStopsMap } from './stops.js';
-import { TripId } from './trips.js';
+import { GtfsTripId } from './trips.js';
 import { parseCsv } from './utils.js';
 
 export type GtfsTransferType =
@@ -19,11 +19,19 @@ export type GtfsTransferType =
 
 export type TransfersMap = Map<StopId, Transfer[]>;
 
+export type GtfsTripBoarding = {
+  fromTrip: GtfsTripId;
+  toTrip: GtfsTripId;
+  hopOnStop: StopId;
+};
+
+export type TripContinuationsMap = Map<StopId, GtfsTripBoarding[]>;
+
 export type TransferEntry = {
   from_stop_id?: SourceStopId;
   to_stop_id?: SourceStopId;
-  from_trip_id?: TripId;
-  to_trip_id?: TripId;
+  from_trip_id?: GtfsTripId;
+  to_trip_id?: GtfsTripId;
   from_route_id?: ServiceRouteId;
   to_route_id?: ServiceRouteId;
   transfer_type: GtfsTransferType;
@@ -39,9 +47,12 @@ export type TransferEntry = {
 export const parseTransfers = async (
   transfersStream: NodeJS.ReadableStream,
   stopsMap: GtfsStopsMap,
-): Promise<TransfersMap> => {
+): Promise<{
+  transfers: TransfersMap;
+  tripContinuations: TripContinuationsMap;
+}> => {
   const transfers: TransfersMap = new Map();
-
+  const tripContinuations: TripContinuationsMap = new Map();
   for await (const rawLine of parseCsv(transfersStream, [
     'transfer_type',
     'min_transfer_time',
@@ -54,32 +65,61 @@ export const parseTransfers = async (
     ) {
       continue;
     }
+    if (!transferEntry.from_stop_id || !transferEntry.to_stop_id) {
+      console.warn(`Missing transfer origin or destination stop.`);
+      continue;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const fromStop = stopsMap.get(transferEntry.from_stop_id)!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const toStop = stopsMap.get(transferEntry.to_stop_id)!;
+
+    if (transferEntry.transfer_type === 4) {
+      if (
+        transferEntry.from_trip_id === undefined ||
+        transferEntry.from_trip_id === '' ||
+        transferEntry.to_trip_id === undefined ||
+        transferEntry.to_trip_id === ''
+      ) {
+        console.warn(
+          `Unsupported in-seat transfer, missing from_trip_id and/or to_trip_id.`,
+        );
+        continue;
+      }
+      const tripBoardingEntry: GtfsTripBoarding = {
+        fromTrip: transferEntry.from_trip_id,
+        toTrip: transferEntry.to_trip_id,
+        hopOnStop: toStop.id,
+      };
+      const existingBoardings = tripContinuations.get(fromStop.id);
+      if (existingBoardings) {
+        existingBoardings.push(tripBoardingEntry);
+      } else {
+        tripContinuations.set(fromStop.id, [tripBoardingEntry]);
+      }
+      continue;
+    }
     if (transferEntry.from_trip_id && transferEntry.to_trip_id) {
       console.warn(
-        `Unsupported transfer between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
+        `Unsupported transfer of type ${transferEntry.transfer_type} between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
       );
       continue;
     }
     if (transferEntry.from_route_id && transferEntry.to_route_id) {
       console.warn(
-        `Unsupported transfer between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
+        `Unsupported transfer of type ${transferEntry.transfer_type} between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
       );
       continue;
     }
-    if (!transferEntry.from_stop_id || !transferEntry.to_stop_id) {
-      console.warn(`Missing transfer origin or destination stop.`);
-      continue;
-    }
-    if (transferEntry.transfer_type === 2 && !transferEntry.min_transfer_time) {
+
+    if (
+      transferEntry.transfer_type === 2 &&
+      transferEntry.min_transfer_time === undefined
+    ) {
       console.info(
         `Missing minimum transfer time between ${transferEntry.from_stop_id} and ${transferEntry.to_stop_id}.`,
       );
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const fromStop = stopsMap.get(transferEntry.from_stop_id)!;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const toStop = stopsMap.get(transferEntry.to_stop_id)!;
 
     const transfer: Transfer = {
       destination: toStop.id,
@@ -93,7 +133,10 @@ export const parseTransfers = async (
     fromStopTransfers.push(transfer);
     transfers.set(fromStop.id, fromStopTransfers);
   }
-  return transfers;
+  return {
+    transfers,
+    tripContinuations,
+  };
 };
 
 const parseGtfsTransferType = (

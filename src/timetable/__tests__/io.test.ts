@@ -6,13 +6,15 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
+  deserializeTripContinuations,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
+  serializeTripContinuations,
 } from '../io.js';
 import { REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
-import { ServiceRoute, StopAdjacency } from '../timetable.js';
+import { ServiceRoute, StopAdjacency, TripBoarding } from '../timetable.js';
 
 describe('Timetable IO', () => {
   const stopsAdjacency: StopAdjacency[] = [
@@ -33,6 +35,7 @@ describe('Timetable IO', () => {
   ];
   const routesAdjacency = [
     new Route(
+      0,
       new Uint16Array([
         Time.fromHMS(16, 40, 0).toMinutes(),
         Time.fromHMS(16, 50, 0).toMinutes(),
@@ -42,6 +45,7 @@ describe('Timetable IO', () => {
       0,
     ),
     new Route(
+      1,
       new Uint16Array([
         Time.fromHMS(15, 20, 0).toMinutes(),
         Time.fromHMS(15, 30, 0).toMinutes(),
@@ -59,6 +63,7 @@ describe('Timetable IO', () => {
     {
       transfers: [{ destination: 2, type: 0 }],
       routes: [0],
+      tripContinuations: [],
     },
     {
       transfers: [
@@ -69,6 +74,7 @@ describe('Timetable IO', () => {
         },
       ],
       routes: [1],
+      tripContinuations: [],
     },
   ];
 
@@ -111,6 +117,32 @@ describe('Timetable IO', () => {
     const serializedData = serializeStopsAdjacency(stopsAdjacency);
     const deserializedData = deserializeStopsAdjacency(serializedData);
     assert.deepStrictEqual(deserializedData, stopsAdjacency);
+  });
+
+  it('should serialize and deserialize tripContinuations correctly', () => {
+    const tripContinuations = new Map<number, TripBoarding[]>();
+    tripContinuations.set(0, [
+      { hopOnStop: 1, routeId: 0, tripIndex: 2 },
+      { hopOnStop: 3, routeId: 1, tripIndex: 1 },
+    ]);
+    tripContinuations.set(1, [{ hopOnStop: 2, routeId: 0, tripIndex: 0 }]);
+
+    const serialized = serializeTripContinuations(tripContinuations);
+    const deserialized = deserializeTripContinuations(serialized);
+
+    assert.deepStrictEqual(deserialized, tripContinuations);
+  });
+
+  it('should handle empty StopAdjacency without transfers or tripContinuations', () => {
+    const emptyStopsAdjacency: StopAdjacency[] = [
+      { routes: [0] },
+      { routes: [1] },
+    ];
+
+    const serialized = serializeStopsAdjacency(emptyStopsAdjacency);
+    const deserialized = deserializeStopsAdjacency(serialized);
+
+    assert.deepStrictEqual(deserialized, emptyStopsAdjacency);
   });
 
   it('should serialize a routes adjacency matrix to a Uint8Array', () => {

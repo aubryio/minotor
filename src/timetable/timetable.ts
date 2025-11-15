@@ -12,7 +12,8 @@ import {
   serializeStopsAdjacency,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
-import { Route, RouteId } from './route.js';
+import { Route, RouteId, TripRouteIndex } from './route.js';
+import { encode, TripId } from './tripId.js';
 
 export type TransferType =
   | 'RECOMMENDED'
@@ -26,8 +27,15 @@ export type Transfer = {
   minTransferTime?: Duration;
 };
 
+export type TripBoarding = {
+  hopOnStop: StopId;
+  routeId: RouteId;
+  tripIndex: TripRouteIndex;
+};
+
 export type StopAdjacency = {
-  transfers: Transfer[];
+  transfers?: Transfer[];
+  tripContinuations?: Map<TripId, TripBoarding[]>;
   routes: RouteId[];
 };
 
@@ -68,7 +76,9 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'MONORAIL',
 ]);
 
-export const CURRENT_VERSION = '0.0.7';
+const EMPTY_TRIP_CONTINUATIONS: TripBoarding[] = [];
+
+export const CURRENT_VERSION = '0.0.8';
 
 /**
  * The internal transit timetable format.
@@ -89,9 +99,12 @@ export class Timetable {
     this.serviceRoutes = routes;
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const stop = stopsAdjacency[i]!;
-      if (stop.routes.length > 0 || stop.transfers.length > 0) {
+      if (
+        stop.routes.length > 0 ||
+        (stop.transfers && stop.transfers.length > 0) ||
+        (stop.tripContinuations && stop.tripContinuations.size > 0)
+      ) {
         this.activeStops.add(i);
       }
     }
@@ -166,7 +179,33 @@ export class Timetable {
    * @returns An array of transfer options available at the stop.
    */
   getTransfers(stopId: StopId): Transfer[] {
-    return this.stopsAdjacency[stopId]?.transfers ?? [];
+    const stopAdjacency = this.stopsAdjacency[stopId];
+    if (!stopAdjacency) {
+      throw new Error(`Stop ID ${stopId} not found`);
+    }
+    return stopAdjacency.transfers || [];
+  }
+
+  /**
+   * Retrieves all trip continuation options available at the specified stop for a given trip.
+   *
+   * @param stopId - The ID of the stop to get trip continuations for.
+   * @param tripIndex - The index of the trip to get continuations for.
+   * @returns An array of trip continuation options available at the stop for the specified trip.
+   */
+  getContinuousTrips(
+    stopId: StopId,
+    routeId: RouteId,
+    tripIndex: TripRouteIndex,
+  ): TripBoarding[] {
+    const stopAdjacency = this.stopsAdjacency[stopId];
+    if (!stopAdjacency) {
+      throw new Error(`Stop ID ${stopId} not found`);
+    }
+    return (
+      stopAdjacency.tripContinuations?.get(encode(routeId, tripIndex)) ||
+      EMPTY_TRIP_CONTINUATIONS
+    );
   }
 
   /**

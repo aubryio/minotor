@@ -6,27 +6,35 @@ import {
   NOT_AVAILABLE,
   REGULAR,
   Route,
+  RouteId,
+  TripRouteIndex,
 } from '../timetable/route.js';
 import {
   ServiceRoute,
   ServiceRouteId,
   StopAdjacency,
 } from '../timetable/timetable.js';
+import { encode } from '../timetable/tripId.js';
 import { GtfsRouteId, GtfsRoutesMap } from './routes.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTime, toTime } from './time.js';
-import { TransfersMap } from './transfers.js';
+import { TransfersMap, TripContinuationsMap } from './transfers.js';
 import { hashIds, parseCsv } from './utils.js';
 
-export type TripId = string;
+export type GtfsTripId = string;
 
-export type TripIdsMap = Map<TripId, GtfsRouteId>;
+export type GtfsTripIdsMap = Map<GtfsTripId, GtfsRouteId>;
+
+export type TripsMapping = Map<
+  GtfsTripId,
+  { routeId: RouteId; tripRouteIndex: TripRouteIndex }
+>;
 
 type TripEntry = {
   route_id: GtfsRouteId;
   service_id: ServiceId;
-  trip_id: TripId;
+  trip_id: GtfsTripId;
 };
 
 export type GtfsPickupDropOffType =
@@ -37,7 +45,7 @@ export type GtfsPickupDropOffType =
   | '3'; // Must coordinate with driver
 
 type StopTimeEntry = {
-  trip_id: TripId;
+  trip_id: GtfsTripId;
   arrival_time?: GtfsTime;
   departure_time?: GtfsTime;
   stop_id: SourceStopId;
@@ -55,6 +63,7 @@ type RouteBuilder = {
   serviceRouteId: ServiceRouteId;
   stops: StopId[];
   trips: Array<{
+    gtfsTripId: GtfsTripId;
     firstDeparture: number;
     arrivalTimes: number[];
     departureTimes: number[];
@@ -109,7 +118,9 @@ export const encodePickUpDropOffTypes = (
 /**
  * Sorts trips by departure time and creates optimized typed arrays
  */
-const finalizeRouteFromBuilder = (builder: RouteBuilder): SerializedRoute => {
+const finalizeRouteFromBuilder = (
+  builder: RouteBuilder,
+): [SerializedRoute, GtfsTripId[]] => {
   builder.trips.sort((a, b) => a.firstDeparture - b.firstDeparture);
 
   const stopsCount = builder.stops.length;
@@ -119,11 +130,13 @@ const finalizeRouteFromBuilder = (builder: RouteBuilder): SerializedRoute => {
   const allPickUpTypes: SerializedPickUpDropOffType[] = [];
   const allDropOffTypes: SerializedPickUpDropOffType[] = [];
 
+  const gtfsTripIds = [];
   for (let tripIndex = 0; tripIndex < tripsCount; tripIndex++) {
     const trip = builder.trips[tripIndex];
     if (!trip) {
       throw new Error(`Missing trip data at index ${tripIndex}`);
     }
+    gtfsTripIds.push(trip.gtfsTripId);
     const baseIndex = tripIndex * stopsCount * 2;
 
     for (let stopIndex = 0; stopIndex < stopsCount; stopIndex++) {
@@ -155,12 +168,15 @@ const finalizeRouteFromBuilder = (builder: RouteBuilder): SerializedRoute => {
     allPickUpTypes,
     allDropOffTypes,
   );
-  return {
-    serviceRouteId: builder.serviceRouteId,
-    stops: stopsArray,
-    stopTimes: stopTimesArray,
-    pickUpDropOffTypes: pickUpDropOffTypesArray,
-  };
+  return [
+    {
+      serviceRouteId: builder.serviceRouteId,
+      stops: stopsArray,
+      stopTimes: stopTimesArray,
+      pickUpDropOffTypes: pickUpDropOffTypesArray,
+    },
+    gtfsTripIds,
+  ];
 };
 
 /**
@@ -175,8 +191,8 @@ export const parseTrips = async (
   tripsStream: NodeJS.ReadableStream,
   serviceIds: ServiceIds,
   validGtfsRoutes: GtfsRoutesMap,
-): Promise<TripIdsMap> => {
-  const trips: TripIdsMap = new Map();
+): Promise<GtfsTripIdsMap> => {
+  const trips: GtfsTripIdsMap = new Map();
   for await (const rawLine of parseCsv(tripsStream, ['stop_sequence'])) {
     const line = rawLine as TripEntry;
     if (!serviceIds.has(line.service_id)) {
@@ -193,16 +209,19 @@ export const parseTrips = async (
 };
 
 export const buildStopsAdjacencyStructure = (
+  tripsMapping: TripsMapping,
   serviceRoutes: ServiceRoute[],
   routes: Route[],
   transfersMap: TransfersMap,
+  tripContinuationsMap: TripContinuationsMap,
   nbStops: number,
   activeStops: Set<StopId>,
 ): StopAdjacency[] => {
-  // TODO somehow works when it's a map
   const stopsAdjacency = new Array<StopAdjacency>(nbStops);
   for (let i = 0; i < nbStops; i++) {
-    stopsAdjacency[i] = { routes: [], transfers: [] };
+    stopsAdjacency[i] = {
+      routes: [],
+    };
   }
   for (let index = 0; index < routes.length; index++) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -229,8 +248,47 @@ export const buildStopsAdjacencyStructure = (
       const transfer = transfers[i]!;
       if (activeStops.has(stop) || activeStops.has(transfer.destination)) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        stopsAdjacency[stop]!.transfers.push(transfer);
+        const stopAdj = stopsAdjacency[stop]!;
+        if (!stopAdj.transfers) {
+          stopAdj.transfers = [];
+        }
+        stopAdj.transfers.push(transfer);
         activeStops.add(transfer.destination);
+        activeStops.add(stop);
+      }
+    }
+  }
+  for (const [stop, tripContinuations] of tripContinuationsMap) {
+    for (let i = 0; i < tripContinuations.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const tripContinuation = tripContinuations[i]!;
+      if (
+        activeStops.has(stop) ||
+        activeStops.has(tripContinuation.hopOnStop)
+      ) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const stopAdj = stopsAdjacency[stop]!;
+        if (!stopAdj.tripContinuations) {
+          stopAdj.tripContinuations = new Map();
+        }
+        const originTrip = tripsMapping.get(tripContinuation.fromTrip);
+        const destinationTrip = tripsMapping.get(tripContinuation.toTrip);
+        if (destinationTrip === undefined || originTrip === undefined) {
+          continue;
+        }
+        const tripBoarding = {
+          hopOnStop: tripContinuation.hopOnStop,
+          routeId: destinationTrip.routeId,
+          tripIndex: destinationTrip.tripRouteIndex,
+        };
+        const tripId = encode(originTrip.routeId, originTrip.tripRouteIndex);
+        const existingContinuations = stopAdj.tripContinuations.get(tripId);
+        if (existingContinuations) {
+          existingContinuations.push(tripBoarding);
+        } else {
+          stopAdj.tripContinuations.set(tripId, [tripBoarding]);
+        }
+        activeStops.add(tripContinuation.hopOnStop);
         activeStops.add(stop);
       }
     }
@@ -250,16 +308,17 @@ export const buildStopsAdjacencyStructure = (
 export const parseStopTimes = async (
   stopTimesStream: NodeJS.ReadableStream,
   stopsMap: GtfsStopsMap,
-  activeTripIds: TripIdsMap,
+  activeTripIds: GtfsTripIdsMap,
   activeStopIds: Set<StopId>,
 ): Promise<{
   routes: Route[];
   serviceRoutesMap: Map<GtfsRouteId, ServiceRouteId>;
+  tripsMapping: TripsMapping;
 }> => {
   /**
    * Adds a trip to the appropriate route builder
    */
-  const addTrip = (currentTripId: TripId) => {
+  const addTrip = (currentTripId: GtfsTripId) => {
     const gtfsRouteId = activeTripIds.get(currentTripId);
 
     if (!gtfsRouteId || stops.length === 0) {
@@ -304,6 +363,7 @@ export const parseStopTimes = async (
 
     routeBuilder.trips.push({
       firstDeparture,
+      gtfsTripId: currentTripId,
       arrivalTimes: arrivalTimes,
       departureTimes: departureTimes,
       pickUpTypes: pickUpTypes,
@@ -330,7 +390,7 @@ export const parseStopTimes = async (
   let departureTimes: number[] = [];
   let pickUpTypes: SerializedPickUpDropOffType[] = [];
   let dropOffTypes: SerializedPickUpDropOffType[] = [];
-  let currentTripId: TripId | undefined = undefined;
+  let currentTripId: GtfsTripId | undefined = undefined;
 
   for await (const rawLine of parseCsv(stopTimesStream, ['stop_sequence'])) {
     const line = rawLine as StopTimeEntry;
@@ -347,6 +407,9 @@ export const parseStopTimes = async (
       continue;
     }
     if (line.pickup_type === '1' && line.drop_off_type === '1') {
+      // Warning: could potentially lead to issues if there is an in-seat transfer
+      // at this stop - it can be not boardable nor alightable but still useful for an in-seat transfer.
+      // This doesn't seem to happen in practice for now so keeping this condition to save memory.
       continue;
     }
     if (currentTripId && line.trip_id !== currentTripId && stops.length > 0) {
@@ -382,18 +445,30 @@ export const parseStopTimes = async (
   }
 
   const routesAdjacency: Route[] = [];
+  const tripsMapping = new Map<
+    GtfsTripId,
+    { routeId: RouteId; tripRouteIndex: TripRouteIndex }
+  >();
   for (const [, routeBuilder] of routeBuilders) {
-    const routeData = finalizeRouteFromBuilder(routeBuilder);
+    const [routeData, gtfsTripIds] = finalizeRouteFromBuilder(routeBuilder);
+    const routeId = routesAdjacency.length;
     routesAdjacency.push(
       new Route(
+        routeId,
         routeData.stopTimes,
         routeData.pickUpDropOffTypes,
         routeData.stops,
         routeData.serviceRouteId,
       ),
     );
+    gtfsTripIds.forEach((tripId, index) => {
+      tripsMapping.set(tripId, {
+        routeId,
+        tripRouteIndex: index,
+      });
+    });
   }
-  return { routes: routesAdjacency, serviceRoutesMap };
+  return { routes: routesAdjacency, serviceRoutesMap, tripsMapping };
 };
 
 const parsePickupDropOffType = (

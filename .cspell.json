@@ -41,7 +41,17 @@
     "Moritz",
     "Haut",
     "Rhin",
-    "Olten"
+    "Olten",
+    "graphviz",
+    "rankdir",
+    "bgcolor",
+    "nodesep",
+    "ranksep",
+    "fontname",
+    "dropoff",
+    "boardable",
+    "alightable",
+    "penwidth"
   ],
   "flagWords": [],
   "ignorePaths": [

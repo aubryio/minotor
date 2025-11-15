@@ -5,6 +5,7 @@ import {
   ServiceRoute as ProtoServiceRoute,
   StopAdjacency as ProtoStopAdjacency,
   TransferType as ProtoTransferType,
+  TripContinuationEntry as ProtoTripContinuationEntry,
 } from './proto/timetable.js';
 import { Route } from './route.js';
 import {
@@ -14,6 +15,7 @@ import {
   StopAdjacency,
   Transfer,
   TransferType,
+  TripBoarding,
 } from './timetable.js';
 
 export type SerializedRoute = {
@@ -125,14 +127,19 @@ export const serializeStopsAdjacency = (
 ): ProtoStopAdjacency[] => {
   return stopsAdjacency.map((value) => {
     return {
-      transfers: value.transfers.map((transfer) => ({
-        destination: transfer.destination,
-        type: serializeTransferType(transfer.type),
-        ...(transfer.minTransferTime !== undefined && {
-          minTransferTime: transfer.minTransferTime.toSeconds(),
-        }),
-      })),
+      transfers: value.transfers
+        ? value.transfers.map((transfer) => ({
+            destination: transfer.destination,
+            type: serializeTransferType(transfer.type),
+            ...(transfer.minTransferTime !== undefined && {
+              minTransferTime: transfer.minTransferTime.toSeconds(),
+            }),
+          }))
+        : [],
       routes: value.routes,
+      tripContinuations: value.tripContinuations
+        ? serializeTripContinuations(value.tripContinuations)
+        : [],
     };
   });
 };
@@ -190,10 +197,22 @@ export const deserializeStopsAdjacency = (
       transfers.push(newTransfer);
     }
 
-    result.push({
-      transfers: transfers,
+    const stopAdjacency: StopAdjacency = {
       routes: value.routes,
-    });
+    };
+
+    if (transfers.length > 0) {
+      stopAdjacency.transfers = transfers;
+    }
+
+    const deserializedTripContinuations = deserializeTripContinuations(
+      value.tripContinuations,
+    );
+    if (deserializedTripContinuations.size > 0) {
+      stopAdjacency.tripContinuations = deserializedTripContinuations;
+    }
+
+    result.push(stopAdjacency);
   }
 
   return result;
@@ -210,6 +229,7 @@ export const deserializeRoutesAdjacency = (
     const stops = bytesToUint32Array(value.stops);
     routesAdjacency.push(
       new Route(
+        i,
         bytesToUint16Array(value.stopTimes),
         value.pickUpDropOffTypes,
         stops,
@@ -318,4 +338,45 @@ const serializeRouteType = (type: RouteType): ProtoRouteType => {
     case 'MONORAIL':
       return ProtoRouteType.MONORAIL;
   }
+};
+
+export const serializeTripContinuations = (
+  tripContinuations: Map<number, TripBoarding[]>,
+): ProtoTripContinuationEntry[] => {
+  const result: ProtoTripContinuationEntry[] = [];
+
+  for (const [key, value] of tripContinuations.entries()) {
+    result.push({
+      key: key,
+      value: value.map((tripBoarding) => ({
+        hopOnStop: tripBoarding.hopOnStop,
+        routeId: tripBoarding.routeId,
+        tripIndex: tripBoarding.tripIndex,
+      })),
+    });
+  }
+
+  return result;
+};
+
+export const deserializeTripContinuations = (
+  protoTripContinuations: ProtoTripContinuationEntry[],
+): Map<number, TripBoarding[]> => {
+  const result = new Map<number, TripBoarding[]>();
+
+  for (let i = 0; i < protoTripContinuations.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const entry = protoTripContinuations[i]!;
+    const tripBoardings: TripBoarding[] = entry.value.map(
+      (protoTripBoarding) => ({
+        hopOnStop: protoTripBoarding.hopOnStop,
+        routeId: protoTripBoarding.routeId,
+        tripIndex: protoTripBoarding.tripIndex,
+      }),
+    );
+
+    result.set(entry.key, tripBoardings);
+  }
+
+  return result;
 };

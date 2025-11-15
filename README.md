@@ -134,19 +134,34 @@ Make sure you have a working [node](https://nodejs.org) environment.
 
 `protoc` also needs to be available on the build system.
 
-Ubuntu: `sudo apt install -y protobuf-compiler` |
-Fedora: `sudo dnf install -y protobuf-compiler` |
+Ubuntu: `apt install -y protobuf-compiler` |
+Fedora: `dnf install -y protobuf-compiler` |
 MacOS: `brew install protobuf`
 
 ### Debugging
 
-It is possible to plot the router graph to debug the algorithm:
+Using the npm script `repl`, or `minotor repl` if the project is installed globally, it is possible to inspect the internals
+of the router.
 
-Using the npm script `repl`, or `minotor repl` if the project is installed globally.
+#### Inspect a stop
+
+`minotor> .inspect stop <id|sourceId|name>`
+
+#### Inspect a route
+
+`minotor> .inspect route <id>`
+
+#### Plot the routing graph
+
+Make sure you have `graphviz` installed.
+
+Ubuntu: `apt install -y graphviz` |
+Fedora: `dnf install -y graphviz` |
+MacOS: `brew install graphviz`
 
 `minotor> .plot from <stationId> to <stationId> at <HH:mm> [with <N> transfers] [to <graph.dot>]`
 
-`dot -Ksfdp -Tsvg graph.dot -o graph.svg `
+`dot -Ksfdp -Tsvg graph.dot -o graph.svg`
 
 ### Build
 
@@ -161,6 +176,9 @@ Using the npm script `repl`, or `minotor repl` if the project is installed globa
 ### End-to-End Tests
 
 - `e2e`: runs end-to-end tests, using a real data from a day in the Swiss GTFS dataset
+
+### Performance Tests
+
 - `perf`: runs a basic performance test, using a real data from a day in the Swiss GTFS dataset
 
 Note that performance tests are not included in the CI pipeline and must be run manually.
@@ -177,22 +195,6 @@ Note that performance tests are not included in the CI pipeline and must be run 
 
 Releases are automatically published to npm when merging to the `main` or `beta` (pre-release) branch.
 
-## Roadmap
+## Roadmap and requests
 
-The project is under active development. Here are some of the features that are planned (ordered by priority).
-Contact [the author](https://aubry.io/) for feature requests.
-
-- Route/Trip-based transfer support
-- Favor shorter trips with less transfers in case of tie
-- Arrive-by support
-- Range queries
-- Transfer preferences
-- Route/Trip metadata support
-- Routing filters based on metadata e.g. bicycle support, wheelchair access
-- More routing options (slower/faster transfers, etc.)
-- Improved stop search (sort by stop importance)
-- Real-time timetable support (tripId/routeId mapping)
-- Support for exporting a calendar range as opposed to a single day
-- Support for GTFS `frequencies.txt`
-- Load multiple GTFS archives at once
-- NeTEx support
+The project is under active development, use github issues for reporting bugs and requesting features (make sure to not create duplicates and follow the templates). For custom development, consulting, integrations, or other special requests, feel free to contact [the author](https://aubry.io/).
