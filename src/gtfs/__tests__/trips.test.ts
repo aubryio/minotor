@@ -9,14 +9,13 @@ import { ServiceRoute } from '../../timetable/timetable.js';
 import { GtfsRoutesMap } from '../routes.js';
 import { ServiceIds } from '../services.js';
 import { GtfsStopsMap } from '../stops.js';
-import { TransfersMap, TripContinuationsMap } from '../transfers.js';
+import { TransfersMap } from '../transfers.js';
 import {
   buildStopsAdjacencyStructure,
   encodePickUpDropOffTypes,
   GtfsTripIdsMap,
   parseStopTimes,
   parseTrips,
-  TripsMapping,
 } from '../trips.js';
 
 describe('buildStopsAdjacencyStructure', () => {
@@ -47,18 +46,15 @@ describe('buildStopsAdjacencyStructure', () => {
     const transfersMap: TransfersMap = new Map([
       [0, [{ destination: 1, type: 'RECOMMENDED' }]],
     ]);
-    const tripContinuationsMap: TripContinuationsMap = new Map();
+
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
-    const tripsMapping: TripsMapping = new Map();
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      tripsMapping,
       serviceRoutes,
       routes,
       transfersMap,
-      tripContinuationsMap,
       2,
       validStops,
     );
@@ -113,18 +109,14 @@ describe('buildStopsAdjacencyStructure', () => {
     const transfersMap: TransfersMap = new Map([
       [3, [{ destination: 2, type: 'RECOMMENDED' }]],
     ]);
-    const tripContinuationsMap: TripContinuationsMap = new Map();
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
-    const tripsMapping: TripsMapping = new Map();
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      tripsMapping,
       serviceRoutes,
       routes,
       transfersMap,
-      tripContinuationsMap,
       4,
       validStops,
     );
@@ -193,23 +185,14 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map();
-    const tripContinuationsMap: TripContinuationsMap = new Map([
-      [0, [{ fromTrip: 'trip1', toTrip: 'trip2', hopOnStop: 1 }]],
-    ]);
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
-    const tripsMapping: TripsMapping = new Map([
-      ['trip1', { routeId: 0, tripRouteIndex: 0 }],
-      ['trip2', { routeId: 1, tripRouteIndex: 0 }],
-    ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      tripsMapping,
       serviceRoutes,
       routes,
       transfersMap,
-      tripContinuationsMap,
       2,
       validStops,
     );
@@ -219,9 +202,6 @@ describe('buildStopsAdjacencyStructure', () => {
         0,
         {
           routes: [0],
-          tripContinuations: new Map([
-            [0, [{ hopOnStop: 1, routeId: 1, tripIndex: 0 }]],
-          ]),
         },
       ],
       [
@@ -253,25 +233,14 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map();
-    const tripContinuationsMap: TripContinuationsMap = new Map([
-      [
-        0,
-        [{ fromTrip: 'invalid_trip', toTrip: 'invalid_trip2', hopOnStop: 1 }],
-      ],
-    ]);
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
-    const tripsMapping: TripsMapping = new Map([
-      ['trip1', { routeId: 0, tripRouteIndex: 0 }],
-    ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      tripsMapping,
       serviceRoutes,
       routes,
       transfersMap,
-      tripContinuationsMap,
       1,
       validStops,
     );
@@ -281,7 +250,6 @@ describe('buildStopsAdjacencyStructure', () => {
         0,
         {
           routes: [0],
-          tripContinuations: new Map(),
         },
       ],
     ]);
@@ -307,24 +275,15 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map();
-    const tripContinuationsMap: TripContinuationsMap = new Map([
-      [2, [{ fromTrip: 'trip1', toTrip: 'trip2', hopOnStop: 3 }]], // Stop 2 and 3 are inactive
-    ]);
     const serviceRoutes: ServiceRoute[] = [
       { type: 'BUS', name: 'B1', routes: [] },
     ];
-    const tripsMapping: TripsMapping = new Map([
-      ['trip1', { routeId: 0, tripRouteIndex: 0 }],
-      ['trip2', { routeId: 0, tripRouteIndex: 1 }],
-    ]);
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      tripsMapping,
       serviceRoutes,
       routes,
       transfersMap,
-      tripContinuationsMap,
-      4, // 4 stops total but only stop 0 is active
+      4,
       validStops,
     );
 

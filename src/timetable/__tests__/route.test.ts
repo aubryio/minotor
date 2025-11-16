@@ -95,34 +95,6 @@ describe('Route', () => {
     });
   });
 
-  describe('isBefore', () => {
-    it('should return true when stopA is before stopB', () => {
-      assert.strictEqual(route.isBefore(1001, 1002), true);
-    });
-
-    it('should return false when stopA is after stopB', () => {
-      assert.strictEqual(route.isBefore(1002, 1001), false);
-    });
-
-    it('should return false when stopA equals stopB', () => {
-      assert.strictEqual(route.isBefore(1001, 1001), false);
-    });
-
-    it('should throw error when stopA is not found', () => {
-      assert.throws(
-        () => route.isBefore(9999, 1002),
-        /Stop index not found for 9999 in route 0/,
-      );
-    });
-
-    it('should throw error when stopB is not found', () => {
-      assert.throws(
-        () => route.isBefore(1001, 9999),
-        /Stop index not found for 9999 in route 0/,
-      );
-    });
-  });
-
   describe('getNbStops', () => {
     it('should return correct number of stops', () => {
       assert.strictEqual(route.getNbStops(), 2);
@@ -136,178 +108,192 @@ describe('Route', () => {
   });
 
   describe('arrivalAt', () => {
-    it('should return correct arrival time for trip 0 at stop 1001', () => {
-      const arrival = route.arrivalAt(1001, 0);
+    it('should return correct arrival time for trip 0 at stop index 0', () => {
+      const arrival = route.arrivalAt(0, 0);
       assert.strictEqual(
         arrival.toMinutes(),
         Time.fromHMS(8, 0, 0).toMinutes(),
       );
     });
 
-    it('should return correct arrival time for trip 1 at stop 1002', () => {
-      const arrival = route.arrivalAt(1002, 1);
+    it('should return correct arrival time for trip 1 at stop index 1', () => {
+      const arrival = route.arrivalAt(1, 1);
       assert.strictEqual(
         arrival.toMinutes(),
         Time.fromHMS(9, 30, 0).toMinutes(),
       );
     });
 
-    it('should throw error for invalid stop ID', () => {
+    it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.arrivalAt(9999, 0),
-        /Stop index for 9999 not found in route 0/,
+        () => route.arrivalAt(999, 0),
+        /StopId for stop at index 999 not found/,
       );
     });
 
     it('should throw error for invalid trip index', () => {
-      assert.throws(
-        () => route.arrivalAt(1001, 999),
-        /Arrival time not found for stop 1001 at trip index 999/,
-      );
+      assert.throws(() => route.arrivalAt(0, 999), /Arrival time not found/);
     });
   });
 
   describe('departureFrom', () => {
-    it('should return correct departure time for trip 0 at stop 1001', () => {
-      const departure = route.departureFrom(1001, 0);
+    it('should return correct departure time for trip 0 at stop index 0', () => {
+      const departure = route.departureFrom(0, 0);
       assert.strictEqual(
         departure.toMinutes(),
         Time.fromHMS(8, 1, 0).toMinutes(),
       );
     });
 
-    it('should return correct departure time for trip 2 at stop 1002', () => {
-      const departure = route.departureFrom(1002, 2);
+    it('should return correct departure time for trip 2 at stop index 1', () => {
+      const departure = route.departureFrom(1, 2);
       assert.strictEqual(
         departure.toMinutes(),
         Time.fromHMS(10, 31, 0).toMinutes(),
       );
     });
 
-    it('should throw error for invalid stop ID', () => {
+    it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.departureFrom(9999, 0),
-        /Stop index for 9999 not found in route 0/,
+        () => route.departureFrom(999, 0),
+        /StopId for stop at index 999 not found/,
       );
     });
 
     it('should throw error for invalid trip index', () => {
       assert.throws(
-        () => route.departureFrom(1001, 999),
-        /Departure time not found for stop 1001 at trip index 999/,
+        () => route.departureFrom(0, 999),
+        /Departure time not found/,
       );
     });
   });
 
   describe('pickUpTypeFrom', () => {
-    it('should return REGULAR pickup type for trip 0 at stop 1001', () => {
-      const pickUpType = route.pickUpTypeFrom(1001, 0);
+    it('should return REGULAR pickup type for trip 0 at stop index 0', () => {
+      const pickUpType = route.pickUpTypeFrom(0, 0);
       assert.strictEqual(pickUpType, 'REGULAR');
     });
 
-    it('should return NOT_AVAILABLE pickup type for trip 0 at stop 1002', () => {
-      const pickUpType = route.pickUpTypeFrom(1002, 0);
+    it('should return NOT_AVAILABLE pickup type for trip 0 at stop index 1', () => {
+      const pickUpType = route.pickUpTypeFrom(1, 0);
       assert.strictEqual(pickUpType, 'NOT_AVAILABLE');
     });
 
-    it('should return MUST_PHONE_AGENCY pickup type for trip 2 at stop 1001', () => {
-      const pickUpType = route.pickUpTypeFrom(1001, 2);
+    it('should return MUST_PHONE_AGENCY pickup type for trip 2 at stop index 0', () => {
+      const pickUpType = route.pickUpTypeFrom(0, 2);
       assert.strictEqual(pickUpType, 'MUST_PHONE_AGENCY');
     });
 
-    it('should throw error for invalid stop ID', () => {
+    it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.pickUpTypeFrom(9999, 0),
-        /Stop index for 9999 not found in route 0/,
+        () => route.pickUpTypeFrom(999, 0),
+        /StopId for stop at index 999 not found/,
       );
     });
 
     it('should throw error for invalid trip index', () => {
       assert.throws(
-        () => route.pickUpTypeFrom(1001, 999),
-        /Pick up type not found for stop 1001 at trip index 999/,
+        () => route.pickUpTypeFrom(0, 999),
+        /Pick up type not found/,
       );
     });
   });
 
   describe('dropOffTypeAt', () => {
-    it('should return REGULAR drop off type for trip 0 at stop 1001', () => {
-      const dropOffType = route.dropOffTypeAt(1001, 0);
+    it('should return REGULAR drop off type for trip 0 at stop index 0', () => {
+      const dropOffType = route.dropOffTypeAt(0, 0);
       assert.strictEqual(dropOffType, 'REGULAR');
     });
 
-    it('should return REGULAR drop off type for trip 1 at stop 1002', () => {
-      const dropOffType = route.dropOffTypeAt(1002, 1);
+    it('should return REGULAR drop off type for trip 1 at stop index 1', () => {
+      const dropOffType = route.dropOffTypeAt(1, 1);
       assert.strictEqual(dropOffType, 'REGULAR');
     });
 
-    it('should throw error for invalid stop ID', () => {
+    it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.dropOffTypeAt(9999, 0),
-        /Stop index for 9999 not found in route 0/,
+        () => route.dropOffTypeAt(999, 0),
+        /StopId for stop at index 999 not found/,
       );
     });
 
     it('should throw error for invalid trip index', () => {
       assert.throws(
-        () => route.dropOffTypeAt(1001, 999),
-        /Drop off type not found for stop 1001 at trip index 999/,
+        () => route.dropOffTypeAt(0, 999),
+        /Drop off type not found/,
       );
     });
   });
 
   describe('findEarliestTrip', () => {
     it('should find earliest trip without time constraint', () => {
-      const tripIndex = route.findEarliestTrip(1001);
+      const tripIndex = route.findEarliestTrip(0);
       assert.strictEqual(tripIndex, 0);
     });
 
     it('should find earliest trip after specified time', () => {
       const afterTime = Time.fromHMS(8, 30, 0);
-      const tripIndex = route.findEarliestTrip(1001, afterTime);
+      const tripIndex = route.findEarliestTrip(0, afterTime);
       assert.strictEqual(tripIndex, 1);
     });
 
     it('should find earliest trip with exact match time', () => {
       const afterTime = Time.fromHMS(9, 1, 0);
-      const tripIndex = route.findEarliestTrip(1001, afterTime);
+      const tripIndex = route.findEarliestTrip(0, afterTime);
       assert.strictEqual(tripIndex, 1);
     });
 
     it('should return undefined when no trip is available after specified time', () => {
       const afterTime = Time.fromHMS(23, 0, 0);
-      const tripIndex = route.findEarliestTrip(1001, afterTime);
+      const tripIndex = route.findEarliestTrip(0, afterTime);
       assert.strictEqual(tripIndex, undefined);
     });
 
     it('should skip trips where pickup is not available', () => {
-      const tripIndex = route.findEarliestTrip(1002);
-      // Trip 0 has NOT_AVAILABLE pickup at stop 1002, so should return trip 1
+      const tripIndex = route.findEarliestTrip(1);
+      // Trip 0 has NOT_AVAILABLE pickup at stop index 1, so should return trip 1
       assert.strictEqual(tripIndex, 1);
     });
 
     it('should respect beforeTrip constraint', () => {
-      const tripIndex = route.findEarliestTrip(1001, Time.fromHMS(8, 2, 0), 1);
+      const tripIndex = route.findEarliestTrip(0, Time.fromHMS(8, 2, 0), 1);
       assert.strictEqual(tripIndex, undefined);
     });
 
     it('should return undefined when beforeTrip is 0', () => {
-      const tripIndex = route.findEarliestTrip(1001, Time.origin(), 0);
+      const tripIndex = route.findEarliestTrip(0, Time.origin(), 0);
       assert.strictEqual(tripIndex, undefined);
     });
 
     it('should handle MUST_PHONE_AGENCY pickup type', () => {
       const afterTime = Time.fromHMS(9, 30, 0);
-      const tripIndex = route.findEarliestTrip(1001, afterTime);
+      const tripIndex = route.findEarliestTrip(0, afterTime);
       // Should find trip 2 even though it requires phone agency
       assert.strictEqual(tripIndex, 2);
     });
 
-    it('should throw error for invalid stop ID', () => {
+    it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.findEarliestTrip(9999),
-        /Stop index for 9999 not found in route 0/,
+        () => route.findEarliestTrip(999),
+        /StopId for stop at index 999 not found/,
       );
+    });
+  });
+
+  describe('stopRouteIndices', () => {
+    it('should return correct stop route indices for existing stop', () => {
+      const indices = route.stopRouteIndices(1001);
+      assert.deepStrictEqual(indices, [0]);
+    });
+
+    it('should return correct stop route indices for second stop', () => {
+      const indices = route.stopRouteIndices(1002);
+      assert.deepStrictEqual(indices, [1]);
+    });
+
+    it('should return empty array for non-existent stop', () => {
+      const indices = route.stopRouteIndices(9999);
+      assert.deepStrictEqual(indices, []);
     });
   });
 });

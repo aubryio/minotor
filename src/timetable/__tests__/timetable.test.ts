@@ -11,7 +11,7 @@ import {
   Timetable,
   TripBoarding,
 } from '../timetable.js';
-import { encode } from '../tripId.js';
+import { encode } from '../tripBoardingId.js';
 
 describe('Timetable', () => {
   const stopsAdjacency: StopAdjacency[] = [
@@ -100,6 +100,7 @@ describe('Timetable', () => {
     stopsAdjacency,
     routesAdjacency,
     routes,
+    new Map(),
   );
 
   it('should serialize a timetable to a Uint8Array', () => {
@@ -116,7 +117,7 @@ describe('Timetable', () => {
   it('should find the earliest trip for stop1 on route1', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute(0)!;
-    const tripIndex = route.findEarliestTrip(1);
+    const tripIndex = route.findEarliestTrip(0);
     assert.strictEqual(tripIndex, 0);
   });
 
@@ -124,7 +125,7 @@ describe('Timetable', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute(0)!;
     const afterTime = Time.fromHMS(17, 0, 0);
-    const tripIndex = route.findEarliestTrip(1, afterTime);
+    const tripIndex = route.findEarliestTrip(0, afterTime);
     assert.strictEqual(tripIndex, 1);
   });
 
@@ -132,13 +133,13 @@ describe('Timetable', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute(0)!;
     const afterTime = Time.fromHMS(23, 40, 0);
-    const tripIndex = route.findEarliestTrip(1, afterTime);
+    const tripIndex = route.findEarliestTrip(0, afterTime);
     assert.strictEqual(tripIndex, undefined);
   });
   it('should return undefined if the stop on a trip has pick up not available', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute(0)!;
-    const tripIndex = route.findEarliestTrip(2);
+    const tripIndex = route.findEarliestTrip(1);
     assert.strictEqual(tripIndex, 1);
   });
   describe('findReachableRoutes', () => {
@@ -149,7 +150,7 @@ describe('Timetable', () => {
       assert.deepStrictEqual(
         reachableRoutes,
         new Map([
-          [route1, 1],
+          [route1, 0],
           [route2, 1],
         ]),
       );
@@ -163,8 +164,8 @@ describe('Timetable', () => {
       assert.deepStrictEqual(
         reachableRoutes,
         new Map([
-          [route1, 1],
-          [route2, 2],
+          [route1, 0],
+          [route2, 0],
         ]),
       );
     });
@@ -201,7 +202,7 @@ describe('Timetable', () => {
       assert.deepStrictEqual(
         railRoutes,
         new Map([
-          [route1, 1],
+          [route1, 0],
           [route2, 1],
         ]),
       );
@@ -226,33 +227,34 @@ describe('Timetable', () => {
       const fromStops = new Set([1, 2]); // Both stops are on route1
       const reachableRoutes = sampleTimetable.findReachableRoutes(fromStops);
 
-      // route1 should use stop 1 (earlier on the route than stop 2)
-      // route2 should use stop 2 (earlier on route2 which has [2, 1])
+      // route1 should use stop index 0 (stop 1 comes before stop 2 on route1)
+      // route2 should use stop index 0 (stop 2 comes before stop 1 on route2)
       assert.strictEqual(reachableRoutes.size, 2);
       assert.deepStrictEqual(
         reachableRoutes,
         new Map([
-          [route1, 1], // Stop 1 comes before stop 2 on route1
-          [route2, 2], // Stop 2 comes before stop 1 on route2
+          [route1, 0], // Stop index 0 (stop 1) comes before stop index 1 (stop 2) on route1
+          [route2, 0], // Stop index 0 (stop 2) comes before stop index 1 (stop 1) on route2
         ]),
       );
     });
 
     describe('getContinuousTrips', () => {
       it('should return empty array when stop has no trip continuations', () => {
-        const continuousTrips = sampleTimetable.getContinuousTrips(1, 0, 0);
+        const continuousTrips = sampleTimetable.getContinuousTrips(0, 0, 0);
         assert.deepStrictEqual(continuousTrips, []);
       });
 
       it('should return empty array when stop has trip continuations but not for the specified trip', () => {
         // Create a timetable with trip continuations that don't match the query
+        const tripContinuationsMap = new Map([
+          [encode(0, 0, 1), [{ hopOnStopIndex: 0, routeId: 1, tripIndex: 0 }]], // Different trip index
+        ]);
+
         const stopsWithContinuations: StopAdjacency[] = [
           { routes: [] },
           {
             routes: [0, 1],
-            tripContinuations: new Map([
-              [encode(0, 1), [{ hopOnStop: 2, routeId: 1, tripIndex: 0 }]], // Different trip index
-            ]),
           },
           { routes: [1] },
         ];
@@ -261,10 +263,11 @@ describe('Timetable', () => {
           stopsWithContinuations,
           routesAdjacency,
           routes,
+          tripContinuationsMap,
         );
 
         const continuousTrips = timetableWithContinuations.getContinuousTrips(
-          1,
+          0,
           0,
           0,
         ); // Query trip index 0, but continuations are for trip index 1
@@ -273,17 +276,18 @@ describe('Timetable', () => {
 
       it('should return trip continuations when they exist for the specified trip', () => {
         const expectedContinuations: TripBoarding[] = [
-          { hopOnStop: 2, routeId: 1, tripIndex: 0 },
-          { hopOnStop: 2, routeId: 1, tripIndex: 1 },
+          { hopOnStopIndex: 0, routeId: 1, tripIndex: 0 },
+          { hopOnStopIndex: 0, routeId: 1, tripIndex: 1 },
         ];
+
+        const tripContinuationsMap = new Map([
+          [encode(0, 0, 0), expectedContinuations],
+        ]);
 
         const stopsWithContinuations: StopAdjacency[] = [
           { routes: [] },
           {
             routes: [0, 1],
-            tripContinuations: new Map([
-              [encode(0, 0), expectedContinuations], // Trip continuations for route 0, trip 0
-            ]),
           },
           { routes: [1] },
         ];
@@ -292,21 +296,20 @@ describe('Timetable', () => {
           stopsWithContinuations,
           routesAdjacency,
           routes,
+          tripContinuationsMap,
         );
 
         const continuousTrips = timetableWithContinuations.getContinuousTrips(
-          1,
+          0,
           0,
           0,
         );
         assert.deepStrictEqual(continuousTrips, expectedContinuations);
       });
 
-      it('should throw error when querying non-existent stop', () => {
-        assert.throws(
-          () => sampleTimetable.getContinuousTrips(999, 0, 0),
-          /Stop ID 999 not found/,
-        );
+      it('should return empty array when querying with non-matching parameters', () => {
+        const continuousTrips = sampleTimetable.getContinuousTrips(999, 0, 0);
+        assert.deepStrictEqual(continuousTrips, []);
       });
     });
   });
