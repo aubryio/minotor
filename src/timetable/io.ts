@@ -16,7 +16,9 @@ import {
   Transfer,
   TransferType,
   TripBoarding,
+  TripContinuations,
 } from './timetable.js';
+import { decode, encode, TripBoardingId } from './tripBoardingId.js';
 
 export type SerializedRoute = {
   stopTimes: Uint16Array;
@@ -137,9 +139,6 @@ export const serializeStopsAdjacency = (
           }))
         : [],
       routes: value.routes,
-      tripContinuations: value.tripContinuations
-        ? serializeTripContinuations(value.tripContinuations)
-        : [],
     };
   });
 };
@@ -203,13 +202,6 @@ export const deserializeStopsAdjacency = (
 
     if (transfers.length > 0) {
       stopAdjacency.transfers = transfers;
-    }
-
-    const deserializedTripContinuations = deserializeTripContinuations(
-      value.tripContinuations,
-    );
-    if (deserializedTripContinuations.size > 0) {
-      stopAdjacency.tripContinuations = deserializedTripContinuations;
     }
 
     result.push(stopAdjacency);
@@ -341,15 +333,19 @@ const serializeRouteType = (type: RouteType): ProtoRouteType => {
 };
 
 export const serializeTripContinuations = (
-  tripContinuations: Map<number, TripBoarding[]>,
+  tripContinuations: TripContinuations,
 ): ProtoTripContinuationEntry[] => {
   const result: ProtoTripContinuationEntry[] = [];
+  for (const [tripBoardingId, boardings] of tripContinuations.entries()) {
+    const [originStopIndex, originRouteId, originTripIndex] =
+      decode(tripBoardingId);
 
-  for (const [key, value] of tripContinuations.entries()) {
     result.push({
-      key: key,
-      value: value.map((tripBoarding) => ({
-        hopOnStop: tripBoarding.hopOnStop,
+      originStopIndex,
+      originRouteId,
+      originTripIndex,
+      continuations: boardings.map((tripBoarding) => ({
+        hopOnStopIndex: tripBoarding.hopOnStopIndex,
         routeId: tripBoarding.routeId,
         tripIndex: tripBoarding.tripIndex,
       })),
@@ -361,21 +357,26 @@ export const serializeTripContinuations = (
 
 export const deserializeTripContinuations = (
   protoTripContinuations: ProtoTripContinuationEntry[],
-): Map<number, TripBoarding[]> => {
-  const result = new Map<number, TripBoarding[]>();
+): TripContinuations => {
+  const result = new Map<TripBoardingId, TripBoarding[]>();
 
   for (let i = 0; i < protoTripContinuations.length; i++) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const entry = protoTripContinuations[i]!;
-    const tripBoardings: TripBoarding[] = entry.value.map(
+    const tripBoardingId = encode(
+      entry.originStopIndex,
+      entry.originRouteId,
+      entry.originTripIndex,
+    );
+    const tripBoardings: TripBoarding[] = entry.continuations.map(
       (protoTripBoarding) => ({
-        hopOnStop: protoTripBoarding.hopOnStop,
+        hopOnStopIndex: protoTripBoarding.hopOnStopIndex,
         routeId: protoTripBoarding.routeId,
         tripIndex: protoTripBoarding.tripIndex,
       }),
     );
 
-    result.set(entry.key, tripBoardings);
+    result.set(tripBoardingId, tripBoardings);
   }
 
   return result;

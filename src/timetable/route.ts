@@ -94,7 +94,7 @@ export class Route {
    *   ...
    * }
    */
-  private readonly stopIndices: Map<StopId, StopRouteIndex>;
+  private readonly stopIndices: Map<StopId, StopRouteIndex[]>;
   /**
    * The identifier of the route as a service shown to users.
    */
@@ -124,10 +124,16 @@ export class Route {
     this.serviceRouteId = serviceRouteId;
     this.nbStops = stops.length;
     this.nbTrips = this.stopTimes.length / (this.stops.length * 2);
-    this.stopIndices = new Map<StopId, StopRouteIndex>();
+    this.stopIndices = new Map<StopId, StopRouteIndex[]>();
     for (let i = 0; i < stops.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      this.stopIndices.set(stops[i]!, i);
+      const stopId = stops[i]!;
+      const existingIndices = this.stopIndices.get(stopId);
+      if (existingIndices) {
+        existingIndices.push(i);
+      } else {
+        this.stopIndices.set(stopId, [i]);
+      }
     }
   }
 
@@ -247,29 +253,6 @@ export class Route {
   }
 
   /**
-   * Checks if stop A is before stop B in the route.
-   *
-   * @param stopA - The StopId of the first stop.
-   * @param stopB - The StopId of the second stop.
-   * @returns True if stop A is before stop B, false otherwise.
-   */
-  isBefore(stopA: StopId, stopB: StopId): boolean {
-    const stopAIndex = this.stopIndices.get(stopA);
-    if (stopAIndex === undefined) {
-      throw new Error(
-        `Stop index not found for ${stopA} in route ${this.serviceRouteId}`,
-      );
-    }
-    const stopBIndex = this.stopIndices.get(stopB);
-    if (stopBIndex === undefined) {
-      throw new Error(
-        `Stop index not found for ${stopB} in route ${this.serviceRouteId}`,
-      );
-    }
-    return stopAIndex < stopBIndex;
-  }
-
-  /**
    * Retrieves the number of stops in the route.
    *
    * @returns The total number of stops in the route.
@@ -300,17 +283,16 @@ export class Route {
   /**
    * Retrieves the arrival time at a specific stop for a given trip.
    *
-   * @param stopId - The identifier of the stop.
+   * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
    * @returns The arrival time at the specified stop and trip as a Time object.
    */
-  arrivalAt(stopId: StopId, tripIndex: TripRouteIndex): Time {
-    const arrivalIndex =
-      (tripIndex * this.stops.length + this.stopRouteIndex(stopId)) * 2;
+  arrivalAt(stopIndex: StopRouteIndex, tripIndex: TripRouteIndex): Time {
+    const arrivalIndex = (tripIndex * this.stops.length + stopIndex) * 2;
     const arrival = this.stopTimes[arrivalIndex];
     if (arrival === undefined) {
       throw new Error(
-        `Arrival time not found for stop ${stopId} at trip index ${tripIndex} in route ${this.serviceRouteId}`,
+        `Arrival time not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
     return Time.fromMinutes(arrival);
@@ -319,17 +301,16 @@ export class Route {
   /**
    * Retrieves the departure time at a specific stop for a given trip.
    *
-   * @param stopId - The identifier of the stop.
+   * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
    * @returns The departure time at the specified stop and trip as a Time object.
    */
-  departureFrom(stopId: StopId, tripIndex: TripRouteIndex): Time {
-    const departureIndex =
-      (tripIndex * this.stops.length + this.stopRouteIndex(stopId)) * 2 + 1;
+  departureFrom(stopIndex: StopRouteIndex, tripIndex: TripRouteIndex): Time {
+    const departureIndex = (tripIndex * this.stops.length + stopIndex) * 2 + 1;
     const departure = this.stopTimes[departureIndex];
     if (departure === undefined) {
       throw new Error(
-        `Departure time not found for stop ${stopId} at trip index ${tripIndex} in route ${this.serviceRouteId}`,
+        `Departure time not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
     return Time.fromMinutes(departure);
@@ -338,20 +319,22 @@ export class Route {
   /**
    * Retrieves the pick-up type for a specific stop and trip.
    *
-   * @param stopId - The identifier of the stop.
+   * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
    * @returns The pick-up type at the specified stop and trip.
    */
-  pickUpTypeFrom(stopId: StopId, tripIndex: TripRouteIndex): PickUpDropOffType {
-    const globalIndex =
-      tripIndex * this.stops.length + this.stopRouteIndex(stopId);
+  pickUpTypeFrom(
+    stopIndex: StopRouteIndex,
+    tripIndex: TripRouteIndex,
+  ): PickUpDropOffType {
+    const globalIndex = tripIndex * this.stops.length + stopIndex;
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
 
     const byte = this.pickUpDropOffTypes[byteIndex];
     if (byte === undefined) {
       throw new Error(
-        `Pick up type not found for stop ${stopId} at trip index ${tripIndex} in route ${this.serviceRouteId}`,
+        `Pick up type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
 
@@ -364,20 +347,22 @@ export class Route {
   /**
    * Retrieves the drop-off type for a specific stop and trip.
    *
-   * @param stopId - The identifier of the stop.
+   * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
    * @returns The drop-off type at the specified stop and trip.
    */
-  dropOffTypeAt(stopId: StopId, tripIndex: TripRouteIndex): PickUpDropOffType {
-    const globalIndex =
-      tripIndex * this.stops.length + this.stopRouteIndex(stopId);
+  dropOffTypeAt(
+    stopIndex: StopRouteIndex,
+    tripIndex: TripRouteIndex,
+  ): PickUpDropOffType {
+    const globalIndex = tripIndex * this.stops.length + stopIndex;
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
 
     const byte = this.pickUpDropOffTypes[byteIndex];
     if (byte === undefined) {
       throw new Error(
-        `Drop off type not found for stop ${stopId} at trip index ${tripIndex} in route ${this.serviceRouteId}`,
+        `Drop off type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
 
@@ -392,7 +377,7 @@ export class Route {
    * optionally constrained by a latest trip index and a time before which the trip
    * should not depart.
    * *
-   * @param stopId - The StopId of the stop where the trip should be found.
+   * @param stopIndex - The route index of the stop where the trip should be found.
    * @param [after=Time.origin()] - The earliest time after which the trip should depart.
    *                                    If not provided, searches all available trips.
    * @param [beforeTrip] - (Optional) The index of the trip before which the search should be constrained.
@@ -400,7 +385,7 @@ export class Route {
    * @returns The index of the earliest trip meeting the criteria, or undefined if no such trip is found.
    */
   findEarliestTrip(
-    stopId: StopId,
+    stopIndex: StopRouteIndex,
     after: Time = Time.origin(),
     beforeTrip?: TripRouteIndex,
   ): TripRouteIndex | undefined {
@@ -414,7 +399,7 @@ export class Route {
     let lb = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >>> 1;
-      const depMid = this.departureFrom(stopId, mid);
+      const depMid = this.departureFrom(stopIndex, mid);
       if (depMid.isBefore(after)) {
         lo = mid + 1;
       } else {
@@ -425,7 +410,7 @@ export class Route {
     if (lb === -1) return undefined;
 
     for (let t = lb; t < (beforeTrip ?? this.nbTrips); t++) {
-      const pickup = this.pickUpTypeFrom(stopId, t);
+      const pickup = this.pickUpTypeFrom(stopIndex, t);
       if (pickup !== 'NOT_AVAILABLE') {
         return t;
       }
@@ -434,16 +419,14 @@ export class Route {
   }
 
   /**
-   * Retrieves the index of a stop within the route.
+   * Retrieves the indices of a stop within the route.
    * @param stopId The StopId of the stop to locate in the route.
-   * @returns The index of the stop in the route.
+   * @returns An array of indices where the stop appears in the route, or an empty array if the stop is not found.
    */
-  public stopRouteIndex(stopId: StopId): StopRouteIndex {
+  public stopRouteIndices(stopId: StopId): StopRouteIndex[] {
     const stopIndex = this.stopIndices.get(stopId);
     if (stopIndex === undefined) {
-      throw new Error(
-        `Stop index for ${stopId} not found in route ${this.serviceRouteId}`,
-      );
+      return [];
     }
     return stopIndex;
   }

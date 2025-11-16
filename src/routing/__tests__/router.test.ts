@@ -10,9 +10,9 @@ import {
   ServiceRoute,
   StopAdjacency,
   Timetable,
-  TripBoarding,
+  TripContinuations,
 } from '../../timetable/timetable.js';
-import { encode } from '../../timetable/tripId.js';
+import { encode } from '../../timetable/tripBoardingId.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
 import { Router } from '../router.js';
@@ -654,17 +654,14 @@ describe('Router', () => {
 
     beforeEach(() => {
       // Setup: Route 0 continues as Route 1 at stop 1
-      const tripContinuations: TripBoarding[] = [
-        { hopOnStop: 1, routeId: 1, tripIndex: 0 },
-      ];
+      const tripContinuations: TripContinuations = new Map([
+        [encode(1, 0, 0), [{ hopOnStopIndex: 1, routeId: 1, tripIndex: 0 }]],
+      ]);
 
       const stopsAdjacency: StopAdjacency[] = [
         { routes: [0] },
         {
           routes: [0, 1],
-          tripContinuations: new Map([
-            [encode(0, 0), tripContinuations], // Route 0, trip 0 continues as route 1
-          ]),
         },
         { routes: [1] },
         { routes: [1] },
@@ -733,7 +730,12 @@ describe('Router', () => {
         },
       ];
 
-      timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
+      timetable = new Timetable(
+        stopsAdjacency,
+        routesAdjacency,
+        routes,
+        tripContinuations,
+      );
 
       const stops: Stop[] = [
         {

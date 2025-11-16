@@ -7,13 +7,15 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
+  deserializeTripContinuations,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
+  serializeTripContinuations,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
-import { Route, RouteId, TripRouteIndex } from './route.js';
-import { encode, TripId } from './tripId.js';
+import { Route, RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
+import { encode, TripBoardingId } from './tripBoardingId.js';
 
 export type TransferType =
   | 'RECOMMENDED'
@@ -28,16 +30,17 @@ export type Transfer = {
 };
 
 export type TripBoarding = {
-  hopOnStop: StopId;
+  hopOnStopIndex: StopRouteIndex;
   routeId: RouteId;
   tripIndex: TripRouteIndex;
 };
 
 export type StopAdjacency = {
   transfers?: Transfer[];
-  tripContinuations?: Map<TripId, TripBoarding[]>;
   routes: RouteId[];
 };
+
+export type TripContinuations = Map<TripBoardingId, TripBoarding[]>;
 
 export type ServiceRouteId = number;
 
@@ -78,7 +81,7 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
 
 const EMPTY_TRIP_CONTINUATIONS: TripBoarding[] = [];
 
-export const CURRENT_VERSION = '0.0.8';
+export const CURRENT_VERSION = '0.0.9';
 
 /**
  * The internal transit timetable format.
@@ -87,23 +90,25 @@ export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
   private readonly serviceRoutes: ServiceRoute[];
+  private readonly tripContinuations?: TripContinuations;
   private readonly activeStops: Set<StopId>;
 
   constructor(
     stopsAdjacency: StopAdjacency[],
     routesAdjacency: Route[],
     routes: ServiceRoute[],
+    tripContinuations?: TripContinuations,
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
+    this.tripContinuations = tripContinuations;
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
       if (
         stop.routes.length > 0 ||
-        (stop.transfers && stop.transfers.length > 0) ||
-        (stop.tripContinuations && stop.tripContinuations.size > 0)
+        (stop.transfers && stop.transfers.length > 0)
       ) {
         this.activeStops.add(i);
       }
@@ -121,6 +126,9 @@ export class Timetable {
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
+      tripContinuations: serializeTripContinuations(
+        this.tripContinuations || new Map<TripBoardingId, TripBoarding[]>(),
+      ),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -144,8 +152,8 @@ export class Timetable {
     return new Timetable(
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
-
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
+      deserializeTripContinuations(protoTimetable.tripContinuations),
     );
   }
 
@@ -189,23 +197,23 @@ export class Timetable {
   /**
    * Retrieves all trip continuation options available at the specified stop for a given trip.
    *
-   * @param stopId - The ID of the stop to get trip continuations for.
+   * @param stopIndex - The index in the route of the stop to get trip continuations for.
+   * @param routeId - The ID of the route to get continuations for.
    * @param tripIndex - The index of the trip to get continuations for.
    * @returns An array of trip continuation options available at the stop for the specified trip.
    */
   getContinuousTrips(
-    stopId: StopId,
+    stopIndex: StopRouteIndex,
     routeId: RouteId,
     tripIndex: TripRouteIndex,
   ): TripBoarding[] {
-    const stopAdjacency = this.stopsAdjacency[stopId];
-    if (!stopAdjacency) {
-      throw new Error(`Stop ID ${stopId} not found`);
-    }
-    return (
-      stopAdjacency.tripContinuations?.get(encode(routeId, tripIndex)) ||
-      EMPTY_TRIP_CONTINUATIONS
+    const tripContinuations = this.tripContinuations?.get(
+      encode(stopIndex, routeId, tripIndex),
     );
+    if (!tripContinuations) {
+      return EMPTY_TRIP_CONTINUATIONS;
+    }
+    return tripContinuations;
   }
 
   /**
@@ -250,18 +258,18 @@ export class Timetable {
 
   /**
    * Finds routes that are reachable from a set of stop IDs.
-   * Also identifies the first stop available to hop on each route among
+   * Also identifies the first stop index available to hop on each route among
    * the input stops.
    *
    * @param fromStops - The set of stop IDs to find reachable routes from.
    * @param transportModes - The set of transport modes to consider for reachable routes.
-   * @returns A map of reachable routes to the first stop available to hop on each route.
+   * @returns A map of reachable routes to the first stop index available to hop on each route.
    */
   findReachableRoutes(
     fromStops: Set<StopId>,
     transportModes: Set<RouteType> = ALL_TRANSPORT_MODES,
-  ): Map<Route, StopId> {
-    const reachableRoutes = new Map<Route, StopId>();
+  ): Map<Route, StopRouteIndex> {
+    const reachableRoutes = new Map<Route, StopRouteIndex>();
     const fromStopsArray = Array.from(fromStops);
     for (let i = 0; i < fromStopsArray.length; i++) {
       const originStop = fromStopsArray[i]!;
@@ -273,14 +281,17 @@ export class Timetable {
       );
       for (let j = 0; j < validRoutes.length; j++) {
         const route = validRoutes[j]!;
-        const hopOnStop = reachableRoutes.get(route);
-        if (hopOnStop) {
-          if (route.isBefore(originStop, hopOnStop)) {
+        const originStopIndices = route.stopRouteIndices(originStop);
+        const originStopIndex = originStopIndices[0]!;
+
+        const existingHopOnStopIndex = reachableRoutes.get(route);
+        if (existingHopOnStopIndex !== undefined) {
+          if (originStopIndex < existingHopOnStopIndex) {
             // if the current stop is before the existing hop on stop, replace it
-            reachableRoutes.set(route, originStop);
+            reachableRoutes.set(route, originStopIndex);
           }
         } else {
-          reachableRoutes.set(route, originStop);
+          reachableRoutes.set(route, originStopIndex);
         }
       }
     }

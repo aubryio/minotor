@@ -5,7 +5,6 @@ import fs from 'fs';
 import { Query, Router, StopsIndex, Time, Timetable } from '../router.js';
 import type { Stop } from '../stops/stops.js';
 import { Route } from '../timetable/route.js';
-import type { TripBoarding } from '../timetable/timetable.js';
 import { plotGraphToDotFile } from './utils.js';
 
 export const startRepl = (stopsPath: string, timetablePath: string) => {
@@ -124,7 +123,6 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         if (bestRoute) {
           console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
           console.log(bestRoute.toString());
-          console.log(bestRoute.asJson());
         } else {
           console.log('No route found');
         }
@@ -281,10 +279,11 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         console.log('\n--- Stops ---');
         for (let i = 0; i < route.stops.length; i++) {
           const stopId = route.stopId(i);
-          const stop = stopsIndex.findStopById(stopId);
-          const platform = stop?.platform ? ` (Pl. ${stop.platform})` : '';
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          const stop = stopsIndex.findStopById(stopId)!;
+          const platform = stop.platform ? ` (Pl. ${stop.platform})` : '';
           console.log(
-            `${i + 1}. ${stop?.name ?? 'Unknown'}${platform} (${stopId}, ${stop?.sourceStopId ?? 'N/A'})`,
+            `${i + 1}. ${stop.name}${platform} (${stopId}, ${stop.sourceStopId})`,
           );
         }
 
@@ -293,18 +292,19 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
           console.log(`\nTrip ${tripIndex}:`);
           for (let stopIndex = 0; stopIndex < route.stops.length; stopIndex++) {
             const stopId = route.stopId(stopIndex);
-            const stop = stopsIndex.findStopById(stopId);
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            const stop = stopsIndex.findStopById(stopId)!;
 
-            const departure = route.departureFrom(stopId, tripIndex);
-            const arrival = route.arrivalAt(stopId, tripIndex);
-            const pickupType = route.pickUpTypeFrom(stopId, tripIndex);
-            const dropOffType = route.dropOffTypeAt(stopId, tripIndex);
+            const departure = route.departureFrom(stopIndex, tripIndex);
+            const arrival = route.arrivalAt(stopIndex, tripIndex);
+            const pickupType = route.pickUpTypeFrom(stopIndex, tripIndex);
+            const dropOffType = route.dropOffTypeAt(stopIndex, tripIndex);
 
             const pickupStr = formatPickupDropoffType(pickupType);
             const dropOffStr = formatPickupDropoffType(dropOffType);
 
             console.log(
-              `  ${stopIndex + 1}. ${stop?.name ?? 'Unknown'}: arr ${arrival.toString()} (${pickupStr}) → dep ${departure.toString()} (${dropOffStr})`,
+              `  ${stopIndex + 1}. ${stop.name}: arr ${arrival.toString()} (${pickupStr}) → dep ${departure.toString()} (${dropOffStr})`,
             );
           }
         }
@@ -392,70 +392,56 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         }
 
         let totalContinuations = 0;
-        const continuationsByTrip = new Map<
-          string,
-          {
-            route: Route;
-            tripIndex: number;
-            continuations: TripBoarding[];
-          }
-        >();
+        console.log('\n--- Trip Continuations ---');
 
         routes.forEach((route: Route) => {
+          const serviceRouteInfo = timetable.getServiceRouteInfo(route);
+          const stopIndices = route.stopRouteIndices(stop.id);
+
           for (let tripIndex = 0; tripIndex < route.getNbTrips(); tripIndex++) {
-            const continuations = timetable.getContinuousTrips(
-              stop.id,
-              route.id,
-              tripIndex,
-            );
-            if (continuations.length > 0) {
-              totalContinuations += continuations.length;
-              const tripKey = `${route.id}-${tripIndex}`;
-              continuationsByTrip.set(tripKey, {
-                route,
+            for (const stopIndex of stopIndices) {
+              const continuations = timetable.getContinuousTrips(
+                stopIndex,
+                route.id,
                 tripIndex,
-                continuations,
-              });
+              );
+
+              for (const continuation of continuations) {
+                totalContinuations++;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const destRoute = timetable.getRoute(continuation.routeId)!;
+                const destStopId = destRoute.stopId(
+                  continuation.hopOnStopIndex,
+                );
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const destStop = stopsIndex.findStopById(destStopId)!;
+                const destPlatform = destStop.platform
+                  ? ` (Pl. ${destStop.platform})`
+                  : '';
+
+                const destServiceRouteInfo =
+                  timetable.getServiceRouteInfo(destRoute);
+
+                const originTime = route.departureFrom(stopIndex, tripIndex);
+                const continuationTime = destRoute.departureFrom(
+                  continuation.hopOnStopIndex,
+                  continuation.tripIndex,
+                );
+
+                console.log(
+                  `${totalContinuations}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
+                    `Route ${continuation.routeId} (${destServiceRouteInfo.name}) Trip ${continuation.tripIndex} at ${continuationTime.toString()} ` +
+                    `at ${destStop.name}${destPlatform} (${destStopId}, ${destStop.sourceStopId})`,
+                );
+              }
             }
           }
         });
 
-        console.log(`Number of trip continuations: ${totalContinuations}`);
-
-        if (totalContinuations > 0) {
-          console.log('\n--- Trip Continuations ---');
-          let continuationIndex = 1;
-          for (const [, value] of continuationsByTrip) {
-            const { route, tripIndex, continuations } = value;
-            const serviceRouteInfo = timetable.getServiceRouteInfo(route);
-
-            for (const continuation of continuations) {
-              const destStop = stopsIndex.findStopById(continuation.hopOnStop);
-              const destPlatform = destStop?.platform
-                ? ` (Pl. ${destStop.platform})`
-                : '';
-
-              const destRoute = timetable.getRoute(continuation.routeId);
-              const destServiceRouteInfo = destRoute
-                ? timetable.getServiceRouteInfo(destRoute)
-                : null;
-
-              const originTime = route.departureFrom(stop.id, tripIndex);
-              const continuationTime = destRoute?.departureFrom(
-                continuation.hopOnStop,
-                continuation.tripIndex,
-              );
-              const continuationTimeStr = continuationTime
-                ? ` at ${continuationTime.toString()}`
-                : '';
-              console.log(
-                `${continuationIndex}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
-                  `Route ${continuation.routeId} (${destServiceRouteInfo?.name ?? 'Unknown'}) Trip ${continuation.tripIndex}${continuationTimeStr} ` +
-                  `at ${destStop?.name ?? 'Unknown'}${destPlatform} (${continuation.hopOnStop}, ${destStop?.sourceStopId ?? 'N/A'})`,
-              );
-              continuationIndex++;
-            }
-          }
+        if (totalContinuations === 0) {
+          console.log('No trip continuations found.');
+        } else {
+          console.log(`\nTotal trip continuations: ${totalContinuations}`);
         }
 
         console.log();

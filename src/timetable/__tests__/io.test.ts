@@ -15,6 +15,7 @@ import {
 import { REGULAR, Route } from '../route.js';
 import { Time } from '../time.js';
 import { ServiceRoute, StopAdjacency, TripBoarding } from '../timetable.js';
+import { encode } from '../tripBoardingId.js';
 
 describe('Timetable IO', () => {
   const stopsAdjacency: StopAdjacency[] = [
@@ -63,7 +64,6 @@ describe('Timetable IO', () => {
     {
       transfers: [{ destination: 2, type: 0 }],
       routes: [0],
-      tripContinuations: [],
     },
     {
       transfers: [
@@ -74,7 +74,6 @@ describe('Timetable IO', () => {
         },
       ],
       routes: [1],
-      tripContinuations: [],
     },
   ];
 
@@ -120,12 +119,14 @@ describe('Timetable IO', () => {
   });
 
   it('should serialize and deserialize tripContinuations correctly', () => {
-    const tripContinuations = new Map<number, TripBoarding[]>();
-    tripContinuations.set(0, [
-      { hopOnStop: 1, routeId: 0, tripIndex: 2 },
-      { hopOnStop: 3, routeId: 1, tripIndex: 1 },
+    const tripContinuations = new Map<bigint, TripBoarding[]>();
+    tripContinuations.set(encode(1, 0, 2), [
+      { hopOnStopIndex: 1, routeId: 0, tripIndex: 2 },
+      { hopOnStopIndex: 3, routeId: 1, tripIndex: 1 },
     ]);
-    tripContinuations.set(1, [{ hopOnStop: 2, routeId: 0, tripIndex: 0 }]);
+    tripContinuations.set(encode(2, 0, 0), [
+      { hopOnStopIndex: 2, routeId: 0, tripIndex: 0 },
+    ]);
 
     const serialized = serializeTripContinuations(tripContinuations);
     const deserialized = deserializeTripContinuations(serialized);

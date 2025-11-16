@@ -115,9 +115,9 @@ export class Result {
     const lastRoute = this.timetable.getRoute(lastEdge.routeId)!;
     return {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      from: this.stopsIndex.findStopById(firstEdge.from)!,
+      from: this.stopsIndex.findStopById(firstRoute.stopId(firstEdge.from))!,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      to: this.stopsIndex.findStopById(lastEdge.to)!,
+      to: this.stopsIndex.findStopById(lastRoute.stopId(lastEdge.to))!,
       // The route info comes from the first boarded route in case on continuous trips
       route: this.timetable.getServiceRouteInfo(firstRoute),
       departureTime: firstRoute.departureFrom(

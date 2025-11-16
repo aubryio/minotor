@@ -197,4 +197,4 @@ Releases are automatically published to npm when merging to the `main` or `beta`
 
 ## Roadmap and requests
 
-The project is under active development, use github issues for reporting bugs and requesting features (make sure to not create duplicates and follow the templates). For custom development, consulting, integrations, or other special requests, feel free to contact [the author](https://aubry.io/).
+The project is under active development, use github issues for reporting bugs and requesting features. For custom development, consulting, integrations, or other special requests, feel free to contact [the author](https://aubry.io/).

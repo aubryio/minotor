@@ -14,12 +14,11 @@ import {
   ServiceRouteId,
   StopAdjacency,
 } from '../timetable/timetable.js';
-import { encode } from '../timetable/tripId.js';
 import { GtfsRouteId, GtfsRoutesMap } from './routes.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTime, toTime } from './time.js';
-import { TransfersMap, TripContinuationsMap } from './transfers.js';
+import { TransfersMap } from './transfers.js';
 import { hashIds, parseCsv } from './utils.js';
 
 export type GtfsTripId = string;
@@ -209,11 +208,9 @@ export const parseTrips = async (
 };
 
 export const buildStopsAdjacencyStructure = (
-  tripsMapping: TripsMapping,
   serviceRoutes: ServiceRoute[],
   routes: Route[],
   transfersMap: TransfersMap,
-  tripContinuationsMap: TripContinuationsMap,
   nbStops: number,
   activeStops: Set<StopId>,
 ): StopAdjacency[] => {
@@ -254,41 +251,6 @@ export const buildStopsAdjacencyStructure = (
         }
         stopAdj.transfers.push(transfer);
         activeStops.add(transfer.destination);
-        activeStops.add(stop);
-      }
-    }
-  }
-  for (const [stop, tripContinuations] of tripContinuationsMap) {
-    for (let i = 0; i < tripContinuations.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const tripContinuation = tripContinuations[i]!;
-      if (
-        activeStops.has(stop) ||
-        activeStops.has(tripContinuation.hopOnStop)
-      ) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const stopAdj = stopsAdjacency[stop]!;
-        if (!stopAdj.tripContinuations) {
-          stopAdj.tripContinuations = new Map();
-        }
-        const originTrip = tripsMapping.get(tripContinuation.fromTrip);
-        const destinationTrip = tripsMapping.get(tripContinuation.toTrip);
-        if (destinationTrip === undefined || originTrip === undefined) {
-          continue;
-        }
-        const tripBoarding = {
-          hopOnStop: tripContinuation.hopOnStop,
-          routeId: destinationTrip.routeId,
-          tripIndex: destinationTrip.tripRouteIndex,
-        };
-        const tripId = encode(originTrip.routeId, originTrip.tripRouteIndex);
-        const existingContinuations = stopAdj.tripContinuations.get(tripId);
-        if (existingContinuations) {
-          existingContinuations.push(tripBoarding);
-        } else {
-          stopAdj.tripContinuations.set(tripId, [tripBoarding]);
-        }
-        activeStops.add(tripContinuation.hopOnStop);
         activeStops.add(stop);
       }
     }

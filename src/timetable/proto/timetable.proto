@@ -41,20 +41,21 @@ message Transfer {
 }
 
 message TripBoarding {
-  uint32 hopOnStop = 1;
+  uint32 hopOnStopIndex = 1;
   uint32 routeId = 2;
   uint32 tripIndex = 3;
 }
 
 message TripContinuationEntry {
-  uint32 key = 1;
-  repeated TripBoarding value = 2;
+  uint32 originStopIndex = 1;
+  uint32 originRouteId = 2;
+  uint32 originTripIndex = 3;
+  repeated TripBoarding continuations = 4;
 }
 
 message StopAdjacency {
   repeated uint32 routes = 1;
   repeated Transfer transfers = 2;
-  repeated TripContinuationEntry tripContinuations = 3;
 }
 
 enum RouteType {
@@ -81,4 +82,5 @@ message Timetable {
   repeated StopAdjacency stopsAdjacency = 2;
   repeated Route routesAdjacency = 3;
   repeated ServiceRoute serviceRoutes = 4;
+  repeated TripContinuationEntry tripContinuations = 5;
 }

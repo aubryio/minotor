@@ -10,9 +10,10 @@ import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
 import {
+  buildTripContinuations,
+  GtfsTripContinuation,
   parseTransfers,
   TransfersMap,
-  TripContinuationsMap,
 } from './transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -111,8 +112,8 @@ export class GtfsParser {
       `${trips.size} valid trips. (${(tripsEnd - tripsStart).toFixed(2)}ms)`,
     );
 
-    let transfers = new Map() as TransfersMap;
-    let tripContinuations = new Map() as TripContinuationsMap;
+    let transfers: TransfersMap = new Map();
+    let tripContinuationsMap: GtfsTripContinuation[] = [];
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
@@ -122,10 +123,10 @@ export class GtfsParser {
         tripContinuations: parsedTripContinuations,
       } = await parseTransfers(transfersStream, parsedStops);
       transfers = parsedTransfers;
-      tripContinuations = parsedTripContinuations;
+      tripContinuationsMap = parsedTripContinuations;
       const transfersEnd = performance.now();
       log.info(
-        `${transfers.size} valid transfers and ${tripContinuations.size} trip continuations. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+        `${transfers.size} valid transfers and ${tripContinuationsMap.length} trip continuations. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
@@ -146,11 +147,9 @@ export class GtfsParser {
     log.info('Building stops adjacency structure');
     const stopsAdjacencyStart = performance.now();
     const stopsAdjacency = buildStopsAdjacencyStructure(
-      tripsMapping,
       serviceRoutes,
       routes,
       transfers,
-      tripContinuations,
       parsedStops.size,
       activeStopIds,
     );
@@ -161,10 +160,29 @@ export class GtfsParser {
     );
     await zip.close();
 
+    // temporary timetable for building continuations
     const timetable = new Timetable(stopsAdjacency, routes, serviceRoutes);
 
+    log.info('Building in-seat trip continuations');
+    const tripContinuationsStart = performance.now();
+    const tripContinuations = buildTripContinuations(
+      tripsMapping,
+      tripContinuationsMap,
+      timetable,
+      activeStopIds,
+    );
+    const tripContinuationsEnd = performance.now();
+    log.info(
+      `${tripContinuations.size} in-seat trip continuations origins created. (${(tripContinuationsEnd - tripContinuationsStart).toFixed(2)}ms)`,
+    );
     log.info('Parsing complete.');
-    return timetable;
+
+    return new Timetable(
+      stopsAdjacency,
+      routes,
+      serviceRoutes,
+      tripContinuations,
+    );
   }
 
   /**
