@@ -8,7 +8,7 @@ import {
   getRouteId,
   getStopIndex,
   getTripIndex,
-} from '../tripBoardingId.js';
+} from '../tripStopId.js';
 
 describe('tripBoardingId', () => {
   it('should maintain identity for encode/decode round-trip', () => {

@@ -410,9 +410,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
                 totalContinuations++;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const destRoute = timetable.getRoute(continuation.routeId)!;
-                const destStopId = destRoute.stopId(
-                  continuation.hopOnStopIndex,
-                );
+                const destStopId = destRoute.stopId(continuation.stopIndex);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const destStop = stopsIndex.findStopById(destStopId)!;
                 const destPlatform = destStop.platform
@@ -424,7 +422,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
                 const originTime = route.departureFrom(stopIndex, tripIndex);
                 const continuationTime = destRoute.departureFrom(
-                  continuation.hopOnStopIndex,
+                  continuation.stopIndex,
                   continuation.tripIndex,
                 );
 

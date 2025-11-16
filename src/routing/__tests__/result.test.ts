@@ -234,8 +234,8 @@ describe('Result', () => {
 
       const vehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 0, 0),
-        from: 0,
-        to: 2,
+        stopIndex: 0,
+        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
       };
@@ -274,8 +274,8 @@ describe('Result', () => {
 
       const vehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(10, 10, 0),
-        from: 0,
-        to: 2,
+        stopIndex: 0,
+        hopOffStopIndex: 2,
         routeId: 1,
         tripIndex: 0,
       };
@@ -287,8 +287,8 @@ describe('Result', () => {
             2,
             {
               arrival: Time.fromHMS(9, 10, 0),
-              from: 0,
-              to: 2,
+              stopIndex: 0,
+              hopOffStopIndex: 2,
               routeId: 0,
               tripIndex: 0,
             },
@@ -324,8 +324,8 @@ describe('Result', () => {
 
       const vehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 0, 0),
-        from: 0,
-        to: 2,
+        stopIndex: 0,
+        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
       };
@@ -364,16 +364,16 @@ describe('Result', () => {
 
       const firstVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 0, 0),
-        from: 0,
-        to: 2,
+        stopIndex: 0,
+        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
       };
 
       const secondVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 45, 0),
-        from: 0,
-        to: 1,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
         routeId: 1,
         tripIndex: 0,
       };
@@ -419,16 +419,16 @@ describe('Result', () => {
 
       const firstVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(8, 30, 0),
-        from: 0,
-        to: 1,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
         routeId: 0,
         tripIndex: 0,
       };
 
       const continuousVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 0, 0),
-        from: 1,
-        to: 2,
+        stopIndex: 1,
+        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
         continuationOf: firstVehicleEdge,
@@ -470,16 +470,16 @@ describe('Result', () => {
 
       const firstVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 0, 0),
-        from: 0,
-        to: 2,
+        stopIndex: 0,
+        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
       };
 
       const continuousVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 45, 0),
-        from: 0,
-        to: 1,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
         routeId: 1,
         tripIndex: 0,
         continuationOf: firstVehicleEdge,
@@ -520,8 +520,8 @@ describe('Result', () => {
 
       const firstVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(8, 30, 0),
-        from: 0,
-        to: 1,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
         routeId: 0,
         tripIndex: 0,
       };
@@ -534,8 +534,8 @@ describe('Result', () => {
       };
       const secondVehicleEdge: VehicleEdge = {
         arrival: Time.fromHMS(9, 15, 0),
-        from: 0,
-        to: 1,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
         routeId: 1,
         tripIndex: 0,
       };
@@ -691,16 +691,16 @@ describe('Result', () => {
 
       const vehicleEdge1: VehicleEdge = {
         arrival: Time.fromHMS(9, 30, 0),
-        from: 0,
-        to: 2,
+        stopIndex: 0,
+        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
       };
 
       const vehicleEdge2: VehicleEdge = {
         arrival: Time.fromHMS(9, 45, 0),
-        from: 0,
-        to: 1,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
         routeId: 1,
         tripIndex: 0,
       };

@@ -7,15 +7,15 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
-  deserializeTripContinuations,
+  deserializeTripTransfers,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
-  serializeTripContinuations,
+  serializeTripTransfers,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/timetable.js';
 import { Route, RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
-import { encode, TripBoardingId } from './tripBoardingId.js';
+import { encode, TripStopId } from './tripStopId.js';
 
 export type TransferType =
   | 'RECOMMENDED'
@@ -29,8 +29,8 @@ export type Transfer = {
   minTransferTime?: Duration;
 };
 
-export type TripBoarding = {
-  hopOnStopIndex: StopRouteIndex;
+export type TripStop = {
+  stopIndex: StopRouteIndex;
   routeId: RouteId;
   tripIndex: TripRouteIndex;
 };
@@ -40,7 +40,7 @@ export type StopAdjacency = {
   routes: RouteId[];
 };
 
-export type TripContinuations = Map<TripBoardingId, TripBoarding[]>;
+export type TripTransfers = Map<TripStopId, TripStop[]>;
 
 export type ServiceRouteId = number;
 
@@ -79,7 +79,7 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
   'MONORAIL',
 ]);
 
-const EMPTY_TRIP_CONTINUATIONS: TripBoarding[] = [];
+const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
 
 export const CURRENT_VERSION = '0.0.9';
 
@@ -90,19 +90,22 @@ export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
   private readonly serviceRoutes: ServiceRoute[];
-  private readonly tripContinuations?: TripContinuations;
+  private readonly tripContinuations?: TripTransfers;
+  private readonly guaranteedTripTransfers?: TripTransfers;
   private readonly activeStops: Set<StopId>;
 
   constructor(
     stopsAdjacency: StopAdjacency[],
     routesAdjacency: Route[],
     routes: ServiceRoute[],
-    tripContinuations?: TripContinuations,
+    tripContinuations?: TripTransfers,
+    guaranteedTripTransfers?: TripTransfers,
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
     this.tripContinuations = tripContinuations;
+    this.guaranteedTripTransfers = guaranteedTripTransfers;
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -126,8 +129,11 @@ export class Timetable {
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
-      tripContinuations: serializeTripContinuations(
-        this.tripContinuations || new Map<TripBoardingId, TripBoarding[]>(),
+      tripContinuations: serializeTripTransfers(
+        this.tripContinuations || new Map<TripStopId, TripStop[]>(),
+      ),
+      guaranteedTripTransfers: serializeTripTransfers(
+        this.guaranteedTripTransfers || new Map<TripStopId, TripStop[]>(),
       ),
     };
     const writer = new BinaryWriter();
@@ -153,7 +159,8 @@ export class Timetable {
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
-      deserializeTripContinuations(protoTimetable.tripContinuations),
+      deserializeTripTransfers(protoTimetable.tripContinuations),
+      deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
     );
   }
 
@@ -206,12 +213,12 @@ export class Timetable {
     stopIndex: StopRouteIndex,
     routeId: RouteId,
     tripIndex: TripRouteIndex,
-  ): TripBoarding[] {
+  ): TripStop[] {
     const tripContinuations = this.tripContinuations?.get(
       encode(stopIndex, routeId, tripIndex),
     );
     if (!tripContinuations) {
-      return EMPTY_TRIP_CONTINUATIONS;
+      return EMPTY_TRIP_BOARDINGS;
     }
     return tripContinuations;
   }
@@ -296,5 +303,56 @@ export class Timetable {
       }
     }
     return reachableRoutes;
+  }
+
+  /**
+   * Checks if a trip transfer is guaranteed for a given trip boarding.
+   *
+   * @param fromTripStop - The trip stop for the trip transfer origin.
+   * @param toTripStop - The trip stop to check if it's guaranteed.
+   * @returns True if the trip transfer is guaranteed, false otherwise.
+   */
+  isTripTransferGuaranteed(
+    fromTripStop: TripStop,
+    toTripStop: TripStop,
+  ): boolean {
+    const tripBoardingId = encode(
+      fromTripStop.stopIndex,
+      fromTripStop.routeId,
+      fromTripStop.tripIndex,
+    );
+    const guaranteedTransfers =
+      this.guaranteedTripTransfers?.get(tripBoardingId);
+    if (!guaranteedTransfers) {
+      return false;
+    }
+    return guaranteedTransfers.some(
+      (transfer) =>
+        transfer.stopIndex === toTripStop.stopIndex &&
+        transfer.routeId === toTripStop.routeId &&
+        transfer.tripIndex === toTripStop.tripIndex,
+    );
+  }
+
+  /**
+   * Retrieves all guaranteed trip transfer options available at the specified stop for a given trip.
+   *
+   * @param stopIndex - The index in the route of the stop to get guaranteed trip transfers for.
+   * @param routeId - The ID of the route to get guaranteed transfers for.
+   * @param tripIndex - The index of the trip to get guaranteed transfers for.
+   * @returns An array of trip boarding options that are guaranteed for the specified trip.
+   */
+  getGuaranteedTripTransfers(
+    stopIndex: StopRouteIndex,
+    routeId: RouteId,
+    tripIndex: TripRouteIndex,
+  ): TripStop[] {
+    const guaranteedTripTransfers = this.guaranteedTripTransfers?.get(
+      encode(stopIndex, routeId, tripIndex),
+    );
+    if (!guaranteedTripTransfers) {
+      return EMPTY_TRIP_BOARDINGS;
+    }
+    return guaranteedTripTransfers;
   }
 }

@@ -2,31 +2,19 @@
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { Duration } from '../timetable/duration.js';
-import {
-  Route,
-  RouteId,
-  StopRouteIndex,
-  TripRouteIndex,
-} from '../timetable/route.js';
+import { Route, StopRouteIndex, TripRouteIndex } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import {
-  Timetable,
-  TransferType,
-  TripBoarding,
-} from '../timetable/timetable.js';
-import { Query } from './query.js';
+import { Timetable, TransferType, TripStop } from '../timetable/timetable.js';
+import { Query, QueryOptions } from './query.js';
 import { Result } from './result.js';
 
-const UNREACHED = Time.infinity();
+const UNREACHED = Time.INFINITY;
 
 export type OriginNode = { arrival: Time };
 
-export type VehicleEdge = {
+export type VehicleEdge = TripStop & {
   arrival: Time;
-  from: StopRouteIndex;
-  to: StopRouteIndex;
-  routeId: RouteId;
-  tripIndex: TripRouteIndex;
+  hopOffStopIndex: StopRouteIndex;
   continuationOf?: VehicleEdge;
 };
 export type TransferEdge = {
@@ -38,7 +26,7 @@ export type TransferEdge = {
 };
 export type RoutingEdge = OriginNode | VehicleEdge | TransferEdge;
 
-type TripContinuation = TripBoarding & {
+type TripContinuation = TripStop & {
   previousEdge: VehicleEdge;
 };
 
@@ -107,6 +95,7 @@ export class Router {
           hopOnStopIndex,
           round,
           routingState,
+          query.options,
         );
         for (const newStop of newlyMarkedStops) {
           markedStops.add(newStop);
@@ -123,9 +112,10 @@ export class Router {
           const route = this.timetable.getRoute(continuation.routeId)!;
           const routeScanResults = this.scanRoute(
             route,
-            continuation.hopOnStopIndex,
+            continuation.stopIndex,
             round,
             routingState,
+            query.options,
             continuation,
           );
           for (const newStop of routeScanResults) {
@@ -171,7 +161,7 @@ export class Router {
       if (!arrival || !('routeId' in arrival)) continue;
 
       const continuousTrips = this.timetable.getContinuousTrips(
-        arrival.to,
+        arrival.hopOffStopIndex,
         arrival.routeId,
         arrival.tripIndex,
       );
@@ -179,7 +169,7 @@ export class Router {
         const trip = continuousTrips[i]!;
         continuations.push({
           routeId: trip.routeId,
-          hopOnStopIndex: trip.hopOnStopIndex,
+          stopIndex: trip.stopIndex,
           tripIndex: trip.tripIndex,
           previousEdge: arrival,
         });
@@ -247,13 +237,14 @@ export class Router {
     hopOnStopIndex: StopRouteIndex,
     round: Round,
     routingState: RoutingState,
+    options: QueryOptions,
     tripContinuation?: TripContinuation,
   ): Set<StopId> {
     const newlyMarkedStops = new Set<StopId>();
-    let activeTrip: TripBoarding | undefined = tripContinuation
+    let activeTrip: TripStop | undefined = tripContinuation
       ? {
           routeId: route.id,
-          hopOnStopIndex,
+          stopIndex: hopOnStopIndex,
           tripIndex: tripContinuation.tripIndex,
         }
       : undefined;
@@ -289,11 +280,9 @@ export class Router {
           arrivalTime.isBefore(earliestArrivalAtAnyDestination)
         ) {
           const edge = {
+            ...activeTrip,
             arrival: arrivalTime,
-            routeId: route.id,
-            tripIndex: activeTrip.tripIndex,
-            from: activeTrip.hopOnStopIndex,
-            to: currentStopIndex,
+            hopOffStopIndex: currentStopIndex,
           } as VehicleEdge;
           if (tripContinuation) {
             // In case of continuous trip, we set a pointer to the previous edge
@@ -314,8 +303,8 @@ export class Router {
       }
       // check if we can board an earlier trip at the current stop
       // if there was no current trip, find the first one reachable
-      const earliestArrivalOnPreviousRound =
-        edgesAtPreviousRound.get(currentStop)?.arrival;
+      const previousEdge = edgesAtPreviousRound.get(currentStop);
+      const earliestArrivalOnPreviousRound = previousEdge?.arrival;
       // TODO if the last edge is not a transfer, and if there is no trip continuation of type 1 (guaranteed)
       // Add the minTransferTime to make sure there's at least 2 minutes to transfer.
       // If platforms are collapsed, make sure to apply the station level transfer time
@@ -335,16 +324,83 @@ export class Router {
           earliestArrivalOnPreviousRound,
           activeTrip?.tripIndex,
         );
-        if (earliestTrip !== undefined) {
+        if (earliestTrip === undefined) {
+          continue;
+        }
+
+        const firstBoardableTrip = this.findFirstBoardableTrip(
+          currentStopIndex,
+          route,
+          earliestTrip,
+          earliestArrivalOnPreviousRound,
+          activeTrip?.tripIndex,
+          // provide the previous trip if the previous edge was a vehicle
+          previousEdge && 'routeId' in previousEdge ? previousEdge : undefined,
+          options.minTransferTime,
+        );
+
+        if (firstBoardableTrip !== undefined) {
           activeTrip = {
             routeId: route.id,
             tripIndex: earliestTrip,
-            hopOnStopIndex: currentStopIndex,
+            stopIndex: currentStopIndex,
           };
         }
       }
     }
     return newlyMarkedStops;
+  }
+
+  /**
+   * Finds the first boardable trip on a route at a given stop that meets transfer requirements.
+   *
+   * This method searches through trips on a route starting from the earliest trip index reachable
+   * from the previous edge to find the first trip that can be effectively boarded,
+   * considering pickup availability, transfer guarantees, and minimum transfer times.
+   *
+   * @param stopIndex The index in the route of the stop where boarding is attempted
+   * @param route The route to search for boardable trips
+   * @param earliestTrip The earliest trip index to start searching from
+   * @param after The earliest time after which boarding can occur
+   * @param beforeTrip Optional upper bound trip index to limit search
+   * @param previousTrip The previous trip taken (for transfer guarantee checks)
+   * @param transferTime Minimum time required for transfers between trips
+   * @returns The trip index of the first boardable trip, or undefined if none found
+   */
+  private findFirstBoardableTrip(
+    stopIndex: StopRouteIndex,
+    route: Route,
+    earliestTrip: TripRouteIndex,
+    after: Time = Time.ORIGIN,
+    beforeTrip?: TripRouteIndex,
+    previousTrip?: TripStop,
+    transferTime: Duration = Duration.ZERO,
+  ): TripRouteIndex | undefined {
+    const nbTrips = route.getNbTrips();
+
+    for (let t = earliestTrip; t < (beforeTrip ?? nbTrips); t++) {
+      const pickup = route.pickUpTypeFrom(stopIndex, t);
+      if (pickup === 'NOT_AVAILABLE') {
+        continue;
+      }
+      if (previousTrip === undefined) {
+        return t;
+      }
+      const isGuaranteed = this.timetable.isTripTransferGuaranteed(
+        {
+          stopIndex,
+          routeId: previousTrip.routeId,
+          tripIndex: previousTrip.tripIndex,
+        },
+        { stopIndex, routeId: route.id, tripIndex: t },
+      );
+      const departure = route.departureFrom(stopIndex, t);
+      const requiredTime = isGuaranteed ? after : after.plus(transferTime);
+      if (!departure.isBefore(requiredTime)) {
+        return t;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -378,7 +434,7 @@ export class Router {
           transferTime = transfer.minTransferTime;
         } else if (transfer.type === 'IN_SEAT') {
           // TODO not needed anymore now that trip continuations are handled separately
-          transferTime = Duration.zero();
+          transferTime = Duration.ZERO;
         } else {
           transferTime = options.minTransferTime;
         }
@@ -393,7 +449,7 @@ export class Router {
             to: transfer.destination,
             minTransferTime: transfer.minTransferTime,
             type: transfer.type,
-          });
+          } as TransferEdge);
           routingState.earliestArrivals.set(transfer.destination, {
             arrival: arrivalAfterTransfer,
             legNumber: round,

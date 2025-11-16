@@ -10,7 +10,7 @@ const ROUTE_ID_SHIFT = BigInt(20);
 const STOP_INDEX_SHIFT = BigInt(40);
 
 // A TripId encodes a stop index, route ID, and trip index into a single bigint value
-export type TripBoardingId = bigint;
+export type TripStopId = bigint;
 
 /**
  * Validates that a value fits within 20 bits (0 to 1,048,575)
@@ -35,7 +35,7 @@ export const encode = (
   stopIndex: StopRouteIndex,
   routeId: RouteId,
   tripIndex: TripRouteIndex,
-): TripBoardingId => {
+): TripStopId => {
   validateValue(stopIndex, 'stopIndex');
   validateValue(routeId, 'routeId');
   validateValue(tripIndex, 'tripIndex');
@@ -49,46 +49,42 @@ export const encode = (
 
 /**
  * Decodes a trip boarding ID back into its constituent stop index, route ID, and trip index.
- * @param tripBoardingId - The encoded trip ID
+ * @param tripStopId - The encoded trip ID
  * @returns A tuple containing [stopIndex, routeId, tripIndex]
  */
 export const decode = (
-  tripBoardingId: TripBoardingId,
+  tripStopId: TripStopId,
 ): [StopRouteIndex, RouteId, TripRouteIndex] => {
-  const stopIndex = Number((tripBoardingId >> STOP_INDEX_SHIFT) & VALUE_MASK);
-  const routeId = Number((tripBoardingId >> ROUTE_ID_SHIFT) & VALUE_MASK);
-  const tripIndex = Number((tripBoardingId >> TRIP_INDEX_SHIFT) & VALUE_MASK);
+  const stopIndex = Number((tripStopId >> STOP_INDEX_SHIFT) & VALUE_MASK);
+  const routeId = Number((tripStopId >> ROUTE_ID_SHIFT) & VALUE_MASK);
+  const tripIndex = Number((tripStopId >> TRIP_INDEX_SHIFT) & VALUE_MASK);
 
   return [stopIndex, routeId, tripIndex];
 };
 
 /**
  * Extracts just the stop index from a trip ID without full decoding.
- * @param tripBoardingId - The encoded trip boarding ID
+ * @param tripStopId - The encoded trip boarding ID
  * @returns The stop index
  */
-export const getStopIndex = (
-  tripBoardingId: TripBoardingId,
-): StopRouteIndex => {
-  return Number((tripBoardingId >> STOP_INDEX_SHIFT) & VALUE_MASK);
+export const getStopIndex = (tripStopId: TripStopId): StopRouteIndex => {
+  return Number((tripStopId >> STOP_INDEX_SHIFT) & VALUE_MASK);
 };
 
 /**
  * Extracts just the route ID from a trip ID without full decoding.
- * @param tripBoardingId - The encoded trip boarding ID
+ * @param tripStopId - The encoded trip boarding ID
  * @returns The route ID
  */
-export const getRouteId = (tripBoardingId: TripBoardingId): RouteId => {
-  return Number((tripBoardingId >> ROUTE_ID_SHIFT) & VALUE_MASK);
+export const getRouteId = (tripStopId: TripStopId): RouteId => {
+  return Number((tripStopId >> ROUTE_ID_SHIFT) & VALUE_MASK);
 };
 
 /**
  * Extracts just the trip index from a trip ID without full decoding.
- * @param tripBoardingId - The encoded trip boarding ID
+ * @param tripStopId - The encoded trip boarding ID
  * @returns The trip index
  */
-export const getTripIndex = (
-  tripBoardingId: TripBoardingId,
-): TripRouteIndex => {
-  return Number((tripBoardingId >> TRIP_INDEX_SHIFT) & VALUE_MASK);
+export const getTripIndex = (tripStopId: TripStopId): TripRouteIndex => {
+  return Number((tripStopId >> TRIP_INDEX_SHIFT) & VALUE_MASK);
 };
