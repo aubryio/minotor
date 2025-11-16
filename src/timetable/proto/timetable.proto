@@ -40,17 +40,15 @@ message Transfer {
   optional uint32 minTransferTime = 3;
 }
 
-message TripBoarding {
-  uint32 hopOnStopIndex = 1;
+message TripStop {
+  uint32 stopIndex = 1;
   uint32 routeId = 2;
   uint32 tripIndex = 3;
 }
 
-message TripContinuationEntry {
-  uint32 originStopIndex = 1;
-  uint32 originRouteId = 2;
-  uint32 originTripIndex = 3;
-  repeated TripBoarding continuations = 4;
+message TripTransferEntry {
+  TripStop origin = 1;
+  repeated TripStop destinations = 2;
 }
 
 message StopAdjacency {
@@ -82,5 +80,6 @@ message Timetable {
   repeated StopAdjacency stopsAdjacency = 2;
   repeated Route routesAdjacency = 3;
   repeated ServiceRoute serviceRoutes = 4;
-  repeated TripContinuationEntry tripContinuations = 5;
+  repeated TripTransferEntry tripContinuations = 5;
+  repeated TripTransferEntry guaranteedTripTransfers = 6;
 }

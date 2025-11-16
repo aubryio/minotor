@@ -104,10 +104,10 @@ export class Plotter {
    * Creates a vehicle edge with route information oval in the middle.
    */
   private createVehicleEdge(edge: VehicleEdge, round: number): string[] {
-    const fromNodeId = `s_${edge.from}`;
-    const toNodeId = `s_${edge.to}`;
+    const fromNodeId = `s_${edge.stopIndex}`;
+    const toNodeId = `s_${edge.hopOffStopIndex}`;
     const roundColor = this.getRoundColor(round);
-    const routeOvalId = `e_${edge.from}_${edge.to}_${edge.routeId}_${round}`;
+    const routeOvalId = `e_${edge.stopIndex}_${edge.hopOffStopIndex}_${edge.routeId}_${round}`;
 
     const route = this.result.timetable.getRoute(edge.routeId);
     const serviceRouteInfo = route
@@ -118,7 +118,7 @@ export class Plotter {
     const routeType = serviceRouteInfo?.type || 'UNKNOWN';
 
     const departureTime = route
-      ? route.departureFrom(edge.from, edge.tripIndex).toString()
+      ? route.departureFrom(edge.stopIndex, edge.tripIndex).toString()
       : 'N/A';
     const arrivalTime = edge.arrival.toString();
 
@@ -162,10 +162,10 @@ export class Plotter {
     toEdge: VehicleEdge,
     round: number,
   ): string[] {
-    const fromStationId = `s_${fromEdge.to}`;
-    const toStationId = `s_${toEdge.from}`;
+    const fromStationId = `s_${fromEdge.hopOffStopIndex}`;
+    const toStationId = `s_${toEdge.stopIndex}`;
     const roundColor = this.getRoundColor(round);
-    const continuationOvalId = `continuation_${fromEdge.to}_${toEdge.from}_${round}`;
+    const continuationOvalId = `continuation_${fromEdge.hopOffStopIndex}_${toEdge.stopIndex}_${round}`;
 
     const fromRoute = this.result.timetable.getRoute(fromEdge.routeId);
     const toRoute = this.result.timetable.getRoute(toEdge.routeId);
@@ -187,7 +187,7 @@ export class Plotter {
 
     const fromArrivalTime = fromEdge.arrival.toString();
     const toDepartureTime = toRoute
-      ? toRoute.departureFrom(toEdge.from, toEdge.tripIndex).toString()
+      ? toRoute.departureFrom(toEdge.stopIndex, toEdge.tripIndex).toString()
       : 'N/A';
 
     const escapedFromRouteName = this.escapeDotString(fromRouteName);
@@ -223,9 +223,9 @@ export class Plotter {
     graph.forEach((roundMap) => {
       roundMap.forEach((edge, stopId) => {
         stations.add(stopId);
-        if ('from' in edge && 'to' in edge) {
-          stations.add(edge.from);
-          stations.add(edge.to);
+        if ('stopIndex' in edge && 'hopOffStopIndex' in edge) {
+          stations.add(edge.stopIndex);
+          stations.add(edge.hopOffStopIndex);
         }
       });
     });
@@ -238,7 +238,7 @@ export class Plotter {
       }
 
       roundMap.forEach((edge) => {
-        if ('from' in edge && 'to' in edge) {
+        if ('stopIndex' in edge && 'hopOffStopIndex' in edge) {
           if ('routeId' in edge) {
             const vehicleEdgeParts = this.createVehicleEdge(edge, round);
             edges.push(...vehicleEdgeParts);
