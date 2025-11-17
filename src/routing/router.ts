@@ -305,10 +305,6 @@ export class Router {
       // if there was no current trip, find the first one reachable
       const previousEdge = edgesAtPreviousRound.get(currentStop);
       const earliestArrivalOnPreviousRound = previousEdge?.arrival;
-      // TODO if the last edge is not a transfer, and if there is no trip continuation of type 1 (guaranteed)
-      // Add the minTransferTime to make sure there's at least 2 minutes to transfer.
-      // If platforms are collapsed, make sure to apply the station level transfer time
-      // (or later at route reconstruction time)
       if (
         earliestArrivalOnPreviousRound !== undefined &&
         (activeTrip === undefined ||

@@ -441,7 +441,58 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         } else {
           console.log(`\nTotal trip continuations: ${totalContinuations}`);
         }
+        let totalGuaranteedTransfers = 0;
+        console.log('\n--- Guaranteed Trip Transfers ---');
 
+        routes.forEach((route: Route) => {
+          const serviceRouteInfo = timetable.getServiceRouteInfo(route);
+          const stopIndices = route.stopRouteIndices(stop.id);
+
+          for (let tripIndex = 0; tripIndex < route.getNbTrips(); tripIndex++) {
+            for (const stopIndex of stopIndices) {
+              const guaranteedTransfers = timetable.getGuaranteedTripTransfers(
+                stopIndex,
+                route.id,
+                tripIndex,
+              );
+
+              for (const guaranteedTrip of guaranteedTransfers) {
+                totalGuaranteedTransfers++;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const destRoute = timetable.getRoute(guaranteedTrip.routeId)!;
+                const destStopId = destRoute.stopId(guaranteedTrip.stopIndex);
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const destStop = stopsIndex.findStopById(destStopId)!;
+                const destPlatform = destStop.platform
+                  ? ` (Pl. ${destStop.platform})`
+                  : '';
+
+                const destServiceRouteInfo =
+                  timetable.getServiceRouteInfo(destRoute);
+
+                const originTime = route.arrivalAt(stopIndex, tripIndex);
+                const destinationTime = destRoute.departureFrom(
+                  guaranteedTrip.stopIndex,
+                  guaranteedTrip.tripIndex,
+                );
+
+                console.log(
+                  `${totalGuaranteedTransfers}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
+                    `Route ${guaranteedTrip.routeId} (${destServiceRouteInfo.name}) Trip ${guaranteedTrip.tripIndex} at ${destinationTime.toString()} ` +
+                    `at ${destStop.name}${destPlatform} (${destStopId}, ${destStop.sourceStopId}) (guaranteed transfer)`,
+                );
+              }
+            }
+          }
+        });
+
+        if (totalGuaranteedTransfers === 0) {
+          console.log('No guaranteed trip transfers found.');
+        } else {
+          console.log(
+            `\nTotal guaranteed trip transfers: ${totalGuaranteedTransfers}`,
+          );
+        }
         console.log();
       };
 

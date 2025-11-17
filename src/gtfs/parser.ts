@@ -129,7 +129,7 @@ export class GtfsParser {
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
       const transfersEnd = performance.now();
       log.info(
-        `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+        `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${guaranteedTripTransfersList.length} guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
