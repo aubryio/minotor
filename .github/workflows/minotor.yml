@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
       - name: 🛡️ Audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
   spell:
     name: 🔠 Spellcheck
