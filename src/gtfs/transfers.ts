@@ -170,7 +170,6 @@ export const parseTransfers = async (
   ])) {
     const transferEntry = rawLine as TransferEntry;
 
-    // Skip forbidden transfers
     if (
       transferEntry.transfer_type === 3 ||
       transferEntry.transfer_type === 5
@@ -178,7 +177,6 @@ export const parseTransfers = async (
       continue;
     }
 
-    // Validate stops exist
     if (!transferEntry.from_stop_id || !transferEntry.to_stop_id) {
       console.warn(`Missing transfer origin or destination stop.`);
       continue;
@@ -193,7 +191,6 @@ export const parseTransfers = async (
       continue;
     }
 
-    // Process different transfer types
     switch (transferEntry.transfer_type) {
       case 4: // In-seat transfer
         processInSeatTransfer(
@@ -333,7 +330,6 @@ export const buildTripTransfers = (
     );
 
     if (!bestStopIndices) {
-      // No valid continuation found
       continue;
     }
 
