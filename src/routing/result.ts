@@ -115,21 +115,28 @@ export class Result {
     const lastRoute = this.timetable.getRoute(lastEdge.routeId)!;
     return {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      from: this.stopsIndex.findStopById(firstRoute.stopId(firstEdge.from))!,
+      from: this.stopsIndex.findStopById(
+        firstRoute.stopId(firstEdge.stopIndex),
+      )!,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      to: this.stopsIndex.findStopById(lastRoute.stopId(lastEdge.to))!,
+      to: this.stopsIndex.findStopById(
+        lastRoute.stopId(lastEdge.hopOffStopIndex),
+      )!,
       // The route info comes from the first boarded route in case on continuous trips
       route: this.timetable.getServiceRouteInfo(firstRoute),
       departureTime: firstRoute.departureFrom(
-        firstEdge.from,
+        firstEdge.stopIndex,
         firstEdge.tripIndex,
       ),
       arrivalTime: lastEdge.arrival,
       pickUpType: firstRoute.pickUpTypeFrom(
-        firstEdge.from,
+        firstEdge.stopIndex,
         firstEdge.tripIndex,
       ),
-      dropOffType: lastRoute.dropOffTypeAt(lastEdge.to, lastEdge.tripIndex),
+      dropOffType: lastRoute.dropOffTypeAt(
+        lastEdge.hopOffStopIndex,
+        lastEdge.tripIndex,
+      ),
     };
   }
 

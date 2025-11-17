@@ -6,11 +6,11 @@ import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import { Timetable } from '../../timetable/timetable.js';
-import { encode } from '../../timetable/tripBoardingId.js';
+import { encode } from '../../timetable/tripStopId.js';
 import { GtfsStopsMap } from '../stops.js';
 import {
-  buildTripContinuations,
-  GtfsTripContinuation,
+  buildTripTransfers,
+  GtfsTripTransfer,
   parseTransfers,
 } from '../transfers.js';
 import { TripsMapping } from '../trips.js';
@@ -662,7 +662,7 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -699,7 +699,7 @@ describe('buildTripContinuations', () => {
     const mockTimetable = {} as unknown as Timetable;
     const activeStopIds = new Set([200]); // only toStop is active
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -726,7 +726,7 @@ describe('buildTripContinuations', () => {
     const mockTimetable = {} as unknown as Timetable;
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -757,7 +757,7 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -799,7 +799,7 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -857,7 +857,7 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200, 300]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -883,11 +883,11 @@ describe('buildTripContinuations', () => {
 
   it('should handle empty input gracefully', () => {
     const tripsMapping: TripsMapping = new Map();
-    const tripContinuations: GtfsTripContinuation[] = [];
+    const tripContinuations: GtfsTripTransfer[] = [];
     const mockTimetable = {} as unknown as Timetable;
     const activeStopIds = new Set<number>();
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -937,7 +937,7 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,
@@ -997,7 +997,7 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
       tripContinuations,
       mockTimetable,

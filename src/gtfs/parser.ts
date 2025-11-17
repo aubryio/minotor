@@ -10,8 +10,8 @@ import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
 import {
-  buildTripContinuations,
-  GtfsTripContinuation,
+  buildTripTransfers,
+  GtfsTripTransfer,
   parseTransfers,
   TransfersMap,
 } from './transfers.js';
@@ -113,7 +113,8 @@ export class GtfsParser {
     );
 
     let transfers: TransfersMap = new Map();
-    let tripContinuationsMap: GtfsTripContinuation[] = [];
+    let tripContinuationsList: GtfsTripTransfer[] = [];
+    let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
@@ -121,12 +122,14 @@ export class GtfsParser {
       const {
         transfers: parsedTransfers,
         tripContinuations: parsedTripContinuations,
+        guaranteedTripTransfers: parsedGuaranteedTripTransfers,
       } = await parseTransfers(transfersStream, parsedStops);
       transfers = parsedTransfers;
-      tripContinuationsMap = parsedTripContinuations;
+      tripContinuationsList = parsedTripContinuations;
+      guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
       const transfersEnd = performance.now();
       log.info(
-        `${transfers.size} valid transfers and ${tripContinuationsMap.length} trip continuations. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+        `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${guaranteedTripTransfersList.length} guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
@@ -165,9 +168,9 @@ export class GtfsParser {
 
     log.info('Building in-seat trip continuations');
     const tripContinuationsStart = performance.now();
-    const tripContinuations = buildTripContinuations(
+    const tripContinuations = buildTripTransfers(
       tripsMapping,
-      tripContinuationsMap,
+      tripContinuationsList,
       timetable,
       activeStopIds,
     );
@@ -176,12 +179,26 @@ export class GtfsParser {
       `${tripContinuations.size} in-seat trip continuations origins created. (${(tripContinuationsEnd - tripContinuationsStart).toFixed(2)}ms)`,
     );
     log.info('Parsing complete.');
+    log.info('Building guarnateed trip transfers');
+    const guaranteedTripTransfersStart = performance.now();
+    const guaranteedTripTransfers = buildTripTransfers(
+      tripsMapping,
+      guaranteedTripTransfersList,
+      timetable,
+      activeStopIds,
+    );
+    const guaranteedTripTransfersEnd = performance.now();
+    log.info(
+      `${guaranteedTripTransfers.size} guaranteed trip transfers origins created. (${(guaranteedTripTransfersEnd - guaranteedTripTransfersStart).toFixed(2)}ms)`,
+    );
+    log.info('Parsing complete.');
 
     return new Timetable(
       stopsAdjacency,
       routes,
       serviceRoutes,
       tripContinuations,
+      guaranteedTripTransfers,
     );
   }
 

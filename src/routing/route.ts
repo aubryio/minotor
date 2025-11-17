@@ -62,7 +62,7 @@ export class Route {
    * @throws If no vehicle leg is found in the route.
    */
   departureTime(): Time {
-    const cumulativeTransferTime: Duration = Duration.zero();
+    const cumulativeTransferTime: Duration = Duration.ZERO;
     for (let i = 0; i < this.legs.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const leg = this.legs[i]!;
@@ -83,8 +83,8 @@ export class Route {
    * @throws If no vehicle leg is found in the route.
    */
   arrivalTime(): Time {
-    let lastVehicleArrivalTime: Time = Time.origin();
-    const totalTransferTime: Duration = Duration.zero();
+    let lastVehicleArrivalTime: Time = Time.ORIGIN;
+    const totalTransferTime: Duration = Duration.ZERO;
     let vehicleLegFound = false;
 
     for (let i = this.legs.length - 1; i >= 0; i--) {
@@ -116,7 +116,7 @@ export class Route {
    * @returns The total duration of the route.
    */
   totalDuration(): Duration {
-    if (this.legs.length === 0) return Duration.zero();
+    if (this.legs.length === 0) return Duration.ZERO;
     return this.arrivalTime().diff(this.departureTime());
   }
 

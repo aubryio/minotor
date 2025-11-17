@@ -6,10 +6,10 @@ import {
   Timetable,
   Transfer,
   TransferType,
-  TripBoarding,
-  TripContinuations,
+  TripStop,
+  TripTransfers as TripTransfers,
 } from '../timetable/timetable.js';
-import { encode } from '../timetable/tripBoardingId.js';
+import { encode } from '../timetable/tripStopId.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTripId, TripsMapping } from './trips.js';
 import { parseCsv } from './utils.js';
@@ -24,7 +24,7 @@ export type GtfsTransferType =
 
 export type TransfersMap = Map<StopId, Transfer[]>;
 
-export type GtfsTripContinuation = {
+export type GtfsTripTransfer = {
   fromStop: StopId;
   fromTrip: GtfsTripId;
   toStop: StopId;
@@ -43,6 +43,110 @@ export type TransferEntry = {
 };
 
 /**
+ * Processes in-seat transfer entries (type 4).
+ */
+const processInSeatTransfer = (
+  transferEntry: TransferEntry,
+  fromStop: StopId,
+  toStop: StopId,
+  tripContinuations: GtfsTripTransfer[],
+): void => {
+  if (
+    transferEntry.from_trip_id === undefined ||
+    transferEntry.from_trip_id === '' ||
+    transferEntry.to_trip_id === undefined ||
+    transferEntry.to_trip_id === ''
+  ) {
+    console.warn(
+      `Unsupported in-seat transfer, missing from_trip_id and/or to_trip_id.`,
+    );
+    return;
+  }
+
+  const tripContinuationEntry: GtfsTripTransfer = {
+    fromStop,
+    fromTrip: transferEntry.from_trip_id,
+    toStop,
+    toTrip: transferEntry.to_trip_id,
+  };
+  tripContinuations.push(tripContinuationEntry);
+};
+
+/**
+ * Processes guaranteed transfer entries (type 1).
+ */
+const processGuaranteedTransfer = (
+  transferEntry: TransferEntry,
+  fromStop: StopId,
+  toStop: StopId,
+  guaranteedTripTransfers: GtfsTripTransfer[],
+): void => {
+  if (
+    transferEntry.from_trip_id === undefined ||
+    transferEntry.from_trip_id === '' ||
+    transferEntry.to_trip_id === undefined ||
+    transferEntry.to_trip_id === ''
+  ) {
+    console.warn(
+      `Unsupported guaranteed transfer, missing from_trip_id and/or to_trip_id.`,
+    );
+    return;
+  }
+
+  const guaranteedTripTransferEntry: GtfsTripTransfer = {
+    fromStop,
+    fromTrip: transferEntry.from_trip_id,
+    toStop,
+    toTrip: transferEntry.to_trip_id,
+  };
+  guaranteedTripTransfers.push(guaranteedTripTransferEntry);
+};
+
+/**
+ * Processes regular stop-to-stop transfer entries (types 0 and 2).
+ */
+const processStopToStopTransfer = (
+  transferEntry: TransferEntry,
+  fromStop: StopId,
+  toStop: StopId,
+  transfers: TransfersMap,
+): void => {
+  if (transferEntry.from_trip_id || transferEntry.to_trip_id) {
+    console.warn(
+      `Unsupported transfer of type ${transferEntry.transfer_type} between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
+    );
+    return;
+  }
+  if (transferEntry.from_route_id || transferEntry.to_route_id) {
+    console.warn(
+      `Unsupported transfer of type ${transferEntry.transfer_type} between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
+    );
+    return;
+  }
+
+  if (
+    transferEntry.transfer_type === 2 &&
+    transferEntry.min_transfer_time === undefined
+  ) {
+    console.info(
+      `Missing minimum transfer time between ${transferEntry.from_stop_id} and ${transferEntry.to_stop_id}.`,
+    );
+  }
+
+  const transfer: Transfer = {
+    destination: toStop,
+    type: parseGtfsTransferType(transferEntry.transfer_type),
+    ...(transferEntry.min_transfer_time !== undefined && {
+      minTransferTime: Duration.fromSeconds(transferEntry.min_transfer_time),
+    }),
+  };
+
+  const fromStopTransfers = transfers.get(fromStop) || [];
+  fromStopTransfers.push(transfer);
+  transfers.set(fromStop, fromStopTransfers);
+};
+
+/**
  * Parses the transfers.txt file from a GTFS feed.
  *
  * @param stopsStream The readable stream containing the stops data.
@@ -53,10 +157,13 @@ export const parseTransfers = async (
   stopsMap: GtfsStopsMap,
 ): Promise<{
   transfers: TransfersMap;
-  tripContinuations: GtfsTripContinuation[];
+  tripContinuations: GtfsTripTransfer[];
+  guaranteedTripTransfers: GtfsTripTransfer[];
 }> => {
   const transfers: TransfersMap = new Map();
-  const tripContinuations: GtfsTripContinuation[] = [];
+  const tripContinuations: GtfsTripTransfer[] = [];
+  const guaranteedTripTransfers: GtfsTripTransfer[] = [];
+
   for await (const rawLine of parseCsv(transfersStream, [
     'transfer_type',
     'min_transfer_time',
@@ -69,6 +176,7 @@ export const parseTransfers = async (
     ) {
       continue;
     }
+
     if (!transferEntry.from_stop_id || !transferEntry.to_stop_id) {
       console.warn(`Missing transfer origin or destination stop.`);
       continue;
@@ -83,64 +191,40 @@ export const parseTransfers = async (
       continue;
     }
 
-    if (transferEntry.transfer_type === 4) {
-      if (
-        transferEntry.from_trip_id === undefined ||
-        transferEntry.from_trip_id === '' ||
-        transferEntry.to_trip_id === undefined ||
-        transferEntry.to_trip_id === ''
-      ) {
-        console.warn(
-          `Unsupported in-seat transfer, missing from_trip_id and/or to_trip_id.`,
+    switch (transferEntry.transfer_type) {
+      case 4: // In-seat transfer
+        processInSeatTransfer(
+          transferEntry,
+          fromStop.id,
+          toStop.id,
+          tripContinuations,
         );
-        continue;
-      }
-      const tripBoardingEntry: GtfsTripContinuation = {
-        fromStop: fromStop.id,
-        fromTrip: transferEntry.from_trip_id,
-        toStop: toStop.id,
-        toTrip: transferEntry.to_trip_id,
-      };
-      tripContinuations.push(tripBoardingEntry);
-      continue;
+        break;
+      case 1: // Guaranteed transfer
+        processGuaranteedTransfer(
+          transferEntry,
+          fromStop.id,
+          toStop.id,
+          guaranteedTripTransfers,
+        );
+        break;
+      case 0: // Recommended transfer
+      case 2: // Requires minimal time
+      default:
+        processStopToStopTransfer(
+          transferEntry,
+          fromStop.id,
+          toStop.id,
+          transfers,
+        );
+        break;
     }
-    if (transferEntry.from_trip_id && transferEntry.to_trip_id) {
-      console.warn(
-        `Unsupported transfer of type ${transferEntry.transfer_type} between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
-      );
-      continue;
-    }
-    if (transferEntry.from_route_id && transferEntry.to_route_id) {
-      console.warn(
-        `Unsupported transfer of type ${transferEntry.transfer_type} between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
-      );
-      continue;
-    }
-
-    if (
-      transferEntry.transfer_type === 2 &&
-      transferEntry.min_transfer_time === undefined
-    ) {
-      console.info(
-        `Missing minimum transfer time between ${transferEntry.from_stop_id} and ${transferEntry.to_stop_id}.`,
-      );
-    }
-
-    const transfer: Transfer = {
-      destination: toStop.id,
-      type: parseGtfsTransferType(transferEntry.transfer_type),
-      ...(transferEntry.min_transfer_time !== undefined && {
-        minTransferTime: Duration.fromSeconds(transferEntry.min_transfer_time),
-      }),
-    };
-
-    const fromStopTransfers = transfers.get(fromStop.id) || [];
-    fromStopTransfers.push(transfer);
-    transfers.set(fromStop.id, fromStopTransfers);
   }
+
   return {
     transfers,
     tripContinuations,
+    guaranteedTripTransfers,
   };
 };
 
@@ -202,20 +286,20 @@ const disambiguateTransferStopsIndices = (
  * the most coherent transfer timing.
  *
  * @param tripsMapping Mapping from GTFS trip IDs to internal trip representations
- * @param tripContinuations Array of GTFS trip continuation data from transfers.txt
+ * @param gtfsTripTransfers Array of GTFS trip continuation data from transfers.txt
  * @param timetable The timetable containing route and timing information
  * @param activeStopIds Set of stop IDs that are active/enabled in the system
  * @returns A map from trip boarding IDs to arrays of continuation boarding options
  */
-export const buildTripContinuations = (
+export const buildTripTransfers = (
   tripsMapping: TripsMapping,
-  tripContinuations: GtfsTripContinuation[],
+  gtfsTripTransfers: GtfsTripTransfer[],
   timetable: Timetable,
   activeStopIds: Set<StopId>,
-): TripContinuations => {
-  const continuations: TripContinuations = new Map();
+): TripTransfers => {
+  const continuations: TripTransfers = new Map();
 
-  for (const gtfsContinuation of tripContinuations) {
+  for (const gtfsContinuation of gtfsTripTransfers) {
     if (
       !activeStopIds.has(gtfsContinuation.fromStop) ||
       !activeStopIds.has(gtfsContinuation.toStop)
@@ -246,25 +330,24 @@ export const buildTripContinuations = (
     );
 
     if (!bestStopIndices) {
-      // No valid continuation found
       continue;
     }
 
-    const tripBoardingId = encode(
+    const tripStopId = encode(
       bestStopIndices.fromStopIndex,
       fromTripMapping.routeId,
       fromTripMapping.tripRouteIndex,
     );
 
-    const continuationBoarding: TripBoarding = {
-      hopOnStopIndex: bestStopIndices.toStopIndex,
+    const continuationBoarding: TripStop = {
+      stopIndex: bestStopIndices.toStopIndex,
       routeId: toTripMapping.routeId,
       tripIndex: toTripMapping.tripRouteIndex,
     };
 
-    const existingContinuations = continuations.get(tripBoardingId) || [];
+    const existingContinuations = continuations.get(tripStopId) || [];
     existingContinuations.push(continuationBoarding);
-    continuations.set(tripBoardingId, existingContinuations);
+    continuations.set(tripStopId, existingContinuations);
   }
 
   return continuations;

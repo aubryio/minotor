@@ -4,28 +4,13 @@ import { Duration } from './duration.js';
  * A class representing a time as minutes since midnight.
  */
 export class Time {
+  public static INFINITY = new Time(Number.MAX_SAFE_INTEGER);
+  public static ORIGIN = new Time(0);
   /*
    * Number of minutes since midnight.
    Note that this value can go beyond 3600 to model services overlapping with the next day.
    */
   private minutesSinceMidnight: number;
-  /**
-   * Gets the infinity time as a Time instance.
-   * This represents a time that is conceptually beyond any real possible time.
-   *
-   * @returns A Time instance representing an "infinity" time.
-   */
-  static infinity(): Time {
-    return new Time(Number.MAX_SAFE_INTEGER);
-  }
-  /**
-   * Gets the midnight time as a Time instance.
-   *
-   * @returns A Time instance representing midnight.
-   */
-  static origin(): Time {
-    return new Time(0);
-  }
 
   private constructor(minutes: number) {
     this.minutesSinceMidnight = minutes;
