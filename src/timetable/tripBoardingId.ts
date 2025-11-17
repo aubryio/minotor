@@ -1,13 +1,13 @@
 import { RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
 
 // Each value uses 20 bits, allowing values from 0 to 1,048,575 (2^20 - 1)
-const VALUE_MASK = (1n << 20n) - 1n; // 0xFFFFF
+const VALUE_MASK = (BigInt(1) << BigInt(20)) - BigInt(1); // 0xFFFFF
 const MAX_VALUE = 1_048_575; // 2^20 - 1
 
 // Bit positions for each value in the 60-bit bigint
-const TRIP_INDEX_SHIFT = 0n;
-const ROUTE_ID_SHIFT = 20n;
-const STOP_INDEX_SHIFT = 40n;
+const TRIP_INDEX_SHIFT = BigInt(0);
+const ROUTE_ID_SHIFT = BigInt(20);
+const STOP_INDEX_SHIFT = BigInt(40);
 
 // A TripId encodes a stop index, route ID, and trip index into a single bigint value
 export type TripBoardingId = bigint;

@@ -7,3 +7,4 @@ data/
 dist/
 *.dot
 *.svg
+*.tgz
