@@ -384,7 +384,7 @@ export class Router {
         }
         const arrivalAfterTransfer = currentArrival.arrival.plus(transferTime);
         const originalArrival =
-          arrivalsAtCurrentRound.get(transfer.destination)?.arrival ??
+          routingState.earliestArrivals.get(transfer.destination)?.arrival ??
           UNREACHED;
         if (arrivalAfterTransfer.isBefore(originalArrival)) {
           arrivalsAtCurrentRound.set(transfer.destination, {
