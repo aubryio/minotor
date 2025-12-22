@@ -9,9 +9,9 @@ import {
   ServiceRoute,
   StopAdjacency,
   Timetable,
-  TripBoarding,
+  TripStop,
 } from '../timetable.js';
-import { encode } from '../tripBoardingId.js';
+import { encode } from '../tripStopId.js';
 
 describe('Timetable', () => {
   const stopsAdjacency: StopAdjacency[] = [
@@ -275,9 +275,9 @@ describe('Timetable', () => {
       });
 
       it('should return trip continuations when they exist for the specified trip', () => {
-        const expectedContinuations: TripBoarding[] = [
-          { hopOnStopIndex: 0, routeId: 1, tripIndex: 0 },
-          { hopOnStopIndex: 0, routeId: 1, tripIndex: 1 },
+        const expectedContinuations: TripStop[] = [
+          { stopIndex: 0, routeId: 1, tripIndex: 0 },
+          { stopIndex: 0, routeId: 1, tripIndex: 1 },
         ];
 
         const tripContinuationsMap = new Map([

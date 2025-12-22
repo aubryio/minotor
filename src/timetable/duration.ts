@@ -1,4 +1,5 @@
 export class Duration {
+  public static ZERO = new Duration(0);
   private totalSeconds: number;
 
   private constructor(totalSeconds: number) {
@@ -21,14 +22,6 @@ export class Duration {
    */
   static fromMinutes(minutes: number): Duration {
     return new Duration(minutes * 60);
-  }
-  /**
-   * Gets a Duration instance representing zero duration (0 hours, 0 minutes, 0 seconds).
-   *
-   * @returns A Duration instance representing zero duration.
-   */
-  static zero(): Duration {
-    return new Duration(0);
   }
 
   /**
