@@ -101,6 +101,8 @@ jobs:
           node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 🔨 Build
         run: npm run build
       - name: 🚀 Release
