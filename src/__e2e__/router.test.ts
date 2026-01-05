@@ -15,7 +15,7 @@ const routes = [
         from: '8504100:0:2',
         to: '8504086:0:2',
         departure: '08:34',
-        arrival: '09:11',
+        arrival: '09:10',
         route: { type: 'RAIL', name: 'RE2' },
       },
       {
@@ -33,13 +33,13 @@ const routes = [
       },
       {
         from: '8504077:0:1',
-        to: '8577737',
+        to: '8577737:0:B',
         type: 'REQUIRES_MINIMAL_TIME',
         minTransferTime: '02:00',
       },
       {
-        from: '8577737',
-        to: '8504880',
+        from: '8577737:0:B',
+        to: '8504880:0:10000',
         departure: '09:33',
         arrival: '09:44',
         route: { type: 'BUS', name: '263' },
@@ -60,54 +60,28 @@ const routes = [
       },
       {
         from: '8503000:0:33',
-        to: '8503000:0:9',
+        to: '8503000:0:6',
         type: 'REQUIRES_MINIMAL_TIME',
         minTransferTime: '07:00',
       },
       {
-        from: '8503000:0:9',
-        to: '8509002:0:2',
+        from: '8503000:0:6',
+        to: '8509000:0:9',
         departure: '13:38',
-        arrival: '14:41',
+        arrival: '14:52',
         route: { type: 'RAIL', name: 'IC3' },
       },
       {
-        from: '8509002:0:2',
-        to: '8509002:0:6',
+        from: '8509000:0:9',
+        to: '8509000:0:10',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '04:00',
+        minTransferTime: '03:00',
       },
       {
-        from: '8509002:0:6',
-        to: '8509269:0:3',
-        departure: '14:49',
-        arrival: '15:52',
-        route: { type: 'RAIL', name: 'RE24' },
-      },
-      {
-        from: '8509269:0:3',
-        to: '8509269:0:4',
-        type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '01:00',
-      },
-      {
-        from: '8509269:0:4',
-        to: '8509251:0:3',
-        departure: '15:54',
-        arrival: '16:43',
-        route: { type: 'RAIL', name: 'R15' },
-      },
-      {
-        from: '8509251:0:3',
-        to: '8509251:0:2',
-        type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '01:00',
-      },
-      {
-        from: '8509251:0:2',
+        from: '8509000:0:10',
         to: '8509253:0:1',
-        departure: '16:48',
-        arrival: '17:00',
+        departure: '14:58',
+        arrival: '16:55',
         route: { type: 'RAIL', name: 'IR38' },
       },
     ],
@@ -121,7 +95,7 @@ const routes = [
         from: '8500010:0:33',
         to: '8718213',
         departure: '17:08',
-        arrival: '17:15',
+        arrival: '17:16',
         route: { type: 'RAIL', name: 'TER' },
       },
       {
@@ -140,13 +114,26 @@ const routes = [
     route: [
       {
         from: '8504100:0:3',
-        to: '8503000:0:33',
-        departure: '09:03',
-        arrival: '10:28',
-        route: { type: 'RAIL', name: 'IC1' },
+        to: '8507000:0:10',
+        departure: '08:33',
+        arrival: '08:56',
+        route: { type: 'RAIL', name: 'IR15' },
       },
       {
-        from: '8503000:0:33',
+        from: '8507000:0:10',
+        to: '8507000:0:2',
+        type: 'REQUIRES_MINIMAL_TIME',
+        minTransferTime: '06:00',
+      },
+      {
+        from: '8507000:0:2',
+        to: '8503000:0:34',
+        departure: '09:02',
+        arrival: '09:58',
+        route: { type: 'RAIL', name: 'IC81' },
+      },
+      {
+        from: '8503000:0:34',
         to: '8503000:0:10',
         type: 'REQUIRES_MINIMAL_TIME',
         minTransferTime: '07:00',
@@ -154,8 +141,8 @@ const routes = [
       {
         from: '8503000:0:10',
         to: '8509002:0:2',
-        departure: '10:38',
-        arrival: '11:41',
+        departure: '10:07',
+        arrival: '11:11',
         route: { type: 'RAIL', name: 'IC3' },
       },
       {
@@ -166,10 +153,10 @@ const routes = [
       },
       {
         from: '8509002:0:6',
-        to: '8509073:0:1',
-        departure: '11:49',
-        arrival: '13:03',
-        route: { type: 'RAIL', name: 'RE24' },
+        to: '8509073:0:2',
+        departure: '11:20',
+        arrival: '12:27',
+        route: { type: 'RAIL', name: 'RE13' },
       },
     ],
   },
@@ -204,7 +191,7 @@ describe('E2E Tests for Transit Router', () => {
 
       const result = router.route(queryObject);
       const bestRoute = result.bestRoute(toStop.sourceStopId);
-
+      console.log();
       assert.ok(bestRoute, 'No route found');
       const actualRoute = bestRoute.asJson();
 
