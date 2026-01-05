@@ -94,6 +94,9 @@ jobs:
     name: 🚀 Build & release
     needs: [format, lint, audit, spell, type, test, e2e]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v6
@@ -107,5 +110,5 @@ jobs:
         run: npm run build
       - name: 🚀 Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run semantic-release
