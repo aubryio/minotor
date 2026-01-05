@@ -8,7 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: 💅 Prettier
         run: npm run format:check
@@ -18,7 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: ⬣ ESLint
         run: npm run lint:check
@@ -28,7 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - name: 🛡️ Audit
         run: npm audit --audit-level=high --omit=dev
 
@@ -37,7 +43,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: 🈸 Spellcheck
         run: npm run spell:check
@@ -47,7 +55,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: ʦ Typecheck
         run: npm run type:check
@@ -57,7 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: ⚡ Tests
         run: npm run test:coverage
@@ -71,7 +83,9 @@ jobs:
           lfs: true
       - name: Checkout LFS objects
         run: git lfs pull
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: 🏁 End-to-end tests
         run: npm run e2e
@@ -82,7 +96,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - uses: arduino/setup-protoc@v3
       - name: 🔨 Build
