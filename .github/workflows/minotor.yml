@@ -2,16 +2,15 @@ name: minotor
 
 on: [push]
 
-env:
-  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
 jobs:
   format:
     name: 💅 Prettier
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: 💅 Prettier
         run: npm run format:check
@@ -20,8 +19,10 @@ jobs:
     name: 🔍 ESLint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: ⬣ ESLint
         run: npm run lint:check
@@ -30,8 +31,10 @@ jobs:
     name: 🛡️ Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - name: 🛡️ Audit
         run: npm audit --audit-level=high --omit=dev
 
@@ -39,8 +42,10 @@ jobs:
     name: 🔠 Spellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: 🈸 Spellcheck
         run: npm run spell:check
@@ -49,8 +54,10 @@ jobs:
     name: ʦ Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: ʦ Typecheck
         run: npm run type:check
@@ -59,10 +66,10 @@ jobs:
     name: ⚡ Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '21.1.0'
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: ⚡ Tests
         run: npm run test:coverage
@@ -71,14 +78,14 @@ jobs:
     name: 🏁 End-to-end tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           lfs: true
       - name: Checkout LFS objects
         run: git lfs pull
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
         with:
-          node-version: '21.1.0'
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - name: 🏁 End-to-end tests
         run: npm run e2e
@@ -88,8 +95,10 @@ jobs:
     needs: [format, lint, audit, spell, type, test, e2e]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: 'package.json'
       - uses: bahmutov/npm-install@v1
       - uses: arduino/setup-protoc@v3
       - name: 🔨 Build
@@ -97,5 +106,4 @@ jobs:
       - name: 🚀 Release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run semantic-release
