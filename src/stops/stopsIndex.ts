@@ -11,7 +11,7 @@ import { SourceStopId, SourceStopsMap, Stop, StopId } from './stops.js';
 type StopPoint = { id: StopId; lat: number; lon: number };
 
 /**
- * The StopMap class provides functionality to search for public transport stops
+ * The StopsIndex class provides functionality to search for public transport stops
  * by name or geographic location. It leverages text search and geospatial indexing
  * to efficiently find stops based on user queries.
  */
@@ -186,5 +186,16 @@ export class StopsIndex {
     return Array.from(new Set([id, ...equivalentStops])).map(
       (stopId) => this.stops[stopId] as Stop,
     );
+  }
+
+  /**
+   * Makes the StopsIndex iterable, allowing iteration over all stops.
+   *
+   * @returns An iterator for the stops.
+   */
+  *[Symbol.iterator](): Iterator<Stop> {
+    for (const stop of this.stops) {
+      yield stop;
+    }
   }
 }

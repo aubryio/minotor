@@ -170,4 +170,13 @@ describe('Stop Finder', () => {
       assert.deepStrictEqual(equivalentStops, []);
     });
   });
+
+  describe('iterator', () => {
+    it('should iterate over all stops', () => {
+      const stops = [...stopFinder];
+      assert.strictEqual(stops.length, 7);
+      assert.strictEqual(stops[0]?.id, 0);
+      assert.strictEqual(stops[6]?.id, 6);
+    });
+  });
 });
