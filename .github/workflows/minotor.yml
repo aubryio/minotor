@@ -2,9 +2,6 @@ name: minotor
 
 on: [push]
 
-env:
-  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
 jobs:
   format:
     name: 💅 Prettier
@@ -97,5 +94,4 @@ jobs:
       - name: 🚀 Release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run semantic-release
