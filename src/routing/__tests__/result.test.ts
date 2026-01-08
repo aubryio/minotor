@@ -409,6 +409,87 @@ describe('Result', () => {
     });
   });
 
+  describe('bestRouteToStopId', () => {
+    it('should return route when given a single StopId', () => {
+      const earliestArrivals = new Map([
+        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // destination
+      ]);
+
+      const vehicleEdge: VehicleEdge = {
+        arrival: Time.fromHMS(9, 0, 0),
+        from: 0,
+        to: 2,
+        routeId: 0,
+        tripIndex: 0,
+      };
+
+      const graph: Map<StopId, RoutingEdge>[] = [
+        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[2, vehicleEdge]]), // Round 1
+      ];
+
+      const result = new Result(
+        mockQuery,
+        {
+          earliestArrivals,
+          graph,
+          destinations: [2],
+        },
+        mockStopsIndex,
+        mockTimetable,
+      );
+
+      const route = result.bestRouteToStopId(2); // Using StopId instead of SourceStopId
+      assert(route);
+      assert.strictEqual(route.legs.length, 1);
+      const firstLeg = route.legs[0];
+      assert(firstLeg);
+      assert.strictEqual(firstLeg.from.id, 0);
+      assert.strictEqual(firstLeg.to.id, 2);
+    });
+
+    it('should return route to closest destination when given a Set of StopIds', () => {
+      const earliestArrivals = new Map([
+        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // destination (faster)
+        [3, { arrival: Time.fromHMS(9, 45, 0), legNumber: 1 }], // destination (slower)
+      ]);
+
+      const vehicleEdge: VehicleEdge = {
+        arrival: Time.fromHMS(9, 0, 0),
+        from: 0,
+        to: 2,
+        routeId: 0,
+        tripIndex: 0,
+      };
+
+      const graph: Map<StopId, RoutingEdge>[] = [
+        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[2, vehicleEdge]]), // Round 1
+      ];
+
+      const result = new Result(
+        mockQuery,
+        {
+          earliestArrivals,
+          graph,
+          destinations: [2, 3],
+        },
+        mockStopsIndex,
+        mockTimetable,
+      );
+
+      const route = result.bestRouteToStopId(new Set([2, 3])); // Using Set of StopIds
+      assert(route);
+      assert.strictEqual(route.legs.length, 1);
+      const firstLeg = route.legs[0];
+      assert(firstLeg);
+      assert.strictEqual(firstLeg.from.id, 0);
+      assert.strictEqual(firstLeg.to.id, 2); // Should route to stop 2 (faster arrival)
+    });
+  });
+
   describe('continuous trips', () => {
     it('should handle single continuous trip correctly', () => {
       const earliestArrivals = new Map([
