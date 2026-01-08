@@ -24,6 +24,37 @@ export class Result {
   }
 
   /**
+   * Reconstructs the best route to a stop by StopId.
+   * (to any stop reachable in less time / transfers than the destination(s) of the query)
+   *
+   * @param to The destination stop by StopId.
+   * @returns a route to the destination stop if it exists.
+   */
+  bestRouteToStopId(to: StopId | Set<StopId>): Route | undefined {
+    const sourceStopIds =
+      to instanceof Set
+        ? new Set(
+            Array.from(to)
+              .map(
+                (stopId) => this.stopsIndex.findStopById(stopId)?.sourceStopId,
+              )
+              .filter(
+                (sourceId): sourceId is SourceStopId => sourceId !== undefined,
+              ),
+          )
+        : this.stopsIndex.findStopById(to)?.sourceStopId;
+
+    if (
+      sourceStopIds === undefined ||
+      (sourceStopIds instanceof Set && sourceStopIds.size === 0)
+    ) {
+      return undefined;
+    }
+
+    return this.bestRoute(sourceStopIds);
+  }
+
+  /**
    * Reconstructs the best route to a stop.
    * (to any stop reachable in less time / transfers than the destination(s) of the query)
    *
@@ -37,23 +68,24 @@ export class Result {
         : to
           ? [to]
           : Array.from(this.query.to);
-    const destinations = destinationList.flatMap((destination) =>
-      this.stopsIndex.equivalentStops(destination),
-    );
     // find the first reached destination
     let fastestDestination: StopId | undefined = undefined;
     let fastestTime: Arrival | undefined = undefined;
-    for (const destination of destinations) {
-      const arrivalTime = this.routingState.earliestArrivals.get(
-        destination.id,
-      );
-      if (arrivalTime !== undefined) {
-        if (
-          fastestTime === undefined ||
-          arrivalTime.arrival.isBefore(fastestTime.arrival)
-        ) {
-          fastestDestination = destination.id;
-          fastestTime = arrivalTime;
+    for (const sourceDestination of destinationList) {
+      const equivalentStops =
+        this.stopsIndex.equivalentStops(sourceDestination);
+      for (const destination of equivalentStops) {
+        const arrivalTime = this.routingState.earliestArrivals.get(
+          destination.id,
+        );
+        if (arrivalTime !== undefined) {
+          if (
+            fastestTime === undefined ||
+            arrivalTime.arrival.isBefore(fastestTime.arrival)
+          ) {
+            fastestDestination = destination.id;
+            fastestTime = arrivalTime;
+          }
         }
       }
     }
