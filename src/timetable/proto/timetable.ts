@@ -166,17 +166,15 @@ export interface Transfer {
   minTransferTime?: number | undefined;
 }
 
-export interface TripBoarding {
-  hopOnStopIndex: number;
+export interface TripStop {
+  stopIndex: number;
   routeId: number;
   tripIndex: number;
 }
 
-export interface TripContinuationEntry {
-  originStopIndex: number;
-  originRouteId: number;
-  originTripIndex: number;
-  continuations: TripBoarding[];
+export interface TripTransferEntry {
+  origin: TripStop | undefined;
+  destinations: TripStop[];
 }
 
 export interface StopAdjacency {
@@ -195,7 +193,8 @@ export interface Timetable {
   stopsAdjacency: StopAdjacency[];
   routesAdjacency: Route[];
   serviceRoutes: ServiceRoute[];
-  tripContinuations: TripContinuationEntry[];
+  tripContinuations: TripTransferEntry[];
+  guaranteedTripTransfers: TripTransferEntry[];
 }
 
 function createBaseRoute(): Route {
@@ -405,14 +404,14 @@ export const Transfer: MessageFns<Transfer> = {
   },
 };
 
-function createBaseTripBoarding(): TripBoarding {
-  return { hopOnStopIndex: 0, routeId: 0, tripIndex: 0 };
+function createBaseTripStop(): TripStop {
+  return { stopIndex: 0, routeId: 0, tripIndex: 0 };
 }
 
-export const TripBoarding: MessageFns<TripBoarding> = {
-  encode(message: TripBoarding, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.hopOnStopIndex !== 0) {
-      writer.uint32(8).uint32(message.hopOnStopIndex);
+export const TripStop: MessageFns<TripStop> = {
+  encode(message: TripStop, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.stopIndex !== 0) {
+      writer.uint32(8).uint32(message.stopIndex);
     }
     if (message.routeId !== 0) {
       writer.uint32(16).uint32(message.routeId);
@@ -423,10 +422,10 @@ export const TripBoarding: MessageFns<TripBoarding> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): TripBoarding {
+  decode(input: BinaryReader | Uint8Array, length?: number): TripStop {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTripBoarding();
+    const message = createBaseTripStop();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -435,7 +434,7 @@ export const TripBoarding: MessageFns<TripBoarding> = {
             break;
           }
 
-          message.hopOnStopIndex = reader.uint32();
+          message.stopIndex = reader.uint32();
           continue;
         }
         case 2: {
@@ -463,18 +462,18 @@ export const TripBoarding: MessageFns<TripBoarding> = {
     return message;
   },
 
-  fromJSON(object: any): TripBoarding {
+  fromJSON(object: any): TripStop {
     return {
-      hopOnStopIndex: isSet(object.hopOnStopIndex) ? globalThis.Number(object.hopOnStopIndex) : 0,
+      stopIndex: isSet(object.stopIndex) ? globalThis.Number(object.stopIndex) : 0,
       routeId: isSet(object.routeId) ? globalThis.Number(object.routeId) : 0,
       tripIndex: isSet(object.tripIndex) ? globalThis.Number(object.tripIndex) : 0,
     };
   },
 
-  toJSON(message: TripBoarding): unknown {
+  toJSON(message: TripStop): unknown {
     const obj: any = {};
-    if (message.hopOnStopIndex !== 0) {
-      obj.hopOnStopIndex = Math.round(message.hopOnStopIndex);
+    if (message.stopIndex !== 0) {
+      obj.stopIndex = Math.round(message.stopIndex);
     }
     if (message.routeId !== 0) {
       obj.routeId = Math.round(message.routeId);
@@ -485,76 +484,54 @@ export const TripBoarding: MessageFns<TripBoarding> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TripBoarding>, I>>(base?: I): TripBoarding {
-    return TripBoarding.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<TripStop>, I>>(base?: I): TripStop {
+    return TripStop.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TripBoarding>, I>>(object: I): TripBoarding {
-    const message = createBaseTripBoarding();
-    message.hopOnStopIndex = object.hopOnStopIndex ?? 0;
+  fromPartial<I extends Exact<DeepPartial<TripStop>, I>>(object: I): TripStop {
+    const message = createBaseTripStop();
+    message.stopIndex = object.stopIndex ?? 0;
     message.routeId = object.routeId ?? 0;
     message.tripIndex = object.tripIndex ?? 0;
     return message;
   },
 };
 
-function createBaseTripContinuationEntry(): TripContinuationEntry {
-  return { originStopIndex: 0, originRouteId: 0, originTripIndex: 0, continuations: [] };
+function createBaseTripTransferEntry(): TripTransferEntry {
+  return { origin: undefined, destinations: [] };
 }
 
-export const TripContinuationEntry: MessageFns<TripContinuationEntry> = {
-  encode(message: TripContinuationEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.originStopIndex !== 0) {
-      writer.uint32(8).uint32(message.originStopIndex);
+export const TripTransferEntry: MessageFns<TripTransferEntry> = {
+  encode(message: TripTransferEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.origin !== undefined) {
+      TripStop.encode(message.origin, writer.uint32(10).fork()).join();
     }
-    if (message.originRouteId !== 0) {
-      writer.uint32(16).uint32(message.originRouteId);
-    }
-    if (message.originTripIndex !== 0) {
-      writer.uint32(24).uint32(message.originTripIndex);
-    }
-    for (const v of message.continuations) {
-      TripBoarding.encode(v!, writer.uint32(34).fork()).join();
+    for (const v of message.destinations) {
+      TripStop.encode(v!, writer.uint32(18).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): TripContinuationEntry {
+  decode(input: BinaryReader | Uint8Array, length?: number): TripTransferEntry {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseTripContinuationEntry();
+    const message = createBaseTripTransferEntry();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag !== 8) {
+          if (tag !== 10) {
             break;
           }
 
-          message.originStopIndex = reader.uint32();
+          message.origin = TripStop.decode(reader, reader.uint32());
           continue;
         }
         case 2: {
-          if (tag !== 16) {
+          if (tag !== 18) {
             break;
           }
 
-          message.originRouteId = reader.uint32();
-          continue;
-        }
-        case 3: {
-          if (tag !== 24) {
-            break;
-          }
-
-          message.originTripIndex = reader.uint32();
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.continuations.push(TripBoarding.decode(reader, reader.uint32()));
+          message.destinations.push(TripStop.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -566,43 +543,35 @@ export const TripContinuationEntry: MessageFns<TripContinuationEntry> = {
     return message;
   },
 
-  fromJSON(object: any): TripContinuationEntry {
+  fromJSON(object: any): TripTransferEntry {
     return {
-      originStopIndex: isSet(object.originStopIndex) ? globalThis.Number(object.originStopIndex) : 0,
-      originRouteId: isSet(object.originRouteId) ? globalThis.Number(object.originRouteId) : 0,
-      originTripIndex: isSet(object.originTripIndex) ? globalThis.Number(object.originTripIndex) : 0,
-      continuations: globalThis.Array.isArray(object?.continuations)
-        ? object.continuations.map((e: any) => TripBoarding.fromJSON(e))
+      origin: isSet(object.origin) ? TripStop.fromJSON(object.origin) : undefined,
+      destinations: globalThis.Array.isArray(object?.destinations)
+        ? object.destinations.map((e: any) => TripStop.fromJSON(e))
         : [],
     };
   },
 
-  toJSON(message: TripContinuationEntry): unknown {
+  toJSON(message: TripTransferEntry): unknown {
     const obj: any = {};
-    if (message.originStopIndex !== 0) {
-      obj.originStopIndex = Math.round(message.originStopIndex);
+    if (message.origin !== undefined) {
+      obj.origin = TripStop.toJSON(message.origin);
     }
-    if (message.originRouteId !== 0) {
-      obj.originRouteId = Math.round(message.originRouteId);
-    }
-    if (message.originTripIndex !== 0) {
-      obj.originTripIndex = Math.round(message.originTripIndex);
-    }
-    if (message.continuations?.length) {
-      obj.continuations = message.continuations.map((e) => TripBoarding.toJSON(e));
+    if (message.destinations?.length) {
+      obj.destinations = message.destinations.map((e) => TripStop.toJSON(e));
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TripContinuationEntry>, I>>(base?: I): TripContinuationEntry {
-    return TripContinuationEntry.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<TripTransferEntry>, I>>(base?: I): TripTransferEntry {
+    return TripTransferEntry.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<TripContinuationEntry>, I>>(object: I): TripContinuationEntry {
-    const message = createBaseTripContinuationEntry();
-    message.originStopIndex = object.originStopIndex ?? 0;
-    message.originRouteId = object.originRouteId ?? 0;
-    message.originTripIndex = object.originTripIndex ?? 0;
-    message.continuations = object.continuations?.map((e) => TripBoarding.fromPartial(e)) || [];
+  fromPartial<I extends Exact<DeepPartial<TripTransferEntry>, I>>(object: I): TripTransferEntry {
+    const message = createBaseTripTransferEntry();
+    message.origin = (object.origin !== undefined && object.origin !== null)
+      ? TripStop.fromPartial(object.origin)
+      : undefined;
+    message.destinations = object.destinations?.map((e) => TripStop.fromPartial(e)) || [];
     return message;
   },
 };
@@ -802,7 +771,14 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
 };
 
 function createBaseTimetable(): Timetable {
-  return { version: "", stopsAdjacency: [], routesAdjacency: [], serviceRoutes: [], tripContinuations: [] };
+  return {
+    version: "",
+    stopsAdjacency: [],
+    routesAdjacency: [],
+    serviceRoutes: [],
+    tripContinuations: [],
+    guaranteedTripTransfers: [],
+  };
 }
 
 export const Timetable: MessageFns<Timetable> = {
@@ -820,7 +796,10 @@ export const Timetable: MessageFns<Timetable> = {
       ServiceRoute.encode(v!, writer.uint32(34).fork()).join();
     }
     for (const v of message.tripContinuations) {
-      TripContinuationEntry.encode(v!, writer.uint32(42).fork()).join();
+      TripTransferEntry.encode(v!, writer.uint32(42).fork()).join();
+    }
+    for (const v of message.guaranteedTripTransfers) {
+      TripTransferEntry.encode(v!, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -869,7 +848,15 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.tripContinuations.push(TripContinuationEntry.decode(reader, reader.uint32()));
+          message.tripContinuations.push(TripTransferEntry.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.guaranteedTripTransfers.push(TripTransferEntry.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -894,7 +881,10 @@ export const Timetable: MessageFns<Timetable> = {
         ? object.serviceRoutes.map((e: any) => ServiceRoute.fromJSON(e))
         : [],
       tripContinuations: globalThis.Array.isArray(object?.tripContinuations)
-        ? object.tripContinuations.map((e: any) => TripContinuationEntry.fromJSON(e))
+        ? object.tripContinuations.map((e: any) => TripTransferEntry.fromJSON(e))
+        : [],
+      guaranteedTripTransfers: globalThis.Array.isArray(object?.guaranteedTripTransfers)
+        ? object.guaranteedTripTransfers.map((e: any) => TripTransferEntry.fromJSON(e))
         : [],
     };
   },
@@ -914,7 +904,10 @@ export const Timetable: MessageFns<Timetable> = {
       obj.serviceRoutes = message.serviceRoutes.map((e) => ServiceRoute.toJSON(e));
     }
     if (message.tripContinuations?.length) {
-      obj.tripContinuations = message.tripContinuations.map((e) => TripContinuationEntry.toJSON(e));
+      obj.tripContinuations = message.tripContinuations.map((e) => TripTransferEntry.toJSON(e));
+    }
+    if (message.guaranteedTripTransfers?.length) {
+      obj.guaranteedTripTransfers = message.guaranteedTripTransfers.map((e) => TripTransferEntry.toJSON(e));
     }
     return obj;
   },
@@ -928,7 +921,9 @@ export const Timetable: MessageFns<Timetable> = {
     message.stopsAdjacency = object.stopsAdjacency?.map((e) => StopAdjacency.fromPartial(e)) || [];
     message.routesAdjacency = object.routesAdjacency?.map((e) => Route.fromPartial(e)) || [];
     message.serviceRoutes = object.serviceRoutes?.map((e) => ServiceRoute.fromPartial(e)) || [];
-    message.tripContinuations = object.tripContinuations?.map((e) => TripContinuationEntry.fromPartial(e)) || [];
+    message.tripContinuations = object.tripContinuations?.map((e) => TripTransferEntry.fromPartial(e)) || [];
+    message.guaranteedTripTransfers = object.guaranteedTripTransfers?.map((e) => TripTransferEntry.fromPartial(e)) ||
+      [];
     return message;
   },
 };

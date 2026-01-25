@@ -95,6 +95,7 @@ export class Result {
     const route: Leg[] = [];
     let currentStop = fastestDestination;
     let round = fastestTime.legNumber;
+    let previousVehicleEdge: VehicleEdge | undefined;
     while (round > 0) {
       const edge = this.routingState.graph[round]?.get(currentStop);
       if (!edge) {
@@ -112,8 +113,32 @@ export class Result {
           vehicleEdge = vehicleEdge.continuationOf;
         }
         leg = this.buildVehicleLeg(chainedEdges);
+        // Insert a guaranteed transfer leg between consecutive vehicle legs if applicable
+        if (
+          previousVehicleEdge &&
+          this.timetable.isTripTransferGuaranteed(
+            {
+              stopIndex: vehicleEdge.hopOffStopIndex,
+              routeId: vehicleEdge.routeId,
+              tripIndex: vehicleEdge.tripIndex,
+            },
+            {
+              stopIndex: previousVehicleEdge.stopIndex,
+              routeId: previousVehicleEdge.routeId,
+              tripIndex: previousVehicleEdge.tripIndex,
+            },
+          )
+        ) {
+          const guaranteedTransferLeg = this.buildGuaranteedTransferLeg(
+            vehicleEdge,
+            previousVehicleEdge,
+          );
+          route.unshift(guaranteedTransferLeg);
+        }
+        previousVehicleEdge = vehicleEdge;
       } else if ('type' in edge) {
         leg = this.buildTransferLeg(edge);
+        previousVehicleEdge = undefined;
       } else {
         break;
       }
@@ -147,21 +172,28 @@ export class Result {
     const lastRoute = this.timetable.getRoute(lastEdge.routeId)!;
     return {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      from: this.stopsIndex.findStopById(firstRoute.stopId(firstEdge.from))!,
+      from: this.stopsIndex.findStopById(
+        firstRoute.stopId(firstEdge.stopIndex),
+      )!,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      to: this.stopsIndex.findStopById(lastRoute.stopId(lastEdge.to))!,
+      to: this.stopsIndex.findStopById(
+        lastRoute.stopId(lastEdge.hopOffStopIndex),
+      )!,
       // The route info comes from the first boarded route in case on continuous trips
       route: this.timetable.getServiceRouteInfo(firstRoute),
       departureTime: firstRoute.departureFrom(
-        firstEdge.from,
+        firstEdge.stopIndex,
         firstEdge.tripIndex,
       ),
       arrivalTime: lastEdge.arrival,
       pickUpType: firstRoute.pickUpTypeFrom(
-        firstEdge.from,
+        firstEdge.stopIndex,
         firstEdge.tripIndex,
       ),
-      dropOffType: lastRoute.dropOffTypeAt(lastEdge.to, lastEdge.tripIndex),
+      dropOffType: lastRoute.dropOffTypeAt(
+        lastEdge.hopOffStopIndex,
+        lastEdge.tripIndex,
+      ),
     };
   }
 
@@ -179,6 +211,33 @@ export class Result {
       to: this.stopsIndex.findStopById(edge.to)!,
       minTransferTime: edge.minTransferTime,
       type: edge.type,
+    };
+  }
+
+  /**
+   * Builds a guaranteed transfer leg between two consecutive vehicle legs.
+   *
+   * @param fromEdge The vehicle edge we're alighting from
+   * @param toEdge The vehicle edge we're boarding
+   * @returns A transfer leg with type 'GUARANTEED'
+   */
+  private buildGuaranteedTransferLeg(
+    fromEdge: VehicleEdge,
+    toEdge: VehicleEdge,
+  ): Transfer {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const fromRoute = this.timetable.getRoute(fromEdge.routeId)!;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const toRoute = this.timetable.getRoute(toEdge.routeId)!;
+    const fromStopId = fromRoute.stopId(fromEdge.hopOffStopIndex);
+    const toStopId = toRoute.stopId(toEdge.stopIndex);
+
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      from: this.stopsIndex.findStopById(fromStopId)!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      to: this.stopsIndex.findStopById(toStopId)!,
+      type: 'GUARANTEED',
     };
   }
 

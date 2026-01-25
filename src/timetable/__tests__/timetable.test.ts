@@ -9,9 +9,9 @@ import {
   ServiceRoute,
   StopAdjacency,
   Timetable,
-  TripBoarding,
+  TripStop,
 } from '../timetable.js';
-import { encode } from '../tripBoardingId.js';
+import { encode } from '../tripStopId.js';
 
 describe('Timetable', () => {
   const stopsAdjacency: StopAdjacency[] = [
@@ -101,6 +101,7 @@ describe('Timetable', () => {
     routesAdjacency,
     routes,
     new Map(),
+    new Map(),
   );
 
   it('should serialize a timetable to a Uint8Array', () => {
@@ -135,12 +136,6 @@ describe('Timetable', () => {
     const afterTime = Time.fromHMS(23, 40, 0);
     const tripIndex = route.findEarliestTrip(0, afterTime);
     assert.strictEqual(tripIndex, undefined);
-  });
-  it('should return undefined if the stop on a trip has pick up not available', () => {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const route = sampleTimetable.getRoute(0)!;
-    const tripIndex = route.findEarliestTrip(1);
-    assert.strictEqual(tripIndex, 1);
   });
   describe('findReachableRoutes', () => {
     it('should find reachable routes from a single stop', () => {
@@ -248,7 +243,7 @@ describe('Timetable', () => {
       it('should return empty array when stop has trip continuations but not for the specified trip', () => {
         // Create a timetable with trip continuations that don't match the query
         const tripContinuationsMap = new Map([
-          [encode(0, 0, 1), [{ hopOnStopIndex: 0, routeId: 1, tripIndex: 0 }]], // Different trip index
+          [encode(0, 0, 1), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]], // Different trip index
         ]);
 
         const stopsWithContinuations: StopAdjacency[] = [
@@ -275,9 +270,9 @@ describe('Timetable', () => {
       });
 
       it('should return trip continuations when they exist for the specified trip', () => {
-        const expectedContinuations: TripBoarding[] = [
-          { hopOnStopIndex: 0, routeId: 1, tripIndex: 0 },
-          { hopOnStopIndex: 0, routeId: 1, tripIndex: 1 },
+        const expectedContinuations: TripStop[] = [
+          { stopIndex: 0, routeId: 1, tripIndex: 0 },
+          { stopIndex: 0, routeId: 1, tripIndex: 1 },
         ];
 
         const tripContinuationsMap = new Map([
@@ -310,6 +305,355 @@ describe('Timetable', () => {
       it('should return empty array when querying with non-matching parameters', () => {
         const continuousTrips = sampleTimetable.getContinuousTrips(999, 0, 0);
         assert.deepStrictEqual(continuousTrips, []);
+      });
+    });
+
+    describe('getGuaranteedTripTransfers', () => {
+      it('should return empty array when stop has no guaranteed trip transfers', () => {
+        const guaranteedTransfers = sampleTimetable.getGuaranteedTripTransfers(
+          0,
+          0,
+          0,
+        );
+        assert.deepStrictEqual(guaranteedTransfers, []);
+      });
+
+      it('should return empty array when stop has guaranteed trip transfers but not for the specified trip', () => {
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 1), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]], // Different trip index
+        ]);
+
+        const stopsWithGuaranteedTransfers: StopAdjacency[] = [
+          { routes: [] },
+          {
+            routes: [0, 1],
+          },
+          { routes: [1] },
+        ];
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsWithGuaranteedTransfers,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const guaranteedTransfers =
+          timetableWithGuaranteedTransfers.getGuaranteedTripTransfers(0, 0, 0); // Query trip index 0, but transfers are for trip index 1
+        assert.deepStrictEqual(guaranteedTransfers, []);
+      });
+
+      it('should return guaranteed trip transfers when they exist for the specified trip', () => {
+        const expectedTransfers: TripStop[] = [
+          { stopIndex: 0, routeId: 1, tripIndex: 0 },
+          { stopIndex: 0, routeId: 1, tripIndex: 1 },
+        ];
+
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 0), expectedTransfers],
+        ]);
+
+        const stopsWithGuaranteedTransfers: StopAdjacency[] = [
+          { routes: [] },
+          {
+            routes: [0, 1],
+          },
+          { routes: [1] },
+        ];
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsWithGuaranteedTransfers,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const guaranteedTransfers =
+          timetableWithGuaranteedTransfers.getGuaranteedTripTransfers(0, 0, 0);
+        assert.deepStrictEqual(guaranteedTransfers, expectedTransfers);
+      });
+
+      it('should return empty array when querying with non-matching parameters', () => {
+        const guaranteedTransfers = sampleTimetable.getGuaranteedTripTransfers(
+          999,
+          0,
+          0,
+        );
+        assert.deepStrictEqual(guaranteedTransfers, []);
+      });
+    });
+
+    describe('isTripTransferGuaranteed', () => {
+      it('should return false when no guaranteed transfers exist', () => {
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        };
+        const toTripStop: TripStop = { stopIndex: 0, routeId: 1, tripIndex: 0 };
+
+        const result = sampleTimetable.isTripTransferGuaranteed(
+          fromTripStop,
+          toTripStop,
+        );
+        assert.strictEqual(result, false);
+      });
+
+      it('should return false when guaranteed transfers exist but not for the specified trip', () => {
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 1), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]], // Transfers for trip index 1
+        ]);
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsAdjacency,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        }; // Query trip index 0
+        const toTripStop: TripStop = { stopIndex: 0, routeId: 1, tripIndex: 0 };
+
+        const result =
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            toTripStop,
+          );
+        assert.strictEqual(result, false);
+      });
+
+      it('should return true when the transfer is guaranteed', () => {
+        const guaranteedTransfer: TripStop = {
+          stopIndex: 0,
+          routeId: 1,
+          tripIndex: 0,
+        };
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 0), [guaranteedTransfer]],
+        ]);
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsAdjacency,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        };
+        const toTripStop: TripStop = { stopIndex: 0, routeId: 1, tripIndex: 0 };
+
+        const result =
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            toTripStop,
+          );
+        assert.strictEqual(result, true);
+      });
+
+      it('should return false when transfer destination does not match any guaranteed transfer', () => {
+        const guaranteedTransfer: TripStop = {
+          stopIndex: 0,
+          routeId: 1,
+          tripIndex: 0,
+        };
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 0), [guaranteedTransfer]],
+        ]);
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsAdjacency,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        };
+        const nonMatchingToTripStop: TripStop = {
+          stopIndex: 1,
+          routeId: 1,
+          tripIndex: 0,
+        }; // Different stopIndex
+
+        const result =
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            nonMatchingToTripStop,
+          );
+        assert.strictEqual(result, false);
+      });
+
+      it('should return true when transfer matches one of multiple guaranteed transfers', () => {
+        const guaranteedTransfers: TripStop[] = [
+          { stopIndex: 0, routeId: 1, tripIndex: 0 },
+          { stopIndex: 0, routeId: 1, tripIndex: 1 },
+          { stopIndex: 1, routeId: 1, tripIndex: 0 },
+        ];
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 0), guaranteedTransfers],
+        ]);
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsAdjacency,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        };
+
+        // Test matching the second guaranteed transfer
+        const toTripStop: TripStop = { stopIndex: 0, routeId: 1, tripIndex: 1 };
+        const result =
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            toTripStop,
+          );
+        assert.strictEqual(result, true);
+
+        // Test matching the third guaranteed transfer
+        const toTripStop2: TripStop = {
+          stopIndex: 1,
+          routeId: 1,
+          tripIndex: 0,
+        };
+        const result2 =
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            toTripStop2,
+          );
+        assert.strictEqual(result2, true);
+      });
+
+      it('should return false for invalid trip data (non-existent route)', () => {
+        const guaranteedTransfer: TripStop = {
+          stopIndex: 0,
+          routeId: 1,
+          tripIndex: 0,
+        };
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 0), [guaranteedTransfer]],
+        ]);
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsAdjacency,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 999,
+          tripIndex: 0,
+        }; // Non-existent route
+        const toTripStop: TripStop = { stopIndex: 0, routeId: 1, tripIndex: 0 };
+
+        const result =
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            toTripStop,
+          );
+        assert.strictEqual(result, false);
+      });
+
+      it('should correctly distinguish between different stopIndex values', () => {
+        const guaranteedTransfer: TripStop = {
+          stopIndex: 0,
+          routeId: 1,
+          tripIndex: 0,
+        };
+        const guaranteedTripTransfersMap = new Map([
+          [encode(0, 0, 0), [guaranteedTransfer]],
+        ]);
+
+        const timetableWithGuaranteedTransfers = new Timetable(
+          stopsAdjacency,
+          routesAdjacency,
+          routes,
+          new Map(),
+          guaranteedTripTransfersMap,
+        );
+
+        const fromTripStop: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        };
+
+        // Exact match should return true
+        const exactMatch: TripStop = { stopIndex: 0, routeId: 1, tripIndex: 0 };
+        assert.strictEqual(
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            exactMatch,
+          ),
+          true,
+        );
+
+        // Different stopIndex should return false
+        const differentStopIndex: TripStop = {
+          stopIndex: 1,
+          routeId: 1,
+          tripIndex: 0,
+        };
+        assert.strictEqual(
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            differentStopIndex,
+          ),
+          false,
+        );
+
+        // Different routeId should return false
+        const differentRouteId: TripStop = {
+          stopIndex: 0,
+          routeId: 0,
+          tripIndex: 0,
+        };
+        assert.strictEqual(
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            differentRouteId,
+          ),
+          false,
+        );
+
+        // Different tripIndex should return false
+        const differentTripIndex: TripStop = {
+          stopIndex: 0,
+          routeId: 1,
+          tripIndex: 1,
+        };
+        assert.strictEqual(
+          timetableWithGuaranteedTransfers.isTripTransferGuaranteed(
+            fromTripStop,
+            differentTripIndex,
+          ),
+          false,
+        );
       });
     });
   });

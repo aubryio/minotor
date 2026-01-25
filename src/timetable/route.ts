@@ -386,7 +386,7 @@ export class Route {
    */
   findEarliestTrip(
     stopIndex: StopRouteIndex,
-    after: Time = Time.origin(),
+    after: Time = Time.ORIGIN,
     beforeTrip?: TripRouteIndex,
   ): TripRouteIndex | undefined {
     if (this.nbTrips <= 0) return undefined;
@@ -408,14 +408,7 @@ export class Route {
       }
     }
     if (lb === -1) return undefined;
-
-    for (let t = lb; t < (beforeTrip ?? this.nbTrips); t++) {
-      const pickup = this.pickUpTypeFrom(stopIndex, t);
-      if (pickup !== 'NOT_AVAILABLE') {
-        return t;
-      }
-    }
-    return undefined;
+    return lb;
   }
 
   /**

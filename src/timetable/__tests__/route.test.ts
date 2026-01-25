@@ -249,10 +249,10 @@ describe('Route', () => {
       assert.strictEqual(tripIndex, undefined);
     });
 
-    it('should skip trips where pickup is not available', () => {
+    it('should find earliest trip', () => {
       const tripIndex = route.findEarliestTrip(1);
-      // Trip 0 has NOT_AVAILABLE pickup at stop index 1, so should return trip 1
-      assert.strictEqual(tripIndex, 1);
+      // findEarliestTrip only filters by time, not pickup type
+      assert.strictEqual(tripIndex, 0);
     });
 
     it('should respect beforeTrip constraint', () => {
@@ -261,7 +261,7 @@ describe('Route', () => {
     });
 
     it('should return undefined when beforeTrip is 0', () => {
-      const tripIndex = route.findEarliestTrip(0, Time.origin(), 0);
+      const tripIndex = route.findEarliestTrip(0, Time.ORIGIN, 0);
       assert.strictEqual(tripIndex, undefined);
     });
 

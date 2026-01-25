@@ -51,7 +51,9 @@
     "dropoff",
     "boardable",
     "alightable",
-    "penwidth"
+    "penwidth",
+    "catchable",
+    "Tpng"
   ],
   "flagWords": [],
   "ignorePaths": [
