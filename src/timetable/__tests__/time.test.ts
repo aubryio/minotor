@@ -8,20 +8,20 @@ describe('Time', () => {
   describe('Static factory methods', () => {
     describe('infinity()', () => {
       it('should return a Time instance representing infinity', () => {
-        const infinityTime = Time.infinity();
+        const infinityTime = Time.INFINITY;
         assert.strictEqual(infinityTime.toMinutes(), Number.MAX_SAFE_INTEGER);
       });
 
       it('should return the same infinity value for multiple calls', () => {
-        const infinity1 = Time.infinity();
-        const infinity2 = Time.infinity();
+        const infinity1 = Time.INFINITY;
+        const infinity2 = Time.INFINITY;
         assert(infinity1.equals(infinity2));
       });
     });
 
     describe('origin()', () => {
       it('should return a Time instance representing midnight (0 minutes)', () => {
-        const midnight = Time.origin();
+        const midnight = Time.ORIGIN;
         assert.strictEqual(midnight.toMinutes(), 0);
         assert.strictEqual(midnight.toString(), '00:00');
       });
@@ -236,7 +236,7 @@ describe('Time', () => {
       });
 
       it('should return 0 for midnight', () => {
-        const time = Time.origin();
+        const time = Time.ORIGIN;
         assert.strictEqual(time.toMinutes(), 0);
       });
     });
@@ -411,7 +411,7 @@ describe('Time', () => {
 
       it('should handle infinity time', () => {
         const time1 = Time.fromMinutes(120);
-        const infinity = Time.infinity();
+        const infinity = Time.INFINITY;
         const maxTime = Time.max(time1, infinity);
         assert.strictEqual(maxTime, infinity);
       });
@@ -448,7 +448,7 @@ describe('Time', () => {
 
       it('should handle origin time', () => {
         const time1 = Time.fromMinutes(120);
-        const origin = Time.origin();
+        const origin = Time.ORIGIN;
         const minTime = Time.min(time1, origin);
         assert.strictEqual(minTime, origin);
       });
@@ -484,7 +484,7 @@ describe('Time', () => {
 
     it('should handle comparison with infinity', () => {
       const normalTime = Time.fromMinutes(1000);
-      const infinity = Time.infinity();
+      const infinity = Time.INFINITY;
 
       assert.strictEqual(normalTime.isBefore(infinity), true);
       assert.strictEqual(infinity.isAfter(normalTime), true);

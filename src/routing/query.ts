@@ -3,16 +3,18 @@ import { Duration } from '../timetable/duration.js';
 import { Time } from '../timetable/time.js';
 import { ALL_TRANSPORT_MODES, RouteType } from '../timetable/timetable.js';
 
+export type QueryOptions = {
+  maxTransfers: number;
+  minTransferTime: Duration;
+  transportModes: Set<RouteType>;
+};
+
 export class Query {
   from: SourceStopId;
   to: Set<SourceStopId>;
   departureTime: Time;
   lastDepartureTime?: Time;
-  options: {
-    maxTransfers: number;
-    minTransferTime: Duration;
-    transportModes: Set<RouteType>;
-  };
+  options: QueryOptions;
 
   constructor(builder: typeof Query.Builder.prototype) {
     this.from = builder.fromValue;

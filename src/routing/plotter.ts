@@ -2,30 +2,204 @@ import { StopId } from '../stops/stops.js';
 import { Result } from './result.js';
 import { RoutingEdge, TransferEdge, VehicleEdge } from './router.js';
 
+/**
+ * Configuration for DOT graph styling.
+ */
+const DOT_CONFIG = {
+  colors: {
+    rounds: [
+      '#60a5fa', // Round 1 - Blue
+      '#ff9800', // Round 2 - Orange
+      '#14b8a6', // Round 3 - Teal
+      '#fb7185', // Round 4 - Pink
+      '#ffdf00', // Round 5 - Yellow
+      '#b600ff', // Round 6 - Purple
+      '#ee82ee', // Round 7+ - Violet
+    ],
+    defaultRound: '#888888',
+    originStation: '#60a5fa',
+    destinationStation: '#ee82ee',
+    defaultStation: 'white',
+    continuationFill: '#ffffcc',
+  },
+  penWidth: {
+    default: 1,
+    continuation: 2,
+    continuationEdge: 3,
+  },
+} as const;
+
+/**
+ * Type guard to check if an edge is a VehicleEdge.
+ */
+function isVehicleEdge(edge: RoutingEdge): edge is VehicleEdge {
+  return 'routeId' in edge && 'stopIndex' in edge && 'hopOffStopIndex' in edge;
+}
+
+/**
+ * Type guard to check if an edge is a TransferEdge.
+ */
+function isTransferEdge(edge: RoutingEdge): edge is TransferEdge {
+  return 'from' in edge && 'to' in edge && 'type' in edge;
+}
+
+/**
+ * Helper class for building DOT graph syntax.
+ */
+class DotBuilder {
+  private lines: string[] = [];
+
+  /**
+   * Adds the DOT graph header with default styling.
+   */
+  addHeader(): this {
+    this.lines.push(
+      'digraph RoutingGraph {',
+      '  graph [overlap=false, splines=true, rankdir=TB, bgcolor=white, nodesep=0.8, ranksep=1.2, concentrate=true];',
+      '  node [fontname="Arial" margin=0.1];',
+      '  edge [fontname="Arial" fontsize=10];',
+    );
+    return this;
+  }
+
+  /**
+   * Adds a comment section to the graph.
+   */
+  addComment(comment: string): this {
+    this.lines.push('', `  // ${comment}`);
+    return this;
+  }
+
+  /**
+   * Adds a node with the given attributes.
+   */
+  addNode(id: string, attrs: Record<string, string>): this {
+    const attrStr = Object.entries(attrs)
+      .map(([k, v]) => `${k}="${v}"`)
+      .join(' ');
+    this.lines.push(`  "${id}" [${attrStr}];`);
+    return this;
+  }
+
+  /**
+   * Adds an edge between two nodes with optional attributes.
+   */
+  addEdge(from: string, to: string, attrs: Record<string, string> = {}): this {
+    const attrStr = Object.entries(attrs)
+      .map(([k, v]) => `${k}="${v}"`)
+      .join(' ');
+    const attrPart = attrStr ? ` [${attrStr}]` : '';
+    this.lines.push(`  "${from}" -> "${to}"${attrPart};`);
+    return this;
+  }
+
+  /**
+   * Adds raw lines to the graph.
+   */
+  addRaw(lines: string[]): this {
+    this.lines.push(...lines);
+    return this;
+  }
+
+  /**
+   * Builds the final DOT graph string.
+   */
+  build(): string {
+    this.lines.push('}');
+    return this.lines.join('\n');
+  }
+}
+
+/**
+ * Generates DOT graph visualizations of routing results.
+ *
+ * The generated graph shows:
+ * - Stations as rectangular nodes (origin=blue, destination=violet)
+ * - Vehicle edges as ovals with route info
+ * - Transfer edges as dashed ovals
+ * - Continuation edges (same-station transfers) as bold yellow ovals
+ *
+ * @example
+ * ```typescript
+ * const plotter = new Plotter(routingResult);
+ * const dotGraph = plotter.plotDotGraph();
+ * // Use with Graphviz: dot -Tpng -o graph.png
+ * ```
+ */
 export class Plotter {
   private result: Result;
-  private readonly ROUND_COLORS = [
-    '#60a5fa', // Round 1
-    '#ff9800', // Round 2
-    '#14b8a6', // Round 3
-    '#fb7185', // Round 4
-    '#ffdf00', // Round 5
-    '#b600ff', // Round 6
-    '#ee82ee', // Round 7+
-  ];
 
   constructor(result: Result) {
     this.result = result;
   }
 
   /**
-   * Gets the color for a round based on the specified palette.
+   * Generates a unique node ID for a station.
+   */
+  private stationNodeId(stopId: StopId): string {
+    return `s_${stopId}`;
+  }
+
+  /**
+   * Generates a unique node ID for a vehicle edge oval.
+   */
+  private vehicleEdgeNodeId(
+    fromStopId: StopId,
+    toStopId: StopId,
+    routeId: number,
+    round: number,
+  ): string {
+    return `e_${fromStopId}_${toStopId}_${routeId}_${round}`;
+  }
+
+  /**
+   * Generates a unique node ID for a transfer edge oval.
+   */
+  private transferEdgeNodeId(
+    fromStopId: StopId,
+    toStopId: StopId,
+    round: number,
+  ): string {
+    return `e_${fromStopId}_${toStopId}_${round}`;
+  }
+
+  /**
+   * Generates a unique node ID for a continuation edge oval.
+   */
+  private continuationNodeId(
+    fromStopId: StopId,
+    toStopId: StopId,
+    round: number,
+  ): string {
+    return `continuation_${fromStopId}_${toStopId}_${round}`;
+  }
+
+  /**
+   * Gets the color for a round based on the configured palette.
    */
   private getRoundColor(round: number): string {
-    if (round === 0) return '#888888';
+    if (round === 0) {
+      return DOT_CONFIG.colors.defaultRound;
+    }
 
-    const colorIndex = Math.min(round - 1, this.ROUND_COLORS.length - 1);
-    return this.ROUND_COLORS[colorIndex] ?? '#ee82ee';
+    const colorIndex = Math.min(round - 1, DOT_CONFIG.colors.rounds.length - 1);
+    return DOT_CONFIG.colors.rounds[colorIndex] ?? '#ee82ee';
+  }
+
+  /**
+   * Gets the appropriate fill color for a station based on its type.
+   */
+  private getStationFillColor(
+    isOrigin: boolean,
+    isDestination: boolean,
+  ): string {
+    if (isOrigin) {
+      return DOT_CONFIG.colors.originStation;
+    }
+    if (isDestination) {
+      return DOT_CONFIG.colors.destinationStation;
+    }
+    return DOT_CONFIG.colors.defaultStation;
   }
 
   /**
@@ -38,6 +212,25 @@ export class Plotter {
       .replace(/\n/g, '\\n')
       .replace(/\r/g, '\\r')
       .replace(/\t/g, '\\t');
+  }
+
+  /**
+   * Formats a stop name for display, including platform information.
+   */
+  private formatStopName(stopId: StopId): string {
+    const stop = this.result.stopsIndex.findStopById(stopId);
+    if (!stop) {
+      return `Unknown Stop (${stopId})`;
+    }
+
+    const escapedName = this.escapeDotString(stop.name);
+    const escapedPlatform = stop.platform
+      ? this.escapeDotString(stop.platform)
+      : '';
+
+    return escapedPlatform
+      ? `${escapedName}\\nPl. ${escapedPlatform}`
+      : escapedName;
   }
 
   /**
@@ -54,43 +247,33 @@ export class Plotter {
   }
 
   /**
-   * Formats a stop name for display, including platform information.
+   * Resolves the actual StopId from a VehicleEdge's stopIndex.
    */
-  private formatStopName(stopId: StopId): string {
-    const stop = this.result.stopsIndex.findStopById(stopId);
-    if (!stop) return `Unknown Stop (${stopId})`;
-
-    const escapedName = this.escapeDotString(stop.name);
-    const escapedPlatform = stop.platform
-      ? this.escapeDotString(stop.platform)
-      : '';
-    return escapedPlatform
-      ? `${escapedName}\\nPl. ${escapedPlatform}`
-      : escapedName;
+  private getVehicleEdgeFromStopId(edge: VehicleEdge): StopId | undefined {
+    const route = this.result.timetable.getRoute(edge.routeId);
+    return route?.stopId(edge.stopIndex);
   }
 
   /**
-   * Gets the appropriate fill color for a station based on its type.
+   * Resolves the actual StopId from a VehicleEdge's hopOffStopIndex.
    */
-  private getStationFillColor(
-    isOrigin: boolean,
-    isDestination: boolean,
-  ): string {
-    if (isOrigin) return '#60a5fa';
-    if (isDestination) return '#ee82ee';
-    return 'white';
+  private getVehicleEdgeToStopId(edge: VehicleEdge): StopId | undefined {
+    const route = this.result.timetable.getRoute(edge.routeId);
+    return route?.stopId(edge.hopOffStopIndex);
   }
 
   /**
    * Creates a DOT node for a station.
    */
-  private createStationNode(stopId: StopId): string {
+  private createStationNode(stopId: StopId): string | null {
     const stop = this.result.stopsIndex.findStopById(stopId);
-    if (!stop) return '';
+    if (!stop) {
+      return null;
+    }
 
     const displayName = this.formatStopName(stopId);
     const stopIdStr = this.escapeDotString(String(stopId));
-    const nodeId = `s_${stopId}`;
+    const nodeId = this.stationNodeId(stopId);
     const stationInfo = this.getStationInfo(stopId);
     const fillColor = this.getStationFillColor(
       stationInfo.isOrigin,
@@ -104,22 +287,30 @@ export class Plotter {
    * Creates a vehicle edge with route information oval in the middle.
    */
   private createVehicleEdge(edge: VehicleEdge, round: number): string[] {
-    const fromNodeId = `s_${edge.from}`;
-    const toNodeId = `s_${edge.to}`;
-    const roundColor = this.getRoundColor(round);
-    const routeOvalId = `e_${edge.from}_${edge.to}_${edge.routeId}_${round}`;
-
     const route = this.result.timetable.getRoute(edge.routeId);
-    const serviceRouteInfo = route
-      ? this.result.timetable.getServiceRouteInfo(route)
-      : null;
+    if (!route) {
+      return [];
+    }
 
-    const routeName = serviceRouteInfo?.name ?? `Route ${String(edge.routeId)}`;
-    const routeType = serviceRouteInfo?.type || 'UNKNOWN';
+    const fromStopId = route.stopId(edge.stopIndex);
+    const toStopId = route.stopId(edge.hopOffStopIndex);
+    const fromNodeId = this.stationNodeId(fromStopId);
+    const toNodeId = this.stationNodeId(toStopId);
+    const roundColor = this.getRoundColor(round);
+    const routeOvalId = this.vehicleEdgeNodeId(
+      fromStopId,
+      toStopId,
+      edge.routeId,
+      round,
+    );
+
+    const serviceRouteInfo = this.result.timetable.getServiceRouteInfo(route);
+    const routeName = serviceRouteInfo.name;
+    const routeType = serviceRouteInfo.type;
 
     const departureTime = route
-      ? route.departureFrom(edge.from, edge.tripIndex).toString()
-      : 'N/A';
+      .departureFrom(edge.stopIndex, edge.tripIndex)
+      .toString();
     const arrivalTime = edge.arrival.toString();
 
     const escapedRouteName = this.escapeDotString(routeName);
@@ -138,10 +329,10 @@ export class Plotter {
    * Creates a transfer edge with transfer information oval in the middle.
    */
   private createTransferEdge(edge: TransferEdge, round: number): string[] {
-    const fromNodeId = `s_${edge.from}`;
-    const toNodeId = `s_${edge.to}`;
+    const fromNodeId = this.stationNodeId(edge.from);
+    const toNodeId = this.stationNodeId(edge.to);
     const roundColor = this.getRoundColor(round);
-    const transferOvalId = `e_${edge.from}_${edge.to}_${round}`;
+    const transferOvalId = this.transferEdgeNodeId(edge.from, edge.to, round);
 
     const transferTime = edge.minTransferTime?.toString() || 'N/A';
     const escapedTransferTime = this.escapeDotString(transferTime);
@@ -162,10 +353,20 @@ export class Plotter {
     toEdge: VehicleEdge,
     round: number,
   ): string[] {
-    const fromStationId = `s_${fromEdge.to}`;
-    const toStationId = `s_${toEdge.from}`;
+    const fromStopId = this.getVehicleEdgeToStopId(fromEdge);
+    const toStopId = this.getVehicleEdgeFromStopId(toEdge);
+    if (!fromStopId || !toStopId) {
+      return [];
+    }
+
+    const fromStationId = this.stationNodeId(fromStopId);
+    const toStationId = this.stationNodeId(toStopId);
     const roundColor = this.getRoundColor(round);
-    const continuationOvalId = `continuation_${fromEdge.to}_${toEdge.from}_${round}`;
+    const continuationOvalId = this.continuationNodeId(
+      fromStopId,
+      toStopId,
+      round,
+    );
 
     const fromRoute = this.result.timetable.getRoute(fromEdge.routeId);
     const toRoute = this.result.timetable.getRoute(toEdge.routeId);
@@ -187,7 +388,7 @@ export class Plotter {
 
     const fromArrivalTime = fromEdge.arrival.toString();
     const toDepartureTime = toRoute
-      ? toRoute.departureFrom(toEdge.from, toEdge.tripIndex).toString()
+      ? toRoute.departureFrom(toEdge.stopIndex, toEdge.tripIndex).toString()
       : 'N/A';
 
     const escapedFromRouteName = this.escapeDotString(fromRouteName);
@@ -200,102 +401,121 @@ export class Plotter {
 
     const ovalLabel = `${escapedFromRouteType} ${escapedFromRouteName} (${fromRouteInfo}) ${fromArrivalTime}\\n↓\\n${escapedToRouteType} ${escapedToRouteName} (${toRouteInfo}) ${toDepartureTime}`;
 
+    const { continuationFill } = DOT_CONFIG.colors;
+    const { continuation: penWidth, continuationEdge: edgePenWidth } =
+      DOT_CONFIG.penWidth;
+
     return [
-      `  "${continuationOvalId}" [label="${ovalLabel}" shape=oval style="filled,bold" fillcolor="#ffffcc" color="${roundColor}" penwidth="2"];`,
-      `  "${fromStationId}" -> "${continuationOvalId}" [color="${roundColor}" style="bold" penwidth="3"];`,
-      `  "${continuationOvalId}" -> "${toStationId}" [color="${roundColor}" style="bold" penwidth="3"];`,
+      `  "${continuationOvalId}" [label="${ovalLabel}" shape=oval style="filled,bold" fillcolor="${continuationFill}" color="${roundColor}" penwidth="${penWidth}"];`,
+      `  "${fromStationId}" -> "${continuationOvalId}" [color="${roundColor}" style="bold" penwidth="${edgePenWidth}"];`,
+      `  "${continuationOvalId}" -> "${toStationId}" [color="${roundColor}" style="bold" penwidth="${edgePenWidth}"];`,
     ];
   }
 
   /**
-   * Collects all stations and edges for the graph.
+   * Collects all stations that appear in the routing graph.
    */
-  private collectGraphData(): {
-    stations: Set<StopId>;
-    edges: string[];
-  } {
+  private collectStations(): Set<StopId> {
     const stations = new Set<StopId>();
+    const graph = this.result.routingState.graph;
+
+    for (const roundMap of graph) {
+      for (const [stopId, edge] of roundMap) {
+        stations.add(stopId);
+
+        if (isVehicleEdge(edge)) {
+          const fromStopId = this.getVehicleEdgeFromStopId(edge);
+          const toStopId = this.getVehicleEdgeToStopId(edge);
+          if (fromStopId) stations.add(fromStopId);
+          if (toStopId) stations.add(toStopId);
+        }
+      }
+    }
+
+    return stations;
+  }
+
+  /**
+   * Collects all continuation edges from a vehicle edge chain.
+   */
+  private collectContinuationChain(edge: VehicleEdge, round: number): string[] {
+    const continuationEdges: string[] = [];
+    let currentEdge = edge;
+    let previousEdge = edge.continuationOf;
+
+    while (previousEdge) {
+      const edgeParts = this.createContinuationEdge(
+        previousEdge,
+        currentEdge,
+        round,
+      );
+      continuationEdges.push(...edgeParts);
+
+      currentEdge = previousEdge;
+      previousEdge = previousEdge.continuationOf;
+    }
+
+    return continuationEdges;
+  }
+
+  /**
+   * Collects all edges for the routing graph.
+   */
+  private collectEdges(): string[] {
     const edges: string[] = [];
     const continuationEdges: string[] = [];
-    const graph: Map<StopId, RoutingEdge>[] = this.result.routingState.graph;
+    const graph = this.result.routingState.graph;
 
-    // Collect all stops that appear in the graph
-    graph.forEach((roundMap) => {
-      roundMap.forEach((edge, stopId) => {
-        stations.add(stopId);
-        if ('from' in edge && 'to' in edge) {
-          stations.add(edge.from);
-          stations.add(edge.to);
-        }
-      });
-    });
+    for (let round = 0; round < graph.length; round++) {
+      const roundMap = graph[round];
+      if (!roundMap) continue;
 
-    // Create edges for each round
-    graph.forEach((roundMap, round) => {
+      // Skip round 0 as it contains only origin nodes
       if (round === 0) {
-        // Skip round 0 as it contains only origin nodes
-        return;
+        continue;
       }
 
-      roundMap.forEach((edge) => {
-        if ('from' in edge && 'to' in edge) {
-          if ('routeId' in edge) {
-            const vehicleEdgeParts = this.createVehicleEdge(edge, round);
-            edges.push(...vehicleEdgeParts);
-            if (edge.continuationOf) {
-              let currentEdge = edge;
-              let previousEdge: VehicleEdge | undefined = edge.continuationOf;
+      for (const edge of roundMap.values()) {
+        if (isVehicleEdge(edge)) {
+          edges.push(...this.createVehicleEdge(edge, round));
 
-              while (previousEdge) {
-                const continuationEdgeParts = this.createContinuationEdge(
-                  previousEdge,
-                  currentEdge,
-                  round,
-                );
-                continuationEdges.push(...continuationEdgeParts);
-
-                currentEdge = previousEdge;
-                previousEdge = previousEdge.continuationOf;
-              }
-            }
-          } else {
-            const transferEdgeParts = this.createTransferEdge(edge, round);
-            edges.push(...transferEdgeParts);
+          if (edge.continuationOf) {
+            continuationEdges.push(
+              ...this.collectContinuationChain(edge, round),
+            );
           }
+        } else if (isTransferEdge(edge)) {
+          edges.push(...this.createTransferEdge(edge, round));
         }
-      });
-    });
-    edges.push(...continuationEdges);
+      }
+    }
 
-    return { stations, edges };
+    return [...edges, ...continuationEdges];
   }
 
   /**
    * Plots the routing graph as a DOT graph for visualization.
+   *
+   * @returns A string containing the DOT graph representation.
    */
   plotDotGraph(): string {
-    const { stations, edges } = this.collectGraphData();
+    const stations = this.collectStations();
+    const edges = this.collectEdges();
 
-    const dotParts = [
-      'digraph RoutingGraph {',
-      '  graph [overlap=false, splines=true, rankdir=TB, bgcolor=white, nodesep=0.8, ranksep=1.2, concentrate=true];',
-      '  node [fontname="Arial" margin=0.1];',
-      '  edge [fontname="Arial" fontsize=10];',
-      '',
-      '  // Stations',
-    ];
+    const builder = new DotBuilder();
+    builder.addHeader();
+    builder.addComment('Stations');
 
-    stations.forEach((stopId) => {
+    for (const stopId of stations) {
       const stationNode = this.createStationNode(stopId);
       if (stationNode) {
-        dotParts.push(stationNode);
+        builder.addRaw([stationNode]);
       }
-    });
+    }
 
-    dotParts.push('', '  // Edges');
-    dotParts.push(...edges);
+    builder.addComment('Edges');
+    builder.addRaw(edges);
 
-    dotParts.push('}');
-    return dotParts.join('\n');
+    return builder.build();
   }
 }

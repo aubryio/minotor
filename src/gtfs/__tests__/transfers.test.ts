@@ -6,11 +6,11 @@ import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import { Timetable } from '../../timetable/timetable.js';
-import { encode } from '../../timetable/tripBoardingId.js';
+import { encode } from '../../timetable/tripStopId.js';
 import { GtfsStopsMap } from '../stops.js';
 import {
-  buildTripContinuations,
-  GtfsTripContinuation,
+  buildTripTransfers,
+  GtfsTripTransfer,
   parseTransfers,
 } from '../transfers.js';
 import { TripsMapping } from '../trips.js';
@@ -264,6 +264,173 @@ describe('GTFS transfers parser', () => {
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, expectedTripContinuations);
+    assert.deepEqual(result.guaranteedTripTransfers, []);
+  });
+
+  it('should correctly parse guaranteed transfers (type 1) with trip IDs', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'from_stop_id,to_stop_id,from_trip_id,to_trip_id,transfer_type,min_transfer_time\n',
+    );
+    mockedStream.push('"1100084","8014440:0:1","tripA","tripB","1","0"\n');
+    mockedStream.push('"1100097","8014447","tripC","tripD","1","60"\n');
+    mockedStream.push(null);
+
+    const stopsMap: GtfsStopsMap = new Map([
+      [
+        '1100084',
+        {
+          id: 0,
+          sourceStopId: '1100084',
+          name: 'Test Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        '8014440:0:1',
+        {
+          id: 1,
+          sourceStopId: '8014440:0:1',
+          name: 'Test Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        '1100097',
+        {
+          id: 2,
+          sourceStopId: '1100097',
+          name: 'Test Stop 3',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        '8014447',
+        {
+          id: 3,
+          sourceStopId: '8014447',
+          name: 'Test Stop 4',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
+
+    const result = await parseTransfers(mockedStream, stopsMap);
+
+    const expectedGuaranteedTripTransfers = [
+      {
+        fromStop: 0,
+        fromTrip: 'tripA',
+        toStop: 1,
+        toTrip: 'tripB',
+      },
+      {
+        fromStop: 2,
+        fromTrip: 'tripC',
+        toStop: 3,
+        toTrip: 'tripD',
+      },
+    ];
+
+    // Guaranteed transfers with trip IDs should go to guaranteedTripTransfers, not transfers
+    assert.deepEqual(result.transfers, new Map());
+    assert.deepEqual(result.tripContinuations, []);
+    assert.deepEqual(
+      result.guaranteedTripTransfers,
+      expectedGuaranteedTripTransfers,
+    );
+  });
+
+  it('should differentiate guaranteed transfers with and without trip IDs', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'from_stop_id,to_stop_id,from_trip_id,to_trip_id,transfer_type,min_transfer_time\n',
+    );
+    // Type 1 with trip IDs -> goes to guaranteedTripTransfers
+    mockedStream.push('"1100084","8014440:0:1","tripA","tripB","1","0"\n');
+    // Type 1 without trip IDs -> goes to transfers as stop-to-stop
+    mockedStream.push('"1100097","8014447","","","1","120"\n');
+    mockedStream.push(null);
+
+    const stopsMap: GtfsStopsMap = new Map([
+      [
+        '1100084',
+        {
+          id: 0,
+          sourceStopId: '1100084',
+          name: 'Test Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        '8014440:0:1',
+        {
+          id: 1,
+          sourceStopId: '8014440:0:1',
+          name: 'Test Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        '1100097',
+        {
+          id: 2,
+          sourceStopId: '1100097',
+          name: 'Test Stop 3',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        '8014447',
+        {
+          id: 3,
+          sourceStopId: '8014447',
+          name: 'Test Stop 4',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
+
+    const result = await parseTransfers(mockedStream, stopsMap);
+
+    // Type 1 with trip IDs -> guaranteedTripTransfers
+    const expectedGuaranteedTripTransfers = [
+      {
+        fromStop: 0,
+        fromTrip: 'tripA',
+        toStop: 1,
+        toTrip: 'tripB',
+      },
+    ];
+
+    // Type 1 without trip IDs -> transfers (stop-to-stop)
+    const expectedTransfers = new Map([
+      [
+        2,
+        [
+          {
+            destination: 3,
+            type: 'GUARANTEED',
+            minTransferTime: Duration.fromSeconds(120),
+          },
+        ],
+      ],
+    ]);
+
+    assert.deepEqual(result.transfers, expectedTransfers);
+    assert.deepEqual(result.tripContinuations, []);
+    assert.deepEqual(
+      result.guaranteedTripTransfers,
+      expectedGuaranteedTripTransfers,
+    );
   });
 
   it('should ignore in-seat transfers with missing trip IDs', async () => {
@@ -628,14 +795,14 @@ describe('GTFS transfers parser', () => {
   });
 });
 
-describe('buildTripContinuations', () => {
-  it('should build trip continuations for valid data', () => {
+describe('buildTripTransfers', () => {
+  it('should build trip transfers for valid data', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100,
         fromTrip: 'trip1',
@@ -644,7 +811,6 @@ describe('buildTripContinuations', () => {
       },
     ];
 
-    // Mock route with simple stops and timing
     const mockFromRoute = {
       stopRouteIndices: () => [0],
       arrivalAt: () => Time.fromMinutes(60), // 1:00
@@ -662,32 +828,32 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
 
     const expectedTripBoardingId = encode(0, 0, 0);
-    const continuations = result.get(expectedTripBoardingId);
+    const transfers = result.get(expectedTripBoardingId);
 
-    assert(continuations);
-    assert.strictEqual(continuations.length, 1);
-    assert.deepEqual(continuations[0], {
-      hopOnStopIndex: 1,
+    assert(transfers);
+    assert.strictEqual(transfers.length, 1);
+    assert.deepEqual(transfers[0], {
+      stopIndex: 1,
       routeId: 1,
       tripIndex: 0,
     });
   });
 
-  it('should ignore trip continuations with inactive stops', () => {
+  it('should ignore transfers with inactive stops', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100, // inactive stop
         fromTrip: 'trip1',
@@ -699,9 +865,9 @@ describe('buildTripContinuations', () => {
     const mockTimetable = {} as unknown as Timetable;
     const activeStopIds = new Set([200]); // only toStop is active
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
@@ -709,12 +875,12 @@ describe('buildTripContinuations', () => {
     assert.strictEqual(result.size, 0);
   });
 
-  it('should ignore trip continuations with unknown trip IDs', () => {
+  it('should ignore transfers with unknown trip IDs', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100,
         fromTrip: 'unknown_trip', // not in tripsMapping
@@ -726,9 +892,9 @@ describe('buildTripContinuations', () => {
     const mockTimetable = {} as unknown as Timetable;
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
@@ -736,13 +902,13 @@ describe('buildTripContinuations', () => {
     assert.strictEqual(result.size, 0);
   });
 
-  it('should ignore trip continuations with unknown routes', () => {
+  it('should ignore transfers with unknown routes', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100,
         fromTrip: 'trip1',
@@ -757,9 +923,9 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
@@ -767,13 +933,13 @@ describe('buildTripContinuations', () => {
     assert.strictEqual(result.size, 0);
   });
 
-  it('should ignore trip continuations with no valid timing', () => {
+  it('should ignore transfers with no valid timing', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100,
         fromTrip: 'trip1',
@@ -799,9 +965,9 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
@@ -809,14 +975,14 @@ describe('buildTripContinuations', () => {
     assert.strictEqual(result.size, 0);
   });
 
-  it('should handle multiple continuations from same trip boarding', () => {
+  it('should handle multiple transfers from same trip boarding', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
       ['trip3', { routeId: 2, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100,
         fromTrip: 'trip1',
@@ -857,25 +1023,25 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200, 300]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
 
     const expectedTripBoardingId = encode(0, 0, 0);
-    const continuations = result.get(expectedTripBoardingId);
+    const transfers = result.get(expectedTripBoardingId);
 
-    assert(continuations);
-    assert.strictEqual(continuations.length, 2);
-    assert.deepEqual(continuations[0], {
-      hopOnStopIndex: 1,
+    assert(transfers);
+    assert.strictEqual(transfers.length, 2);
+    assert.deepEqual(transfers[0], {
+      stopIndex: 1,
       routeId: 1,
       tripIndex: 0,
     });
-    assert.deepEqual(continuations[1], {
-      hopOnStopIndex: 2,
+    assert.deepEqual(transfers[1], {
+      stopIndex: 2,
       routeId: 2,
       tripIndex: 0,
     });
@@ -883,13 +1049,13 @@ describe('buildTripContinuations', () => {
 
   it('should handle empty input gracefully', () => {
     const tripsMapping: TripsMapping = new Map();
-    const tripContinuations: GtfsTripContinuation[] = [];
+    const tripTransfers: GtfsTripTransfer[] = [];
     const mockTimetable = {} as unknown as Timetable;
     const activeStopIds = new Set<number>();
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
@@ -903,7 +1069,7 @@ describe('buildTripContinuations', () => {
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100, // This stop appears multiple times in the route
         fromTrip: 'trip1',
@@ -937,9 +1103,9 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
@@ -947,12 +1113,12 @@ describe('buildTripContinuations', () => {
     // Should pick the best timing: arrive at stop 0 (1:00) -> depart from stop 1 (1:10)
     // This is better than arrive at stop 3 (2:00) -> depart from stop 4 (2:30)
     const expectedTripBoardingId = encode(0, 0, 0); // stopIndex=0, routeId=0, tripIndex=0
-    const continuations = result.get(expectedTripBoardingId);
+    const transfers = result.get(expectedTripBoardingId);
 
-    assert(continuations);
-    assert.strictEqual(continuations.length, 1);
-    assert.deepEqual(continuations[0], {
-      hopOnStopIndex: 1, // Best to-stop index
+    assert(transfers);
+    assert.strictEqual(transfers.length, 1);
+    assert.deepEqual(transfers[0], {
+      stopIndex: 1, // Best to-stop index
       routeId: 1,
       tripIndex: 0,
     });
@@ -964,7 +1130,7 @@ describe('buildTripContinuations', () => {
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
     ]);
 
-    const tripContinuations = [
+    const tripTransfers: GtfsTripTransfer[] = [
       {
         fromStop: 100,
         fromTrip: 'trip1',
@@ -997,14 +1163,14 @@ describe('buildTripContinuations', () => {
 
     const activeStopIds = new Set([100, 200]);
 
-    const result = buildTripContinuations(
+    const result = buildTripTransfers(
       tripsMapping,
-      tripContinuations,
+      tripTransfers,
       mockTimetable,
       activeStopIds,
     );
 
-    // Should find no valid continuations since all departures are before arrivals
+    // Should find no valid transfers since all departures are before arrivals
     assert.strictEqual(result.size, 0);
   });
 });

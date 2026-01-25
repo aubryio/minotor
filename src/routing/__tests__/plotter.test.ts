@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { Timetable } from '../../router.js';
 import { Stop, StopId } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
@@ -182,8 +183,8 @@ describe('Plotter', () => {
           [
             1,
             {
-              from: 0,
-              to: 1,
+              stopIndex: 0,
+              hopOffStopIndex: 1,
               arrival: Time.fromHMS(8, 30, 0),
               routeId: 0,
               tripIndex: 0,
@@ -197,8 +198,8 @@ describe('Plotter', () => {
               from: 0,
               to: 1,
               arrival: Time.fromHMS(8, 45, 0),
-              type: 'WALKING',
-              minTransferTime: Time.fromHMS(0, 5, 0),
+              type: 'RECOMMENDED',
+              minTransferTime: Duration.fromMinutes(5),
             },
           ],
         ]),
