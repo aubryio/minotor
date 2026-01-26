@@ -1,6 +1,6 @@
 import { GtfsProfile } from '../parser.js';
 
-export const standardProfile: GtfsProfile = {
+export const standardGtfsProfile: GtfsProfile = {
   routeTypeParser: (routeType: number) => {
     switch (routeType) {
       case 0:

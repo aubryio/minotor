@@ -3,7 +3,12 @@ import fs from 'fs';
 import log from 'loglevel';
 import { DateTime } from 'luxon';
 
-import { chGtfsProfile, GtfsParser, GtfsProfile } from '../parser.js';
+import {
+  extendedGtfsProfile,
+  GtfsParser,
+  GtfsProfile,
+  standardGtfsProfile,
+} from '../parser.js';
 import { Router, StopsIndex, Timetable } from '../router.js';
 import {
   loadQueriesFromJson,
@@ -21,7 +26,8 @@ export type Config = {
 };
 
 const profiles: Config = {
-  CH: chGtfsProfile,
+  extended: extendedGtfsProfile,
+  standard: standardGtfsProfile,
 };
 
 program
@@ -48,7 +54,11 @@ program
     'Path to output stops file',
     '/tmp/stops',
   )
-  .option('-p, --profileName <name>', 'Profile name for GTFS config', 'CH')
+  .option(
+    '-p, --profileName <name>',
+    'Profile name for GTFS config',
+    'extended',
+  )
   .option('-v, --verbose', 'Verbose mode', false)
   .action(
     async (
