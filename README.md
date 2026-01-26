@@ -42,7 +42,7 @@ A more complete isochrone map showcase can be found on [isochrone.ch](https://is
 
 | Feed                                                                                       | Parsing time | Timetable Size for a Day (Compressed) |
 | ------------------------------------------------------------------------------------------ | ------------ | ------------------------------------- |
-| [Swiss GTFS feed](https://data.opentransportdata.swiss/en/dataset/timetable-2025-gtfs2020) | ~2 minutes   | 20 MB (5MB)                           |
+| [Swiss GTFS feed](https://data.opentransportdata.swiss/en/dataset/timetable-2026-gtfs2020) | ~2 minutes   | 20 MB (5MB)                           |
 
 ## Get started
 
@@ -59,7 +59,7 @@ import { GtfsParser, extendedGtfsProfile } from 'minotor/parser';
 
 const parser = new GtfsParser('gtfs-feed.zip', extendedGtfsProfile);
 const timetable = await parser.parseTimetable(new Date());
-const stopsIndex = await parser.parseStops(new Date());
+const stopsIndex = await parser.parseStops();
 ```
 
 Note that times are only represented at the minute level so they can fit on 16 bits.
