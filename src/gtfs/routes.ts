@@ -3,7 +3,7 @@ import log from 'loglevel';
 import { RouteType } from '../router.js';
 import { ServiceRoute, ServiceRouteId } from '../timetable/timetable.js';
 import { GtfsProfile } from './parser.js';
-import { standardProfile } from './profiles/standard.js';
+import { standardGtfsProfile } from './profiles/standard.js';
 import { parseCsv } from './utils.js';
 
 // Can be a standard gtfs route type or an extended route type
@@ -37,7 +37,7 @@ type RouteEntry = {
  */
 export const parseRoutes = async (
   routesStream: NodeJS.ReadableStream,
-  profile: GtfsProfile = standardProfile,
+  profile: GtfsProfile = standardGtfsProfile,
 ): Promise<GtfsRoutesMap> => {
   const routes: GtfsRoutesMap = new Map();
   for await (const rawLine of parseCsv(routesStream, ['route_type'])) {

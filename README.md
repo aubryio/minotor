@@ -55,10 +55,11 @@ A more complete isochrone map showcase can be found on [isochrone.ch](https://is
 #### GTFS Feed parsing (Node.js only)
 
 ```
-import { GtfsParser, chGtfsProfile } from 'minotor/parser';
+import { GtfsParser, extendedGtfsProfile } from 'minotor/parser';
 
-const parser = new GtfsParser('gtfs-feed.zip', chGtfsProfile);
-const { timetable, stopsIndex } = await parser.parse(new Date());
+const parser = new GtfsParser('gtfs-feed.zip', extendedGtfsProfile);
+const timetable = await parser.parseTimetable(new Date());
+const stopsIndex = await parser.parseStops(new Date());
 ```
 
 Note that times are only represented at the minute level so they can fit on 16 bits.

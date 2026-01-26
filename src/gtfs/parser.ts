@@ -5,7 +5,7 @@ import StreamZip from 'node-stream-zip';
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
-import { standardProfile } from './profiles/standard.js';
+import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
@@ -38,7 +38,7 @@ export class GtfsParser {
   private path: string;
   private profile: GtfsProfile;
 
-  constructor(path: string, profile: GtfsProfile = standardProfile) {
+  constructor(path: string, profile: GtfsProfile = standardGtfsProfile) {
     // TODO: support input from multiple sources
     this.path = path;
     this.profile = profile;
