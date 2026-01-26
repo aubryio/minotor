@@ -76,7 +76,9 @@ program
       } else {
         log.setDefaultLevel(log.levels.ERROR);
       }
-      const parser = new GtfsParser(gtfsPath, profiles[options.profileName]);
+      const parser = new GtfsParser(gtfsPath, profiles[options.profileName], {
+        useParentStations: false,
+      });
       const stopsIndex = await parser.parseStops();
       fs.writeFileSync(options.stopsOutputPath, stopsIndex.serialize());
       const timetable = await parser.parseTimetable(new Date(options.date));

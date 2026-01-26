@@ -4,16 +4,19 @@ import StreamZip from 'node-stream-zip';
 
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
+import { ParentStationTransferTimes } from '../timetable/io.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
-import { parseStops } from './stops.js';
+import { GtfsStopsMap, parseStops } from './stops.js';
 import {
   buildTripTransfers,
+  computeParentStationTransferTimes,
   GtfsTripTransfer,
   parseTransfers,
   TransfersMap,
+  transformTransfersForParentStations,
 } from './transfers.js';
 import {
   buildStopsAdjacencyStructure,
@@ -34,23 +37,68 @@ export type GtfsProfile = {
   routeTypeParser: (routeType: number) => Maybe<RouteType>;
 };
 
+export type GtfsParserOptions = {
+  /**
+   * When enabled, routes are collapsed by parent station sequence instead of
+   * individual child stops. This reduces the number of routes and improves
+   * routing performance at the cost of losing per-platform transfer time precision.
+   *
+   * When true:
+   * - Routes are grouped by parent station sequence (trips using different platforms
+   *   of the same stations are merged into one route)
+   * - Intra-station transfers use median transfer times computed from child-to-child transfers
+   * - Original child stop IDs are preserved for route reconstruction
+   *
+   * @default false
+   */
+  useParentStations?: boolean;
+};
+
+/**
+ * Builds a mapping from child stop IDs to their parent station IDs.
+ *
+ * @param stopsMap The parsed stops map
+ * @returns A map from child stop IDs to parent station IDs
+ */
+const buildStopToParentMap = (stopsMap: GtfsStopsMap): Map<StopId, StopId> => {
+  const stopToParent = new Map<StopId, StopId>();
+  for (const stop of stopsMap.values()) {
+    if (stop.parent !== undefined) {
+      stopToParent.set(stop.id, stop.parent);
+    }
+  }
+  return stopToParent;
+};
+
 export class GtfsParser {
   private path: string;
   private profile: GtfsProfile;
+  private options: GtfsParserOptions;
 
-  constructor(path: string, profile: GtfsProfile = standardGtfsProfile) {
-    // TODO: support input from multiple sources
+  constructor(
+    path: string,
+    profile: GtfsProfile = standardGtfsProfile,
+    options: GtfsParserOptions = {},
+  ) {
     this.path = path;
     this.profile = profile;
+    this.options = options;
   }
 
   /**
    * Parses a GTFS feed to extract all the data relevant to a given day in a transit-planner friendly format.
    *
    * @param date The active date.
+   * @param options Optional parsing options that override constructor options.
    * @returns The parsed timetable.
    */
-  async parseTimetable(date: Date): Promise<Timetable> {
+  async parseTimetable(
+    date: Date,
+    options?: GtfsParserOptions,
+  ): Promise<Timetable> {
+    const effectiveOptions = { ...this.options, ...options };
+    const useParentStations = effectiveOptions.useParentStations ?? false;
+
     log.setLevel('INFO');
     const zip = new StreamZip.async({ file: this.path });
     const entries = await zip.entries();
@@ -67,6 +115,11 @@ export class GtfsParser {
     log.info(
       `${parsedStops.size} parsed stops. (${(stopsEnd - stopsStart).toFixed(2)}ms)`,
     );
+
+    // Build stop to parent mapping for parent station mode
+    const stopToParent = useParentStations
+      ? buildStopToParentMap(parsedStops)
+      : undefined;
 
     if (entries[CALENDAR_FILE]) {
       log.info(`Parsing ${CALENDAR_FILE}`);
@@ -115,6 +168,8 @@ export class GtfsParser {
     let transfers: TransfersMap = new Map();
     let tripContinuationsList: GtfsTripTransfer[] = [];
     let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
+    let parentStationTransferTimes: ParentStationTransferTimes = new Map();
+
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
@@ -124,16 +179,38 @@ export class GtfsParser {
         tripContinuations: parsedTripContinuations,
         guaranteedTripTransfers: parsedGuaranteedTripTransfers,
       } = await parseTransfers(transfersStream, parsedStops);
-      transfers = parsedTransfers;
+
       tripContinuationsList = parsedTripContinuations;
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
+
+      if (useParentStations) {
+        // Compute median transfer times for parent stations before transforming
+        parentStationTransferTimes = computeParentStationTransferTimes(
+          parsedTransfers,
+          parsedStops,
+        );
+        log.info(
+          `Computed median transfer times for ${parentStationTransferTimes.size} parent stations.`,
+        );
+
+        // Transform transfers to use parent station IDs
+        transfers = transformTransfersForParentStations(
+          parsedTransfers,
+          parsedStops,
+        );
+      } else {
+        transfers = parsedTransfers;
+      }
+
       const transfersEnd = performance.now();
       log.info(
         `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${guaranteedTripTransfersList.length} guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
-    log.info(`Parsing ${STOP_TIMES_FILE}`);
+    log.info(
+      `Parsing ${STOP_TIMES_FILE}${useParentStations ? ' (parent station mode)' : ''}`,
+    );
     const stopTimesStart = performance.now();
     const stopTimesStream = await zip.stream(STOP_TIMES_FILE);
     const { routes, serviceRoutesMap, tripsMapping } = await parseStopTimes(
@@ -141,12 +218,14 @@ export class GtfsParser {
       parsedStops,
       trips,
       activeStopIds,
+      useParentStations,
     );
     const serviceRoutes = indexRoutes(validGtfsRoutes, serviceRoutesMap);
     const stopTimesEnd = performance.now();
     log.info(
       `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
     );
+
     log.info('Building stops adjacency structure');
     const stopsAdjacencyStart = performance.now();
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -173,12 +252,13 @@ export class GtfsParser {
       tripContinuationsList,
       timetable,
       activeStopIds,
+      stopToParent,
     );
     const tripContinuationsEnd = performance.now();
     log.info(
       `${tripContinuations.size} in-seat trip continuations origins created. (${(tripContinuationsEnd - tripContinuationsStart).toFixed(2)}ms)`,
     );
-    log.info('Parsing complete.');
+
     log.info('Building guaranteed trip transfers');
     const guaranteedTripTransfersStart = performance.now();
     const guaranteedTripTransfers = buildTripTransfers(
@@ -186,6 +266,7 @@ export class GtfsParser {
       guaranteedTripTransfersList,
       timetable,
       activeStopIds,
+      stopToParent,
     );
     const guaranteedTripTransfersEnd = performance.now();
     log.info(
@@ -199,13 +280,14 @@ export class GtfsParser {
       serviceRoutes,
       tripContinuations,
       guaranteedTripTransfers,
+      useParentStations,
+      parentStationTransferTimes,
     );
   }
 
   /**
    * Parses a GTFS feed to extract all stops.
    *
-   * @param activeStops The set of active stop IDs to include in the index.
    * @returns An index of stops.
    */
   async parseStops(): Promise<StopsIndex> {

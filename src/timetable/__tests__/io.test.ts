@@ -3,10 +3,13 @@ import { describe, it } from 'node:test';
 
 import { Duration } from '../duration.js';
 import {
+  deserializeParentStationTransferTimes,
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
   deserializeTripTransfers,
+  ParentStationTransferTimes,
+  serializeParentStationTransferTimes,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
@@ -166,5 +169,99 @@ describe('Timetable IO', () => {
     const serializedData = serializeServiceRoutesMap(routes);
     const deserializedData = deserializeServiceRoutesMap(serializedData);
     assert.deepStrictEqual(deserializedData, routes);
+  });
+
+  it('should serialize and deserialize routes with originalStops', () => {
+    // Create a route with originalStops (parent station mode)
+    const routeWithOriginalStops = new Route(
+      0,
+      new Uint16Array([
+        Time.fromHMS(8, 0, 0).toMinutes(),
+        Time.fromHMS(8, 5, 0).toMinutes(),
+        Time.fromHMS(8, 10, 0).toMinutes(),
+        Time.fromHMS(8, 15, 0).toMinutes(),
+        Time.fromHMS(9, 0, 0).toMinutes(),
+        Time.fromHMS(9, 5, 0).toMinutes(),
+        Time.fromHMS(9, 10, 0).toMinutes(),
+        Time.fromHMS(9, 15, 0).toMinutes(),
+      ]),
+      new Uint8Array([REGULAR, REGULAR, REGULAR, REGULAR]),
+      new Uint32Array([0, 1]), // Parent station IDs
+      0,
+      new Uint32Array([2, 4, 3, 5]), // Original child stops: trip0: [2,4], trip1: [3,5]
+    );
+
+    const serialized = serializeRoutesAdjacency([routeWithOriginalStops]);
+    const deserialized = deserializeRoutesAdjacency(serialized);
+
+    assert.strictEqual(deserialized.length, 1);
+    const deserializedRoute = deserialized[0];
+    assert.ok(deserializedRoute, 'Deserialized route should exist');
+
+    // Verify parent station IDs
+    assert.deepStrictEqual(Array.from(deserializedRoute.stops), [0, 1]);
+
+    // Verify originalStops is preserved
+    assert.strictEqual(deserializedRoute.hasOriginalStops(), true);
+    assert.strictEqual(deserializedRoute.originalStopId(0, 0), 2);
+    assert.strictEqual(deserializedRoute.originalStopId(1, 0), 4);
+    assert.strictEqual(deserializedRoute.originalStopId(0, 1), 3);
+    assert.strictEqual(deserializedRoute.originalStopId(1, 1), 5);
+  });
+
+  it('should serialize and deserialize routes without originalStops', () => {
+    // Create a route without originalStops (no parent station collapsing)
+    const routeWithoutOriginalStops = new Route(
+      0,
+      new Uint16Array([
+        Time.fromHMS(8, 0, 0).toMinutes(),
+        Time.fromHMS(8, 5, 0).toMinutes(),
+        Time.fromHMS(8, 10, 0).toMinutes(),
+        Time.fromHMS(8, 15, 0).toMinutes(),
+      ]),
+      new Uint8Array([REGULAR, REGULAR]),
+      new Uint32Array([0, 1]),
+      0,
+      // No originalStops
+    );
+
+    const serialized = serializeRoutesAdjacency([routeWithoutOriginalStops]);
+    const deserialized = deserializeRoutesAdjacency(serialized);
+
+    assert.strictEqual(deserialized.length, 1);
+    const deserializedRoute = deserialized[0];
+    assert.ok(deserializedRoute, 'Deserialized route should exist');
+
+    // Verify originalStops is not present
+    assert.strictEqual(deserializedRoute.hasOriginalStops(), false);
+
+    // originalStopId should fall back to stopId
+    assert.strictEqual(deserializedRoute.originalStopId(0, 0), 0);
+    assert.strictEqual(deserializedRoute.originalStopId(1, 0), 1);
+  });
+
+  it('should serialize and deserialize parent station transfer times', () => {
+    const transferTimes: ParentStationTransferTimes = new Map([
+      [0, 120], // Station 0: 2 minutes
+      [1, 180], // Station 1: 3 minutes
+      [5, 300], // Station 5: 5 minutes
+    ]);
+
+    const serialized = serializeParentStationTransferTimes(transferTimes);
+    const deserialized = deserializeParentStationTransferTimes(serialized);
+
+    assert.strictEqual(deserialized.size, 3);
+    assert.strictEqual(deserialized.get(0), 120);
+    assert.strictEqual(deserialized.get(1), 180);
+    assert.strictEqual(deserialized.get(5), 300);
+  });
+
+  it('should handle empty parent station transfer times', () => {
+    const transferTimes: ParentStationTransferTimes = new Map();
+
+    const serialized = serializeParentStationTransferTimes(transferTimes);
+    const deserialized = deserializeParentStationTransferTimes(serialized);
+
+    assert.strictEqual(deserialized.size, 0);
   });
 });

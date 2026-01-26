@@ -1,13 +1,16 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
-import { StopId } from '../stops/stops.js';
+import { Stop, StopId } from '../stops/stops.js';
 import { Duration } from './duration.js';
 import {
+  deserializeParentStationTransferTimes,
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
   deserializeTripTransfers,
+  ParentStationTransferTimes,
+  serializeParentStationTransferTimes,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
@@ -81,7 +84,7 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
 
 const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
 
-export const CURRENT_VERSION = '0.0.9';
+export const CURRENT_VERSION = '0.0.10';
 
 /**
  * The internal transit timetable format.
@@ -93,6 +96,18 @@ export class Timetable {
   private readonly tripContinuations?: TripTransfers;
   private readonly guaranteedTripTransfers?: TripTransfers;
   private readonly activeStops: Set<StopId>;
+  /**
+   * Flag indicating whether parent station mode is enabled.
+   * When true, routing uses parent stations instead of individual child stops.
+   */
+  private readonly useParentStations: boolean;
+  /**
+   * Inferred transfer times at parent stations (median of child-to-child transfers).
+   * Only populated when useParentStations is true and there are multiple children
+   * with explicit transfer times defined between them.
+   * Map: stationId -> transfer time in seconds
+   */
+  private readonly parentStationTransferTimes: ParentStationTransferTimes;
 
   constructor(
     stopsAdjacency: StopAdjacency[],
@@ -100,12 +115,16 @@ export class Timetable {
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
     guaranteedTripTransfers?: TripTransfers,
+    useParentStations: boolean = false,
+    parentStationTransferTimes: ParentStationTransferTimes = new Map(),
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
     this.tripContinuations = tripContinuations;
     this.guaranteedTripTransfers = guaranteedTripTransfers;
+    this.useParentStations = useParentStations;
+    this.parentStationTransferTimes = parentStationTransferTimes;
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -135,6 +154,10 @@ export class Timetable {
       guaranteedTripTransfers: serializeTripTransfers(
         this.guaranteedTripTransfers || new Map<TripStopId, TripStop[]>(),
       ),
+      useParentStations: this.useParentStations,
+      parentStationTransferTimes: serializeParentStationTransferTimes(
+        this.parentStationTransferTimes,
+      ),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -161,6 +184,10 @@ export class Timetable {
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
       deserializeTripTransfers(protoTimetable.tripContinuations),
       deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
+      protoTimetable.useParentStations,
+      deserializeParentStationTransferTimes(
+        protoTimetable.parentStationTransferTimes,
+      ),
     );
   }
 
@@ -174,6 +201,66 @@ export class Timetable {
    */
   isActive(stopId: StopId): boolean {
     return this.activeStops.has(stopId);
+  }
+
+  /**
+   * Checks if parent station mode is enabled for this timetable.
+   *
+   * @returns True if parent station mode is enabled, false otherwise.
+   */
+  isUsingParentStations(): boolean {
+    return this.useParentStations;
+  }
+
+  /**
+   * Gets the inferred transfer time at a parent station.
+   * Returns undefined if no transfer time is defined for this station.
+   *
+   * @param stationId - The ID of the parent station.
+   * @returns The transfer time in seconds, or undefined if not defined.
+   */
+  getParentStationTransferTime(stationId: StopId): number | undefined {
+    return this.parentStationTransferTimes.get(stationId);
+  }
+
+  /**
+   * Gets the effective stop ID for routing.
+   * When parent station mode is enabled, returns the parent station ID if the stop has one.
+   * Otherwise returns the original stop ID.
+   *
+   * @param stop - The stop to get the effective ID for.
+   * @returns The effective stop ID for routing.
+   */
+  getEffectiveStopId(stop: Stop): StopId {
+    if (this.useParentStations && stop.parent !== undefined) {
+      return stop.parent;
+    }
+    return stop.id;
+  }
+
+  /**
+   * Gets the effective transfer time for boarding at a stop.
+   * When parent station mode is enabled, uses the precomputed median transfer time
+   * for the station if available, otherwise falls back to the default transfer time.
+   *
+   * @param stopId - The stop ID (parent station ID in parent station mode)
+   * @param defaultTransferTime - The default minimum transfer time from query options
+   * @returns The effective transfer time duration
+   */
+  getEffectiveTransferTime(
+    stopId: StopId,
+    defaultTransferTime: Duration,
+  ): Duration {
+    if (!this.useParentStations) {
+      return defaultTransferTime;
+    }
+
+    const stationTransferTime = this.parentStationTransferTimes.get(stopId);
+    if (stationTransferTime !== undefined) {
+      return Duration.fromSeconds(stationTransferTime);
+    }
+
+    return defaultTransferTime;
   }
 
   /**

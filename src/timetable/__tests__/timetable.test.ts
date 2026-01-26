@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { Duration } from '../duration.js';
+import { ParentStationTransferTimes } from '../io.js';
 import { NOT_AVAILABLE, Route } from '../route.js';
 import { Time } from '../time.js';
 import {
@@ -103,6 +104,70 @@ describe('Timetable', () => {
     new Map(),
     new Map(),
   );
+
+  describe('parent station mode', () => {
+    const parentStationTransferTimes: ParentStationTransferTimes = new Map([
+      [1, 120], // Station 1: 2 minutes
+      [2, 180], // Station 2: 3 minutes
+    ]);
+
+    const timetableWithParentStations = new Timetable(
+      stopsAdjacency,
+      routesAdjacency,
+      routes,
+      new Map(),
+      new Map(),
+      true, // useParentStations
+      parentStationTransferTimes,
+    );
+
+    it('should serialize and deserialize timetable with parent station mode', () => {
+      const serialized = timetableWithParentStations.serialize();
+      const deserialized = Timetable.fromData(serialized);
+
+      assert.strictEqual(deserialized.isUsingParentStations(), true);
+      assert.strictEqual(deserialized.getParentStationTransferTime(1), 120);
+      assert.strictEqual(deserialized.getParentStationTransferTime(2), 180);
+      assert.strictEqual(
+        deserialized.getParentStationTransferTime(3),
+        undefined,
+      );
+    });
+
+    it('should return true for isUsingParentStations when enabled', () => {
+      assert.strictEqual(
+        timetableWithParentStations.isUsingParentStations(),
+        true,
+      );
+    });
+
+    it('should return false for isUsingParentStations when disabled', () => {
+      assert.strictEqual(sampleTimetable.isUsingParentStations(), false);
+    });
+
+    it('should return parent station transfer time when defined', () => {
+      assert.strictEqual(
+        timetableWithParentStations.getParentStationTransferTime(1),
+        120,
+      );
+      assert.strictEqual(
+        timetableWithParentStations.getParentStationTransferTime(2),
+        180,
+      );
+    });
+
+    it('should return undefined for parent station transfer time when not defined', () => {
+      assert.strictEqual(
+        timetableWithParentStations.getParentStationTransferTime(99),
+        undefined,
+      );
+      // Also check timetable without parent station mode
+      assert.strictEqual(
+        sampleTimetable.getParentStationTransferTime(1),
+        undefined,
+      );
+    });
+  });
 
   it('should serialize a timetable to a Uint8Array', () => {
     const serializedData = sampleTimetable.serialize();

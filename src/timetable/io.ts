@@ -1,5 +1,7 @@
+import { StopId } from '../stops/stops.js';
 import { Duration } from './duration.js';
 import {
+  ParentStationTransferTime as ProtoParentStationTransferTime,
   Route as ProtoRoute,
   RouteType as ProtoRouteType,
   ServiceRoute as ProtoServiceRoute,
@@ -25,7 +27,17 @@ export type SerializedRoute = {
   pickUpDropOffTypes: Uint8Array;
   stops: Uint32Array;
   serviceRouteId: ServiceRouteId;
+  /**
+   * Original child stop IDs per trip, only present when parent station mode is enabled
+   * AND at least one stop in this route was collapsed to its parent station.
+   */
+  originalStops?: Uint32Array;
 };
+
+/**
+ * Parent station transfer times map: stationId -> transfer time in seconds
+ */
+export type ParentStationTransferTimes = Map<StopId, number>;
 
 const isLittleEndian = (() => {
   const buffer = new ArrayBuffer(4);
@@ -150,12 +162,17 @@ export const serializeRoutesAdjacency = (
 
   routesAdjacency.forEach((route: Route) => {
     const routeData = route.serialize();
-    protoRoutesAdjacency.push({
+    const protoRoute: ProtoRoute = {
       stopTimes: uint16ArrayToBytes(routeData.stopTimes),
       pickUpDropOffTypes: routeData.pickUpDropOffTypes,
       stops: uint32ArrayToBytes(routeData.stops),
       serviceRouteId: routeData.serviceRouteId,
-    });
+    };
+    // Only include originalStops if present (parent station collapsing occurred)
+    if (routeData.originalStops) {
+      protoRoute.originalStops = uint32ArrayToBytes(routeData.originalStops);
+    }
+    protoRoutesAdjacency.push(protoRoute);
   });
 
   return protoRoutesAdjacency;
@@ -171,6 +188,19 @@ export const serializeServiceRoutesMap = (
       routes: value.routes,
     };
   });
+};
+
+export const serializeParentStationTransferTimes = (
+  transferTimes: ParentStationTransferTimes,
+): ProtoParentStationTransferTime[] => {
+  const result: ProtoParentStationTransferTime[] = [];
+  for (const [stationId, transferTimeSeconds] of transferTimes.entries()) {
+    result.push({
+      stationId,
+      transferTimeSeconds,
+    });
+  }
+  return result;
 };
 
 export const deserializeStopsAdjacency = (
@@ -219,6 +249,11 @@ export const deserializeRoutesAdjacency = (
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const value = protoRoutesAdjacency[i]!;
     const stops = bytesToUint32Array(value.stops);
+    // Only deserialize originalStops if present and non-empty
+    const originalStops =
+      value.originalStops && value.originalStops.length > 0
+        ? bytesToUint32Array(value.originalStops)
+        : undefined;
     routesAdjacency.push(
       new Route(
         i,
@@ -226,6 +261,7 @@ export const deserializeRoutesAdjacency = (
         value.pickUpDropOffTypes,
         stops,
         value.serviceRouteId,
+        originalStops,
       ),
     );
   }
@@ -248,6 +284,18 @@ export const deserializeServiceRoutesMap = (
     });
   }
 
+  return result;
+};
+
+export const deserializeParentStationTransferTimes = (
+  protoTransferTimes: ProtoParentStationTransferTime[],
+): ParentStationTransferTimes => {
+  const result = new Map<StopId, number>();
+  for (let i = 0; i < protoTransferTimes.length; i++) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const entry = protoTransferTimes[i]!;
+    result.set(entry.stationId, entry.transferTimeSeconds);
+  }
   return result;
 };
 

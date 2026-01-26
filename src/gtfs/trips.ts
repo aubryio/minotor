@@ -56,10 +56,14 @@ type StopTimeEntry = {
 export type SerializedPickUpDropOffType = 0 | 1 | 2 | 3;
 
 /**
- * Intermediate data structure for building routes during parsing
+ * Intermediate data structure for building routes during parsing.
+ * When parent station mode is enabled:
+ * - `stops` contains parent station IDs (used for routing)
+ * - `originalStops` in each trip contains the actual child stop IDs (for reconstruction)
  */
 type RouteBuilder = {
   serviceRouteId: ServiceRouteId;
+  /** Stop IDs used for routing (parent stations when useParentStations=true) */
   stops: StopId[];
   trips: Array<{
     gtfsTripId: GtfsTripId;
@@ -68,7 +72,11 @@ type RouteBuilder = {
     departureTimes: number[];
     pickUpTypes: SerializedPickUpDropOffType[];
     dropOffTypes: SerializedPickUpDropOffType[];
+    /** Original child stop IDs for this trip (only in parent station mode) */
+    originalStops?: StopId[];
   }>;
+  /** Whether any stop in this route was collapsed to a parent station */
+  hasCollapsedStops: boolean;
 };
 
 /**
@@ -115,7 +123,8 @@ export const encodePickUpDropOffTypes = (
 };
 
 /**
- * Sorts trips by departure time and creates optimized typed arrays
+ * Sorts trips by departure time and creates optimized typed arrays.
+ * When hasCollapsedStops is true, also creates the originalStops array.
  */
 const finalizeRouteFromBuilder = (
   builder: RouteBuilder,
@@ -128,6 +137,12 @@ const finalizeRouteFromBuilder = (
   const stopTimesArray = new Uint16Array(stopsCount * tripsCount * 2);
   const allPickUpTypes: SerializedPickUpDropOffType[] = [];
   const allDropOffTypes: SerializedPickUpDropOffType[] = [];
+
+  // Only create originalStops if we have collapsed stops
+  let originalStopsArray: Uint32Array | undefined;
+  if (builder.hasCollapsedStops) {
+    originalStopsArray = new Uint32Array(stopsCount * tripsCount);
+  }
 
   const gtfsTripIds = [];
   for (let tripIndex = 0; tripIndex < tripsCount; tripIndex++) {
@@ -160,6 +175,17 @@ const finalizeRouteFromBuilder = (
       stopTimesArray[timeIndex + 1] = departureTime;
       allDropOffTypes.push(dropOffType);
       allPickUpTypes.push(pickUpType);
+
+      // Store original stop IDs if we have collapsed stops
+      if (originalStopsArray && trip.originalStops) {
+        const originalStop = trip.originalStops[stopIndex];
+        if (originalStop === undefined) {
+          throw new Error(
+            `Missing original stop data for trip ${tripIndex} at stop ${stopIndex}`,
+          );
+        }
+        originalStopsArray[tripIndex * stopsCount + stopIndex] = originalStop;
+      }
     }
   }
   // Use 2-bit encoding for pickup/drop-off types
@@ -173,6 +199,7 @@ const finalizeRouteFromBuilder = (
       stops: stopsArray,
       stopTimes: stopTimesArray,
       pickUpDropOffTypes: pickUpDropOffTypesArray,
+      originalStops: originalStopsArray,
     },
     gtfsTripIds,
   ];
@@ -265,45 +292,68 @@ export const buildStopsAdjacencyStructure = (
  * @param stopsMap A map of parsed stops from the GTFS feed.
  * @param activeTripIds A map of valid trip IDs to corresponding route IDs.
  * @param activeStopIds A set of valid stop IDs.
- * @returns A mapping of route IDs to route details. The routes returned correspond to the set of trips from GTFS that share the same stop list.
+ * @param useParentStations When true, routes are collapsed by parent station sequence.
+ * @returns A mapping of route IDs to route details. The routes returned correspond to the set of trips from GTFS that share the same stop list (or parent station list when useParentStations=true).
  */
 export const parseStopTimes = async (
   stopTimesStream: NodeJS.ReadableStream,
   stopsMap: GtfsStopsMap,
   activeTripIds: GtfsTripIdsMap,
   activeStopIds: Set<StopId>,
+  useParentStations: boolean = false,
 ): Promise<{
   routes: Route[];
   serviceRoutesMap: Map<GtfsRouteId, ServiceRouteId>;
   tripsMapping: TripsMapping;
 }> => {
+  // Build a quick lookup from stopId to stop data
+  const stopsById = new Map<StopId, { id: StopId; parent?: StopId }>();
+  for (const stop of stopsMap.values()) {
+    stopsById.set(stop.id, { id: stop.id, parent: stop.parent });
+  }
+
+  /**
+   * Gets the effective stop ID for routing.
+   * When useParentStations is true, returns the parent station ID if available.
+   */
+  const getEffectiveStopId = (stopId: StopId): StopId => {
+    if (!useParentStations) return stopId;
+    const stop = stopsById.get(stopId);
+    return stop?.parent ?? stopId;
+  };
+
   /**
    * Adds a trip to the appropriate route builder
    */
   const addTrip = (currentTripId: GtfsTripId) => {
     const gtfsRouteId = activeTripIds.get(currentTripId);
 
-    if (!gtfsRouteId || stops.length === 0) {
-      stops = [];
+    if (!gtfsRouteId || originalStops.length === 0) {
+      originalStops = [];
+      effectiveStops = [];
       arrivalTimes = [];
       departureTimes = [];
       pickUpTypes = [];
       dropOffTypes = [];
+      tripHasCollapsedStops = false;
       return;
     }
 
     const firstDeparture = departureTimes[0];
     if (firstDeparture === undefined) {
       console.warn(`Empty trip ${currentTripId}`);
-      stops = [];
+      originalStops = [];
+      effectiveStops = [];
       arrivalTimes = [];
       departureTimes = [];
       pickUpTypes = [];
       dropOffTypes = [];
+      tripHasCollapsedStops = false;
       return;
     }
 
-    const routeId = `${gtfsRouteId}_${hashIds(stops)}`;
+    // Use effective stops (parent stations if enabled) for route grouping
+    const routeId = `${gtfsRouteId}_${hashIds(effectiveStops)}`;
     let routeBuilder = routeBuilders.get(routeId);
     if (!routeBuilder) {
       let serviceRouteId = serviceRoutesMap.get(gtfsRouteId);
@@ -314,12 +364,20 @@ export const parseStopTimes = async (
       }
       routeBuilder = {
         serviceRouteId,
-        stops,
+        stops: effectiveStops,
         trips: [],
+        hasCollapsedStops: tripHasCollapsedStops,
       };
       routeBuilders.set(routeId, routeBuilder);
-      for (const stop of stops) {
+
+      // Add effective stops (parent stations) to active stops for adjacency
+      for (const stop of effectiveStops) {
         activeStopIds.add(stop);
+      }
+    } else {
+      // Update hasCollapsedStops if this trip has collapsed stops
+      if (tripHasCollapsedStops) {
+        routeBuilder.hasCollapsedStops = true;
       }
     }
 
@@ -330,13 +388,17 @@ export const parseStopTimes = async (
       departureTimes: departureTimes,
       pickUpTypes: pickUpTypes,
       dropOffTypes: dropOffTypes,
+      // Only store original stops if we're using parent stations and have collapsed stops
+      originalStops: useParentStations ? originalStops : undefined,
     });
 
-    stops = [];
+    originalStops = [];
+    effectiveStops = [];
     arrivalTimes = [];
     departureTimes = [];
     pickUpTypes = [];
     dropOffTypes = [];
+    tripHasCollapsedStops = false;
   };
 
   type BuilderRouteId = string;
@@ -347,11 +409,16 @@ export const parseStopTimes = async (
   let currentServiceRouteId = 0;
 
   let previousSeq = 0;
-  let stops: StopId[] = [];
+  /** Original child stop IDs (always the actual stop from GTFS) */
+  let originalStops: StopId[] = [];
+  /** Effective stop IDs for routing (parent stations when useParentStations=true) */
+  let effectiveStops: StopId[] = [];
   let arrivalTimes: number[] = [];
   let departureTimes: number[] = [];
   let pickUpTypes: SerializedPickUpDropOffType[] = [];
   let dropOffTypes: SerializedPickUpDropOffType[] = [];
+  /** Whether the current trip has any stops collapsed to parent stations */
+  let tripHasCollapsedStops = false;
   let currentTripId: GtfsTripId | undefined = undefined;
 
   for await (const rawLine of parseCsv(stopTimesStream, ['stop_sequence'])) {
@@ -374,7 +441,11 @@ export const parseStopTimes = async (
       // This doesn't seem to happen in practice for now so keeping this condition to save memory.
       continue;
     }
-    if (currentTripId && line.trip_id !== currentTripId && stops.length > 0) {
+    if (
+      currentTripId &&
+      line.trip_id !== currentTripId &&
+      originalStops.length > 0
+    ) {
       addTrip(currentTripId);
     }
     currentTripId = line.trip_id;
@@ -384,7 +455,17 @@ export const parseStopTimes = async (
       console.warn(`Unknown stop ID: ${line.stop_id}`);
       continue;
     }
-    stops.push(stopData.id);
+
+    const originalStopId = stopData.id;
+    const effectiveStopId = getEffectiveStopId(originalStopId);
+
+    originalStops.push(originalStopId);
+    effectiveStops.push(effectiveStopId);
+
+    // Track if this stop was collapsed to a parent station
+    if (originalStopId !== effectiveStopId) {
+      tripHasCollapsedStops = true;
+    }
 
     const departure = line.departure_time ?? line.arrival_time;
     const arrival = line.arrival_time ?? line.departure_time;
@@ -421,6 +502,7 @@ export const parseStopTimes = async (
         routeData.pickUpDropOffTypes,
         routeData.stops,
         routeData.serviceRouteId,
+        routeData.originalStops,
       ),
     );
     gtfsTripIds.forEach((tripId, index) => {

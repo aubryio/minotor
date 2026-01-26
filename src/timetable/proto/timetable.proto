@@ -21,10 +21,20 @@ message Route {
   bytes pickUpDropOffTypes = 2;
   /**
    * Stops encoded as a 32 bit uint array.
+   * When useParentStations is true, these are parent station IDs (for routing).
    * Format: [stop1, stop2, stop3, etc.]
    */
   bytes stops = 3;
   uint32 serviceRouteId = 4;
+  /**
+   * Original child stop IDs encoded as a 32 bit uint array.
+   * Only populated when useParentStations is true AND at least one stop
+   * in this route was collapsed to its parent station.
+   * Used for route reconstruction to show the actual platform/stop.
+   * Format: [trip0_stop0, trip0_stop1, ..., trip1_stop0, trip1_stop1, ...]
+   * Length: numStops * numTrips (flattened per-trip original stops)
+   */
+  optional bytes originalStops = 5;
 }
 
 enum TransferType {
@@ -75,6 +85,11 @@ message ServiceRoute {
   repeated uint32 routes = 3;
 }
 
+message ParentStationTransferTime {
+  uint32 stationId = 1;
+  uint32 transferTimeSeconds = 2;
+}
+
 message Timetable {
   string version = 1;
   repeated StopAdjacency stopsAdjacency = 2;
@@ -82,4 +97,16 @@ message Timetable {
   repeated ServiceRoute serviceRoutes = 4;
   repeated TripTransferEntry tripContinuations = 5;
   repeated TripTransferEntry guaranteedTripTransfers = 6;
+  /**
+   * Flag indicating whether parent station mode is enabled.
+   * When true, routing uses parent stations instead of individual child stops,
+   * and originalStops in Route contains the actual platform/stop IDs.
+   */
+  bool useParentStations = 7;
+  /**
+   * Inferred transfer times at parent stations (median of child-to-child transfers).
+   * Only populated when useParentStations is true and there are multiple children
+   * with explicit transfer times defined between them.
+   */
+  repeated ParentStationTransferTime parentStationTransferTimes = 8;
 }

@@ -191,13 +191,15 @@ export class Router {
   private initRoutingState(query: Query): RoutingState {
     const { from, to, departureTime } = query;
     // Consider children or siblings of the "from" stop as potential origins
+    // When parent station mode is enabled, map to parent station IDs
     const origins = this.stopsIndex
       .equivalentStops(from)
-      .map((origin) => origin.id);
+      .map((origin) => this.timetable.getEffectiveStopId(origin));
     // Consider children or siblings of the "to" stop(s) as potential destinations
+    // When parent station mode is enabled, map to parent station IDs
     const destinations = Array.from(to)
       .flatMap((destination) => this.stopsIndex.equivalentStops(destination))
-      .map((destination) => destination.id);
+      .map((destination) => this.timetable.getEffectiveStopId(destination));
 
     const earliestArrivals = new Map<StopId, Arrival>();
     const earliestArrivalsWithoutAnyLeg = new Map<StopId, RoutingEdge>();
@@ -326,6 +328,12 @@ export class Router {
           continue;
         }
 
+        // Get effective transfer time - uses parent station transfer time if available
+        const effectiveTransferTime = this.timetable.getEffectiveTransferTime(
+          currentStop,
+          options.minTransferTime,
+        );
+
         const firstBoardableTrip = this.findFirstBoardableTrip(
           currentStopIndex,
           route,
@@ -334,7 +342,7 @@ export class Router {
           activeTrip?.tripIndex,
           // provide the previous trip if the previous edge was a vehicle
           previousEdge && 'routeId' in previousEdge ? previousEdge : undefined,
-          options.minTransferTime,
+          effectiveTransferTime,
         );
 
         if (firstBoardableTrip !== undefined) {

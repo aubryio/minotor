@@ -154,10 +154,20 @@ export interface Route {
   pickUpDropOffTypes: Uint8Array;
   /**
    * Stops encoded as a 32 bit uint array.
+   * When useParentStations is true, these are parent station IDs (for routing).
    * Format: [stop1, stop2, stop3, etc.]
    */
   stops: Uint8Array;
   serviceRouteId: number;
+  /**
+   * Original child stop IDs encoded as a 32 bit uint array.
+   * Only populated when useParentStations is true AND at least one stop
+   * in this route was collapsed to its parent station.
+   * Used for route reconstruction to show the actual platform/stop.
+   * Format: [trip0_stop0, trip0_stop1, ..., trip1_stop0, trip1_stop1, ...]
+   * Length: numStops * numTrips (flattened per-trip original stops)
+   */
+  originalStops?: Uint8Array | undefined;
 }
 
 export interface Transfer {
@@ -188,6 +198,11 @@ export interface ServiceRoute {
   routes: number[];
 }
 
+export interface ParentStationTransferTime {
+  stationId: number;
+  transferTimeSeconds: number;
+}
+
 export interface Timetable {
   version: string;
   stopsAdjacency: StopAdjacency[];
@@ -195,6 +210,18 @@ export interface Timetable {
   serviceRoutes: ServiceRoute[];
   tripContinuations: TripTransferEntry[];
   guaranteedTripTransfers: TripTransferEntry[];
+  /**
+   * Flag indicating whether parent station mode is enabled.
+   * When true, routing uses parent stations instead of individual child stops,
+   * and originalStops in Route contains the actual platform/stop IDs.
+   */
+  useParentStations: boolean;
+  /**
+   * Inferred transfer times at parent stations (median of child-to-child transfers).
+   * Only populated when useParentStations is true and there are multiple children
+   * with explicit transfer times defined between them.
+   */
+  parentStationTransferTimes: ParentStationTransferTime[];
 }
 
 function createBaseRoute(): Route {
@@ -203,6 +230,7 @@ function createBaseRoute(): Route {
     pickUpDropOffTypes: new Uint8Array(0),
     stops: new Uint8Array(0),
     serviceRouteId: 0,
+    originalStops: undefined,
   };
 }
 
@@ -219,6 +247,9 @@ export const Route: MessageFns<Route> = {
     }
     if (message.serviceRouteId !== 0) {
       writer.uint32(32).uint32(message.serviceRouteId);
+    }
+    if (message.originalStops !== undefined) {
+      writer.uint32(42).bytes(message.originalStops);
     }
     return writer;
   },
@@ -262,6 +293,14 @@ export const Route: MessageFns<Route> = {
           message.serviceRouteId = reader.uint32();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.originalStops = reader.bytes();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -279,6 +318,7 @@ export const Route: MessageFns<Route> = {
         : new Uint8Array(0),
       stops: isSet(object.stops) ? bytesFromBase64(object.stops) : new Uint8Array(0),
       serviceRouteId: isSet(object.serviceRouteId) ? globalThis.Number(object.serviceRouteId) : 0,
+      originalStops: isSet(object.originalStops) ? bytesFromBase64(object.originalStops) : undefined,
     };
   },
 
@@ -296,6 +336,9 @@ export const Route: MessageFns<Route> = {
     if (message.serviceRouteId !== 0) {
       obj.serviceRouteId = Math.round(message.serviceRouteId);
     }
+    if (message.originalStops !== undefined) {
+      obj.originalStops = base64FromBytes(message.originalStops);
+    }
     return obj;
   },
 
@@ -308,6 +351,7 @@ export const Route: MessageFns<Route> = {
     message.pickUpDropOffTypes = object.pickUpDropOffTypes ?? new Uint8Array(0);
     message.stops = object.stops ?? new Uint8Array(0);
     message.serviceRouteId = object.serviceRouteId ?? 0;
+    message.originalStops = object.originalStops ?? undefined;
     return message;
   },
 };
@@ -770,6 +814,82 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
   },
 };
 
+function createBaseParentStationTransferTime(): ParentStationTransferTime {
+  return { stationId: 0, transferTimeSeconds: 0 };
+}
+
+export const ParentStationTransferTime: MessageFns<ParentStationTransferTime> = {
+  encode(message: ParentStationTransferTime, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.stationId !== 0) {
+      writer.uint32(8).uint32(message.stationId);
+    }
+    if (message.transferTimeSeconds !== 0) {
+      writer.uint32(16).uint32(message.transferTimeSeconds);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ParentStationTransferTime {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseParentStationTransferTime();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.stationId = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.transferTimeSeconds = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ParentStationTransferTime {
+    return {
+      stationId: isSet(object.stationId) ? globalThis.Number(object.stationId) : 0,
+      transferTimeSeconds: isSet(object.transferTimeSeconds) ? globalThis.Number(object.transferTimeSeconds) : 0,
+    };
+  },
+
+  toJSON(message: ParentStationTransferTime): unknown {
+    const obj: any = {};
+    if (message.stationId !== 0) {
+      obj.stationId = Math.round(message.stationId);
+    }
+    if (message.transferTimeSeconds !== 0) {
+      obj.transferTimeSeconds = Math.round(message.transferTimeSeconds);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ParentStationTransferTime>, I>>(base?: I): ParentStationTransferTime {
+    return ParentStationTransferTime.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ParentStationTransferTime>, I>>(object: I): ParentStationTransferTime {
+    const message = createBaseParentStationTransferTime();
+    message.stationId = object.stationId ?? 0;
+    message.transferTimeSeconds = object.transferTimeSeconds ?? 0;
+    return message;
+  },
+};
+
 function createBaseTimetable(): Timetable {
   return {
     version: "",
@@ -778,6 +898,8 @@ function createBaseTimetable(): Timetable {
     serviceRoutes: [],
     tripContinuations: [],
     guaranteedTripTransfers: [],
+    useParentStations: false,
+    parentStationTransferTimes: [],
   };
 }
 
@@ -800,6 +922,12 @@ export const Timetable: MessageFns<Timetable> = {
     }
     for (const v of message.guaranteedTripTransfers) {
       TripTransferEntry.encode(v!, writer.uint32(50).fork()).join();
+    }
+    if (message.useParentStations !== false) {
+      writer.uint32(56).bool(message.useParentStations);
+    }
+    for (const v of message.parentStationTransferTimes) {
+      ParentStationTransferTime.encode(v!, writer.uint32(66).fork()).join();
     }
     return writer;
   },
@@ -859,6 +987,22 @@ export const Timetable: MessageFns<Timetable> = {
           message.guaranteedTripTransfers.push(TripTransferEntry.decode(reader, reader.uint32()));
           continue;
         }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.useParentStations = reader.bool();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.parentStationTransferTimes.push(ParentStationTransferTime.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -886,6 +1030,10 @@ export const Timetable: MessageFns<Timetable> = {
       guaranteedTripTransfers: globalThis.Array.isArray(object?.guaranteedTripTransfers)
         ? object.guaranteedTripTransfers.map((e: any) => TripTransferEntry.fromJSON(e))
         : [],
+      useParentStations: isSet(object.useParentStations) ? globalThis.Boolean(object.useParentStations) : false,
+      parentStationTransferTimes: globalThis.Array.isArray(object?.parentStationTransferTimes)
+        ? object.parentStationTransferTimes.map((e: any) => ParentStationTransferTime.fromJSON(e))
+        : [],
     };
   },
 
@@ -909,6 +1057,14 @@ export const Timetable: MessageFns<Timetable> = {
     if (message.guaranteedTripTransfers?.length) {
       obj.guaranteedTripTransfers = message.guaranteedTripTransfers.map((e) => TripTransferEntry.toJSON(e));
     }
+    if (message.useParentStations !== false) {
+      obj.useParentStations = message.useParentStations;
+    }
+    if (message.parentStationTransferTimes?.length) {
+      obj.parentStationTransferTimes = message.parentStationTransferTimes.map((e) =>
+        ParentStationTransferTime.toJSON(e)
+      );
+    }
     return obj;
   },
 
@@ -924,6 +1080,9 @@ export const Timetable: MessageFns<Timetable> = {
     message.tripContinuations = object.tripContinuations?.map((e) => TripTransferEntry.fromPartial(e)) || [];
     message.guaranteedTripTransfers = object.guaranteedTripTransfers?.map((e) => TripTransferEntry.fromPartial(e)) ||
       [];
+    message.useParentStations = object.useParentStations ?? false;
+    message.parentStationTransferTimes =
+      object.parentStationTransferTimes?.map((e) => ParentStationTransferTime.fromPartial(e)) || [];
     return message;
   },
 };

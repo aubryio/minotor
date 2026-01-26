@@ -60,6 +60,8 @@ const toPickupDropOffType = (numericalType: number): PickUpDropOffType => {
 
 /**
  * A route identifies all trips of a given service route sharing the same list of stops.
+ * When parent station mode is enabled, trips sharing the same parent station sequence
+ * are grouped together, even if they use different child stops (platforms).
  */
 export class Route {
   public readonly id: RouteId;
@@ -83,9 +85,18 @@ export class Route {
   private readonly pickUpDropOffTypes: Uint8Array;
   /**
    * A binary array of stopIds in the route.
+   * When parent station mode is enabled, these are parent station IDs (used for routing).
    * [stop1, stop2, stop3,...]
    */
   public readonly stops: Uint32Array;
+  /**
+   * Original child stop IDs per trip, only populated when parent station mode is enabled
+   * AND at least one stop in this route was collapsed to its parent station.
+   * Format: [trip0_stop0, trip0_stop1, ..., trip1_stop0, trip1_stop1, ...]
+   * Length: numStops * numTrips
+   * When undefined, the stops array contains the actual child stop IDs.
+   */
+  private readonly originalStops?: Uint32Array;
   /**
    * A reverse mapping of each stop with their index in the route:
    * {
@@ -116,12 +127,14 @@ export class Route {
     pickUpDropOffTypes: Uint8Array,
     stops: Uint32Array,
     serviceRouteId: ServiceRouteId,
+    originalStops?: Uint32Array,
   ) {
     this.id = id;
     this.stopTimes = stopTimes;
     this.pickUpDropOffTypes = pickUpDropOffTypes;
     this.stops = stops;
     this.serviceRouteId = serviceRouteId;
+    this.originalStops = originalStops;
     this.nbStops = stops.length;
     this.nbTrips = this.stopTimes.length / (this.stops.length * 2);
     this.stopIndices = new Map<StopId, StopRouteIndex[]>();
@@ -249,6 +262,7 @@ export class Route {
       pickUpDropOffTypes: this.pickUpDropOffTypes,
       stops: this.stops,
       serviceRouteId: this.serviceRouteId,
+      originalStops: this.originalStops,
     };
   }
 
@@ -426,6 +440,7 @@ export class Route {
 
   /**
    * Retrieves the id of a stop at a given index in a route.
+   * This returns the stop ID used for routing (parent station ID when parent station mode is enabled).
    * @param stopRouteIndex The route index of the stop.
    * @returns The id of the stop at the given index in the route.
    */
@@ -437,5 +452,40 @@ export class Route {
       );
     }
     return stopId;
+  }
+
+  /**
+   * Retrieves the original (child) stop ID at a given index for a specific trip.
+   * This is used for route reconstruction to show the actual platform/stop.
+   * When originalStops is not set (no parent station collapsing occurred), falls back to stops array.
+   *
+   * @param stopRouteIndex The route index of the stop.
+   * @param tripIndex The index of the trip.
+   * @returns The original child stop ID at the given index for the specified trip.
+   */
+  public originalStopId(
+    stopRouteIndex: StopRouteIndex,
+    tripIndex: TripRouteIndex,
+  ): StopId {
+    if (this.originalStops) {
+      const index = tripIndex * this.nbStops + stopRouteIndex;
+      const stopId = this.originalStops[index];
+      if (stopId === undefined) {
+        throw new Error(
+          `Original StopId for stop at index ${stopRouteIndex}, trip ${tripIndex} not found in route ${this.serviceRouteId}`,
+        );
+      }
+      return stopId;
+    }
+    // Fall back to stops array when no parent station collapsing occurred
+    return this.stopId(stopRouteIndex);
+  }
+
+  /**
+   * Checks if this route has original stop IDs stored (i.e., parent station collapsing occurred).
+   * @returns True if originalStops is populated, false otherwise.
+   */
+  public hasOriginalStops(): boolean {
+    return this.originalStops !== undefined;
   }
 }

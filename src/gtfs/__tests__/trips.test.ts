@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
-import { StopId } from '../../stops/stops.js';
+import { Stop, StopId } from '../../stops/stops.js';
 import { REGULAR, Route } from '../../timetable/route.js';
 import { Time } from '../../timetable/time.js';
 import { ServiceRoute } from '../../timetable/timetable.js';
@@ -790,5 +790,336 @@ describe('GTFS stop times parser', () => {
         ['routeB', 1],
       ]),
     );
+  });
+});
+
+describe('GTFS stop times parser with parent station mode', () => {
+  it('should collapse trips with different platforms into same route when useParentStations is true', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type\n',
+    );
+    // Trip A uses platform 1A and 2A
+    mockedStream.push(
+      '"tripA","08:00:00","08:05:00","platform1A","1","0","0"\n',
+    );
+    mockedStream.push(
+      '"tripA","08:10:00","08:15:00","platform2A","2","0","0"\n',
+    );
+    // Trip B uses platform 1B and 2B (different platforms, same parent stations)
+    mockedStream.push(
+      '"tripB","09:00:00","09:05:00","platform1B","1","0","0"\n',
+    );
+    mockedStream.push(
+      '"tripB","09:10:00","09:15:00","platform2B","2","0","0"\n',
+    );
+    mockedStream.push(null);
+
+    const validTripIds: GtfsTripIdsMap = new Map([
+      ['tripA', 'routeA'],
+      ['tripB', 'routeA'],
+    ]);
+    const validStopIds: Set<StopId> = new Set();
+
+    // Parent stations (ids 0 and 1) with child platforms
+    const stopsMap: GtfsStopsMap = new Map<
+      string,
+      Stop & { parentSourceId?: string }
+    >([
+      [
+        'station1',
+        {
+          id: 0,
+          sourceStopId: 'station1',
+          name: 'Station 1',
+          children: [2, 3],
+          locationType: 'STATION',
+        },
+      ],
+      [
+        'station2',
+        {
+          id: 1,
+          sourceStopId: 'station2',
+          name: 'Station 2',
+          children: [4, 5],
+          locationType: 'STATION',
+        },
+      ],
+      [
+        'platform1A',
+        {
+          id: 2,
+          sourceStopId: 'platform1A',
+          name: 'Platform 1A',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 0,
+          parentSourceId: 'station1',
+        },
+      ],
+      [
+        'platform1B',
+        {
+          id: 3,
+          sourceStopId: 'platform1B',
+          name: 'Platform 1B',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 0,
+          parentSourceId: 'station1',
+        },
+      ],
+      [
+        'platform2A',
+        {
+          id: 4,
+          sourceStopId: 'platform2A',
+          name: 'Platform 2A',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 1,
+          parentSourceId: 'station2',
+        },
+      ],
+      [
+        'platform2B',
+        {
+          id: 5,
+          sourceStopId: 'platform2B',
+          name: 'Platform 2B',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 1,
+          parentSourceId: 'station2',
+        },
+      ],
+    ]);
+
+    const result = await parseStopTimes(
+      mockedStream,
+      stopsMap,
+      validTripIds,
+      validStopIds,
+      true, // useParentStations = true
+    );
+
+    // Should create only 1 route (both trips collapsed to same parent station sequence)
+    assert.strictEqual(result.routes.length, 1);
+
+    const route = result.routes[0];
+    assert.ok(route, 'Route should exist');
+    // Route stops should be parent station IDs (0, 1)
+    assert.deepEqual(Array.from(route.stops), [0, 1]);
+
+    // Route should have 2 trips
+    assert.strictEqual(route.getNbTrips(), 2);
+
+    // Route should have originalStops since collapsing occurred
+    assert.strictEqual(route.hasOriginalStops(), true);
+
+    // Original stop IDs for trip 0 (tripA): platform1A (2), platform2A (4)
+    assert.strictEqual(route.originalStopId(0, 0), 2);
+    assert.strictEqual(route.originalStopId(1, 0), 4);
+
+    // Original stop IDs for trip 1 (tripB): platform1B (3), platform2B (5)
+    assert.strictEqual(route.originalStopId(0, 1), 3);
+    assert.strictEqual(route.originalStopId(1, 1), 5);
+
+    // Both trips should map to the same route
+    assert.strictEqual(result.tripsMapping.get('tripA')?.routeId, 0);
+    assert.strictEqual(result.tripsMapping.get('tripB')?.routeId, 0);
+  });
+
+  it('should not store originalStops when no collapsing occurs', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type\n',
+    );
+    // Both trips use stops without parents (typical bus route)
+    mockedStream.push('"tripA","08:00:00","08:05:00","stop1","1","0","0"\n');
+    mockedStream.push('"tripA","08:10:00","08:15:00","stop2","2","0","0"\n');
+    mockedStream.push('"tripB","09:00:00","09:05:00","stop1","1","0","0"\n');
+    mockedStream.push('"tripB","09:10:00","09:15:00","stop2","2","0","0"\n');
+    mockedStream.push(null);
+
+    const validTripIds: GtfsTripIdsMap = new Map([
+      ['tripA', 'routeA'],
+      ['tripB', 'routeA'],
+    ]);
+    const validStopIds: Set<StopId> = new Set();
+
+    // Stops without parent stations (bus stops)
+    const stopsMap: GtfsStopsMap = new Map([
+      [
+        'stop1',
+        {
+          id: 0,
+          sourceStopId: 'stop1',
+          name: 'Bus Stop 1',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'stop2',
+        {
+          id: 1,
+          sourceStopId: 'stop2',
+          name: 'Bus Stop 2',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
+
+    const result = await parseStopTimes(
+      mockedStream,
+      stopsMap,
+      validTripIds,
+      validStopIds,
+      true, // useParentStations = true (but no parents exist)
+    );
+
+    // Should create 1 route
+    assert.strictEqual(result.routes.length, 1);
+
+    const route = result.routes[0];
+    assert.ok(route, 'Route should exist');
+    // Route stops should be the actual stop IDs (no parents)
+    assert.deepEqual(Array.from(route.stops), [0, 1]);
+
+    // Route should NOT have originalStops since no collapsing occurred
+    assert.strictEqual(route.hasOriginalStops(), false);
+
+    // originalStopId should fall back to stopId when no originalStops
+    assert.strictEqual(route.originalStopId(0, 0), 0);
+    assert.strictEqual(route.originalStopId(1, 0), 1);
+  });
+
+  it('should create separate routes when useParentStations is false', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type\n',
+    );
+    // Trip A uses platform 1A and 2A
+    mockedStream.push(
+      '"tripA","08:00:00","08:05:00","platform1A","1","0","0"\n',
+    );
+    mockedStream.push(
+      '"tripA","08:10:00","08:15:00","platform2A","2","0","0"\n',
+    );
+    // Trip B uses platform 1B and 2B (different platforms)
+    mockedStream.push(
+      '"tripB","09:00:00","09:05:00","platform1B","1","0","0"\n',
+    );
+    mockedStream.push(
+      '"tripB","09:10:00","09:15:00","platform2B","2","0","0"\n',
+    );
+    mockedStream.push(null);
+
+    const validTripIds: GtfsTripIdsMap = new Map([
+      ['tripA', 'routeA'],
+      ['tripB', 'routeA'],
+    ]);
+    const validStopIds: Set<StopId> = new Set();
+
+    const stopsMap: GtfsStopsMap = new Map<
+      string,
+      Stop & { parentSourceId?: string }
+    >([
+      [
+        'station1',
+        {
+          id: 0,
+          sourceStopId: 'station1',
+          name: 'Station 1',
+          children: [2, 3],
+          locationType: 'STATION',
+        },
+      ],
+      [
+        'station2',
+        {
+          id: 1,
+          sourceStopId: 'station2',
+          name: 'Station 2',
+          children: [4, 5],
+          locationType: 'STATION',
+        },
+      ],
+      [
+        'platform1A',
+        {
+          id: 2,
+          sourceStopId: 'platform1A',
+          name: 'Platform 1A',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 0,
+          parentSourceId: 'station1',
+        },
+      ],
+      [
+        'platform1B',
+        {
+          id: 3,
+          sourceStopId: 'platform1B',
+          name: 'Platform 1B',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 0,
+          parentSourceId: 'station1',
+        },
+      ],
+      [
+        'platform2A',
+        {
+          id: 4,
+          sourceStopId: 'platform2A',
+          name: 'Platform 2A',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 1,
+          parentSourceId: 'station2',
+        },
+      ],
+      [
+        'platform2B',
+        {
+          id: 5,
+          sourceStopId: 'platform2B',
+          name: 'Platform 2B',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+          parent: 1,
+          parentSourceId: 'station2',
+        },
+      ],
+    ]);
+
+    const result = await parseStopTimes(
+      mockedStream,
+      stopsMap,
+      validTripIds,
+      validStopIds,
+      false, // useParentStations = false
+    );
+
+    // Should create 2 separate routes (different child stop sequences)
+    assert.strictEqual(result.routes.length, 2);
+
+    const route0 = result.routes[0];
+    const route1 = result.routes[1];
+    assert.ok(route0, 'Route 0 should exist');
+    assert.ok(route1, 'Route 1 should exist');
+
+    // Neither route should have originalStops
+    assert.strictEqual(route0.hasOriginalStops(), false);
+    assert.strictEqual(route1.hasOriginalStops(), false);
+
+    // Routes should have the actual child stop IDs
+    assert.deepEqual(Array.from(route0.stops), [2, 4]); // platform1A, platform2A
+    assert.deepEqual(Array.from(route1.stops), [3, 5]); // platform1B, platform2B
   });
 });

@@ -1,5 +1,6 @@
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { Duration } from '../timetable/duration.js';
+import { ParentStationTransferTimes } from '../timetable/io.js';
 import { Route } from '../timetable/route.js';
 import {
   ServiceRouteId,
@@ -273,6 +274,130 @@ export const parseTransfers = async (
 };
 
 /**
+ * Computes the median transfer time for each parent station based on
+ * transfer times between its child stops.
+ *
+ * @param transfers The parsed transfers map (child stop -> transfers)
+ * @param stopsMap The parsed stops map
+ * @returns A map of parent station IDs to their median transfer times in seconds
+ */
+export const computeParentStationTransferTimes = (
+  transfers: TransfersMap,
+  stopsMap: GtfsStopsMap,
+): ParentStationTransferTimes => {
+  // Build a quick lookup from stopId to parent
+  const stopToParent = new Map<StopId, StopId>();
+  for (const stop of stopsMap.values()) {
+    if (stop.parent !== undefined) {
+      stopToParent.set(stop.id, stop.parent);
+    }
+  }
+
+  // Group transfer times by parent station
+  const transferTimesByStation = new Map<StopId, number[]>();
+
+  for (const [fromStopId, transferList] of transfers) {
+    const fromParentId = stopToParent.get(fromStopId);
+    if (fromParentId === undefined) continue;
+
+    for (const transfer of transferList) {
+      const toParentId = stopToParent.get(transfer.destination);
+
+      // Only consider transfers within the same parent station
+      if (toParentId !== fromParentId) continue;
+
+      if (transfer.minTransferTime !== undefined) {
+        const times = transferTimesByStation.get(fromParentId) || [];
+        times.push(transfer.minTransferTime.toSeconds());
+        transferTimesByStation.set(fromParentId, times);
+      }
+    }
+  }
+
+  // Compute median for each station
+  const result: ParentStationTransferTimes = new Map();
+
+  for (const [stationId, times] of transferTimesByStation) {
+    if (times.length === 0) continue;
+
+    times.sort((a, b) => a - b);
+
+    const mid = Math.floor(times.length / 2);
+    const median =
+      times.length % 2 === 0
+        ? Math.round(((times[mid - 1] ?? 0) + (times[mid] ?? 0)) / 2)
+        : (times[mid] ?? 0);
+
+    result.set(stationId, median);
+  }
+
+  return result;
+};
+
+/**
+ * Transforms the transfers map to use parent station IDs when parent station mode is enabled.
+ * Filters out intra-station transfers (they'll use the median transfer time instead).
+ *
+ * @param transfers The original transfers map (child stop -> transfers)
+ * @param stopsMap The parsed stops map
+ * @returns A new transfers map using parent station IDs for inter-station transfers
+ */
+export const transformTransfersForParentStations = (
+  transfers: TransfersMap,
+  stopsMap: GtfsStopsMap,
+): TransfersMap => {
+  // Build a quick lookup from stopId to parent
+  const stopToParent = new Map<StopId, StopId>();
+  for (const stop of stopsMap.values()) {
+    if (stop.parent !== undefined) {
+      stopToParent.set(stop.id, stop.parent);
+    }
+  }
+
+  const result: TransfersMap = new Map();
+
+  for (const [fromStopId, transferList] of transfers) {
+    const effectiveFromId = stopToParent.get(fromStopId) ?? fromStopId;
+
+    for (const transfer of transferList) {
+      const effectiveToId =
+        stopToParent.get(transfer.destination) ?? transfer.destination;
+
+      // Skip intra-station transfers (same parent or same stop)
+      if (effectiveFromId === effectiveToId) continue;
+
+      const existingTransfers = result.get(effectiveFromId) || [];
+
+      // Check if we already have a transfer to this destination
+      const existingTransfer = existingTransfers.find(
+        (t) => t.destination === effectiveToId,
+      );
+
+      if (existingTransfer) {
+        // Keep the shorter transfer time
+        if (
+          transfer.minTransferTime !== undefined &&
+          (existingTransfer.minTransferTime === undefined ||
+            transfer.minTransferTime.toSeconds() <
+              existingTransfer.minTransferTime.toSeconds())
+        ) {
+          existingTransfer.minTransferTime = transfer.minTransferTime;
+        }
+      } else {
+        existingTransfers.push({
+          destination: effectiveToId,
+          type: transfer.type,
+          minTransferTime: transfer.minTransferTime,
+        });
+        result.set(effectiveFromId, existingTransfers);
+      }
+    }
+  }
+
+  return result;
+};
+
+/**
  * Disambiguates stops involved in a transfer.
  *
  * The GTFS specification only refers to a stopId in the trip-to-trip transfers and not the
@@ -332,7 +457,8 @@ const disambiguateTransferStopsIndices = (
  * @param tripsMapping Mapping from GTFS trip IDs to internal trip representations
  * @param gtfsTripTransfers Array of GTFS trip continuation data from transfers.txt
  * @param timetable The timetable containing route and timing information
- * @param activeStopIds Set of stop IDs that are active/enabled in the system
+ * @param activeStopIds Set of stop IDs that are active/enabled in the system (parent station IDs when useParentStations=true)
+ * @param stopToParent Optional mapping from child stop IDs to parent station IDs (required when useParentStations=true)
  * @returns A map from trip boarding IDs to arrays of continuation boarding options
  */
 export const buildTripTransfers = (
@@ -340,16 +466,33 @@ export const buildTripTransfers = (
   gtfsTripTransfers: GtfsTripTransfer[],
   timetable: Timetable,
   activeStopIds: Set<StopId>,
+  stopToParent?: Map<StopId, StopId>,
 ): TripTransfers => {
   const continuations: TripTransfers = new Map();
 
+  /**
+   * Gets the effective stop ID for checking active stops.
+   * Returns parent station ID if stopToParent is provided, otherwise the original ID.
+   */
+  const getEffectiveStopId = (stopId: StopId): StopId => {
+    if (stopToParent) {
+      return stopToParent.get(stopId) ?? stopId;
+    }
+    return stopId;
+  };
+
   for (const gtfsContinuation of gtfsTripTransfers) {
+    // Check if stops are active (using effective IDs for parent station mode)
+    const effectiveFromStop = getEffectiveStopId(gtfsContinuation.fromStop);
+    const effectiveToStop = getEffectiveStopId(gtfsContinuation.toStop);
+
     if (
-      !activeStopIds.has(gtfsContinuation.fromStop) ||
-      !activeStopIds.has(gtfsContinuation.toStop)
+      !activeStopIds.has(effectiveFromStop) ||
+      !activeStopIds.has(effectiveToStop)
     ) {
       continue;
     }
+
     const fromTripMapping = tripsMapping.get(gtfsContinuation.fromTrip);
     const toTripMapping = tripsMapping.get(gtfsContinuation.toTrip);
 
@@ -364,11 +507,13 @@ export const buildTripTransfers = (
       continue;
     }
 
+    // Use effective stop IDs (parent stations) for looking up stop indices in routes
+    // since routes now use parent station IDs when useParentStations=true
     const bestStopIndices = disambiguateTransferStopsIndices(
-      gtfsContinuation.fromStop,
+      effectiveFromStop,
       fromRoute,
       fromTripMapping.tripRouteIndex,
-      gtfsContinuation.toStop,
+      effectiveToStop,
       toRoute,
       toTripMapping.tripRouteIndex,
     );

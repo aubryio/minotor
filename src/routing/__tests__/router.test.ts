@@ -1639,4 +1639,403 @@ describe('Router', () => {
       );
     });
   });
+
+  describe('with parent station mode', () => {
+    let router: Router;
+    let timetable: Timetable;
+    let stopsIndex: StopsIndex;
+
+    beforeEach(() => {
+      // Setup: Two stations with multiple platforms each
+      // Station A (id=0) has platforms A1 (id=2) and A2 (id=3)
+      // Station B (id=1) has platforms B1 (id=4) and B2 (id=5)
+      //
+      // Route 0: A (parent) -> B (parent) using trip 0 (A1->B1) and trip 1 (A2->B2)
+      // Both trips are collapsed into same route since they share parent station sequence
+
+      const stopsAdjacency: StopAdjacency[] = [
+        { routes: [0] }, // Station A (parent) - id 0
+        { routes: [0] }, // Station B (parent) - id 1
+        { routes: [] }, // Platform A1 - id 2
+        { routes: [] }, // Platform A2 - id 3
+        { routes: [] }, // Platform B1 - id 4
+        { routes: [] }, // Platform B2 - id 5
+      ];
+
+      // Route uses parent station IDs (0, 1) but has originalStops per trip
+      const routesAdjacency = [
+        new Route(
+          0,
+          new Uint16Array([
+            // Trip 0: A (08:00-08:10) -> B (08:30-08:40)
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:10:00').toMinutes(),
+            Time.fromString('08:30:00').toMinutes(),
+            Time.fromString('08:40:00').toMinutes(),
+            // Trip 1: A (09:00-09:10) -> B (09:30-09:40)
+            Time.fromString('09:00:00').toMinutes(),
+            Time.fromString('09:10:00').toMinutes(),
+            Time.fromString('09:30:00').toMinutes(),
+            Time.fromString('09:40:00').toMinutes(),
+          ]),
+          new Uint8Array([0, 0, 0, 0]), // All regular pickup/dropoff
+          new Uint32Array([0, 1]), // Parent station IDs: Station A, Station B
+          0, // serviceRouteId
+          new Uint32Array([2, 4, 3, 5]), // originalStops: trip0=[A1,B1], trip1=[A2,B2]
+        ),
+      ];
+
+      const routes: ServiceRoute[] = [
+        {
+          type: 'RAIL',
+          name: 'Line 1',
+          routes: [0],
+        },
+      ];
+
+      // Parent station transfer time: 2 minutes (120 seconds) at Station A
+      const parentStationTransferTimes = new Map<number, number>([[0, 120]]);
+
+      timetable = new Timetable(
+        stopsAdjacency,
+        routesAdjacency,
+        routes,
+        new Map(), // tripContinuations
+        new Map(), // guaranteedTripTransfers
+        true, // useParentStations
+        parentStationTransferTimes,
+      );
+
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stationA',
+          name: 'Station A',
+          lat: 1.0,
+          lon: 1.0,
+          children: [2, 3],
+          locationType: 'STATION',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stationB',
+          name: 'Station B',
+          lat: 2.0,
+          lon: 2.0,
+          children: [4, 5],
+          locationType: 'STATION',
+        },
+        {
+          id: 2,
+          sourceStopId: 'platformA1',
+          name: 'Platform A1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          parent: 0,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 3,
+          sourceStopId: 'platformA2',
+          name: 'Platform A2',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          parent: 0,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 4,
+          sourceStopId: 'platformB1',
+          name: 'Platform B1',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          parent: 1,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 5,
+          sourceStopId: 'platformB2',
+          name: 'Platform B2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          parent: 1,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
+      stopsIndex = new StopsIndex(stops);
+      router = new Router(timetable, stopsIndex);
+    });
+
+    it('should find route using parent station for origin query', () => {
+      const query = new Query.Builder()
+        .from('stationA')
+        .to('stationB')
+        .departureTime(Time.fromString('08:00:00'))
+        .build();
+
+      const result: Result = router.route(query);
+      const bestRoute = result.bestRoute();
+
+      assert.ok(bestRoute, 'Should find a route');
+      assert.strictEqual(bestRoute.legs.length, 1);
+      // Should reconstruct with original child stops (Platform A1 -> Platform B1)
+      const leg = bestRoute.legs[0];
+      assert.ok(leg, 'Should have a leg');
+      assert.strictEqual(leg.from.id, 2); // Platform A1
+      assert.strictEqual(leg.to.id, 4); // Platform B1
+    });
+
+    it('should find route using child platform for origin query', () => {
+      // Query from a specific platform should still work
+      const query = new Query.Builder()
+        .from('platformA1')
+        .to('platformB1')
+        .departureTime(Time.fromString('08:00:00'))
+        .build();
+
+      const result: Result = router.route(query);
+      const bestRoute = result.bestRoute();
+
+      assert.ok(bestRoute, 'Should find a route');
+      assert.strictEqual(bestRoute.legs.length, 1);
+    });
+
+    it('should correctly report arrival time at destination', () => {
+      const query = new Query.Builder()
+        .from('stationA')
+        .to('stationB')
+        .departureTime(Time.fromString('08:00:00'))
+        .build();
+
+      const result: Result = router.route(query);
+
+      // Can query arrival using either parent station or child platform
+      const arrivalAtStation = result.arrivalAt('stationB');
+      const arrivalAtPlatform = result.arrivalAt('platformB1');
+
+      assert.ok(arrivalAtStation, 'Should have arrival at station');
+      assert.ok(arrivalAtPlatform, 'Should have arrival at platform');
+      assert.strictEqual(
+        arrivalAtStation.arrival.toMinutes(),
+        Time.fromString('08:30:00').toMinutes(),
+      );
+      assert.strictEqual(
+        arrivalAtPlatform.arrival.toMinutes(),
+        Time.fromString('08:30:00').toMinutes(),
+      );
+    });
+
+    it('should use parent station transfer time when available', () => {
+      assert.strictEqual(timetable.isUsingParentStations(), true);
+      assert.strictEqual(timetable.getParentStationTransferTime(0), 120);
+
+      const transferTime = timetable.getEffectiveTransferTime(
+        0,
+        Duration.fromSeconds(60),
+      );
+      // Should use the parent station transfer time (120s) instead of default (60s)
+      assert.strictEqual(transferTime.toSeconds(), 120);
+    });
+
+    it('should fall back to default transfer time when no parent station time defined', () => {
+      const transferTime = timetable.getEffectiveTransferTime(
+        1, // Station B has no defined transfer time
+        Duration.fromSeconds(60),
+      );
+      // Should fall back to default (60s)
+      assert.strictEqual(transferTime.toSeconds(), 60);
+    });
+  });
+
+  describe('with parent station mode and transfers', () => {
+    let router: Router;
+    let timetable: Timetable;
+    let stopsIndex: StopsIndex;
+
+    beforeEach(() => {
+      // Setup: Two stations with multiple platforms
+      // Station A (id=0) has platforms A1 (id=2) and A2 (id=3)
+      // Station B (id=1) has platforms B1 (id=4) and B2 (id=5)
+      //
+      // Route 0 (Line 1): A -> B (departs 08:10, arrives 08:30)
+      // Route 1 (Line 2): B -> somewhere else, but we'll transfer at B
+      //
+      // This tests that when transferring at a parent station,
+      // we get an intra-station transfer leg
+
+      const stopsAdjacency: StopAdjacency[] = [
+        { routes: [0] }, // Station A (parent) - id 0
+        { routes: [0, 1] }, // Station B (parent) - id 1, served by both routes
+        { routes: [] }, // Platform A1 - id 2
+        { routes: [] }, // Platform A2 - id 3
+        { routes: [] }, // Platform B1 - id 4
+        { routes: [] }, // Platform B2 - id 5
+        { routes: [1] }, // Station C - id 6
+      ];
+
+      const routesAdjacency = [
+        // Route 0 (Line 1): A -> B
+        new Route(
+          0,
+          new Uint16Array([
+            Time.fromString('08:00:00').toMinutes(),
+            Time.fromString('08:10:00').toMinutes(),
+            Time.fromString('08:30:00').toMinutes(),
+            Time.fromString('08:40:00').toMinutes(),
+          ]),
+          new Uint8Array([0, 0]), // All regular pickup/dropoff
+          new Uint32Array([0, 1]), // Parent station IDs: Station A, Station B
+          0, // serviceRouteId
+          new Uint32Array([2, 4]), // originalStops: A1, B1
+        ),
+        // Route 1 (Line 2): B -> C
+        new Route(
+          1,
+          new Uint16Array([
+            Time.fromString('08:45:00').toMinutes(),
+            Time.fromString('08:50:00').toMinutes(),
+            Time.fromString('09:10:00').toMinutes(),
+            Time.fromString('09:15:00').toMinutes(),
+          ]),
+          new Uint8Array([0, 0]), // All regular pickup/dropoff
+          new Uint32Array([1, 6]), // Parent station IDs: Station B, Station C
+          1, // serviceRouteId
+          new Uint32Array([5, 6]), // originalStops: B2 (different platform!), C
+        ),
+      ];
+
+      const routes: ServiceRoute[] = [
+        { type: 'RAIL', name: 'Line 1', routes: [0] },
+        { type: 'RAIL', name: 'Line 2', routes: [1] },
+      ];
+
+      // Parent station transfer time: 3 minutes (180 seconds) at Station B
+      const parentStationTransferTimes = new Map<number, number>([[1, 180]]);
+
+      timetable = new Timetable(
+        stopsAdjacency,
+        routesAdjacency,
+        routes,
+        new Map(), // tripContinuations
+        new Map(), // guaranteedTripTransfers
+        true, // useParentStations
+        parentStationTransferTimes,
+      );
+
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'stationA',
+          name: 'Station A',
+          lat: 1.0,
+          lon: 1.0,
+          children: [2, 3],
+          locationType: 'STATION',
+        },
+        {
+          id: 1,
+          sourceStopId: 'stationB',
+          name: 'Station B',
+          lat: 2.0,
+          lon: 2.0,
+          children: [4, 5],
+          locationType: 'STATION',
+        },
+        {
+          id: 2,
+          sourceStopId: 'platformA1',
+          name: 'Platform A1',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          parent: 0,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 3,
+          sourceStopId: 'platformA2',
+          name: 'Platform A2',
+          lat: 1.0,
+          lon: 1.0,
+          children: [],
+          parent: 0,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 4,
+          sourceStopId: 'platformB1',
+          name: 'Platform B1',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          parent: 1,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 5,
+          sourceStopId: 'platformB2',
+          name: 'Platform B2',
+          lat: 2.0,
+          lon: 2.0,
+          children: [],
+          parent: 1,
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 6,
+          sourceStopId: 'stationC',
+          name: 'Station C',
+          lat: 3.0,
+          lon: 3.0,
+          children: [],
+          locationType: 'STATION',
+        },
+      ];
+      stopsIndex = new StopsIndex(stops);
+      router = new Router(timetable, stopsIndex);
+    });
+
+    it('should create intra-station transfer leg when transferring at parent station', () => {
+      const query = new Query.Builder()
+        .from('stationA')
+        .to('stationC')
+        .departureTime(Time.fromString('08:00:00'))
+        .build();
+
+      const result: Result = router.route(query);
+      const bestRoute = result.bestRoute();
+
+      assert.ok(bestRoute, 'Should find a route');
+      // Should have 3 legs: vehicle (A->B) + transfer (B1->B2) + vehicle (B->C)
+      assert.strictEqual(bestRoute.legs.length, 3);
+
+      // First leg: vehicle from A to B
+      const firstLeg = bestRoute.legs[0];
+      assert.ok(firstLeg, 'Should have first leg');
+      assert.ok('route' in firstLeg, 'First leg should be vehicle leg');
+      assert.strictEqual(firstLeg.from.id, 2); // Platform A1
+      assert.strictEqual(firstLeg.to.id, 4); // Platform B1
+
+      // Second leg: intra-station transfer at B (B1 -> B2)
+      const secondLeg = bestRoute.legs[1];
+      assert.ok(secondLeg, 'Should have second leg');
+      assert.ok('type' in secondLeg, 'Second leg should be transfer leg');
+      assert.strictEqual(secondLeg.from.id, 4); // Platform B1
+      assert.strictEqual(secondLeg.to.id, 5); // Platform B2
+      assert.strictEqual(secondLeg.type, 'RECOMMENDED');
+      // Should have the parent station transfer time
+      assert.strictEqual(secondLeg.minTransferTime?.toSeconds(), 180);
+
+      // Third leg: vehicle from B to C
+      const thirdLeg = bestRoute.legs[2];
+      assert.ok(thirdLeg, 'Should have third leg');
+      assert.ok('route' in thirdLeg, 'Third leg should be vehicle leg');
+      assert.strictEqual(thirdLeg.from.id, 5); // Platform B2
+      assert.strictEqual(thirdLeg.to.id, 6); // Station C
+    });
+  });
 });
