@@ -1,7 +1,8 @@
 import fs from 'fs';
 import { performance } from 'perf_hooks';
 
-import { Query, Router, StopsIndex, Time } from '../router.js';
+import { Query, Router, StopsIndex } from '../router.js';
+import { timeFromString } from '../timetable/time.js';
 
 type PerformanceResult = {
   task: Query;
@@ -21,17 +22,31 @@ type SerializedQuery = {
  * @param filePath
  * @returns
  */
-export const loadQueriesFromJson = (filePath: string): Query[] => {
+export const loadQueriesFromJson = (
+  filePath: string,
+  stopsIndex: StopsIndex,
+): Query[] => {
   const fileContent = fs.readFileSync(filePath, 'utf-8');
   const serializedQueries: SerializedQuery[] = JSON.parse(
     fileContent,
   ) as SerializedQuery[];
 
   return serializedQueries.map((serializedQuery) => {
+    const fromStop = stopsIndex.findStopBySourceStopId(serializedQuery.from);
+    const toStops = Array.from(serializedQuery.to).map((stopId) =>
+      stopsIndex.findStopBySourceStopId(stopId),
+    );
+
+    if (!fromStop || toStops.some((toStop) => !toStop)) {
+      throw new Error(
+        `Invalid task: Start or end station not found for task ${JSON.stringify(serializedQuery)}`,
+      );
+    }
     const queryBuilder = new Query.Builder()
-      .from(serializedQuery.from)
-      .to(new Set(serializedQuery.to))
-      .departureTime(Time.fromString(serializedQuery.departureTime));
+      .from(fromStop.id)
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      .to(new Set(toStops.map((stop) => stop!.id)))
+      .departureTime(timeFromString(serializedQuery.departureTime));
 
     if (serializedQuery.maxTransfers !== undefined) {
       queryBuilder.maxTransfers(serializedQuery.maxTransfers);
@@ -51,24 +66,12 @@ export const loadQueriesFromJson = (filePath: string): Query[] => {
  */
 export const testRouterPerformance = (
   router: Router,
-  stopsIndex: StopsIndex,
   tasks: Query[],
   iterations: number,
 ): PerformanceResult[] => {
   const results: PerformanceResult[] = [];
 
   for (const task of tasks) {
-    const fromStop = stopsIndex.findStopBySourceStopId(task.from);
-    const toStops = Array.from(task.to).map((stopId) =>
-      stopsIndex.findStopBySourceStopId(stopId),
-    );
-
-    if (!fromStop || toStops.some((toStop) => !toStop)) {
-      throw new Error(
-        `Invalid task: Start or end station not found for task ${JSON.stringify(task)}`,
-      );
-    }
-
     let totalTime = 0;
     let totalMemory = 0;
 

@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 
 import { StopId } from '../../stops/stops.js';
 import { REGULAR, Route } from '../../timetable/route.js';
-import { Time } from '../../timetable/time.js';
+import { timeFromHMS } from '../../timetable/time.js';
 import { ServiceRoute } from '../../timetable/timetable.js';
 import { GtfsRoutesMap } from '../routes.js';
 import { ServiceIds } from '../services.js';
@@ -30,13 +30,13 @@ describe('buildStopsAdjacencyStructure', () => {
             stops: [
               {
                 id: 0,
-                arrivalTime: Time.fromHMS(8, 0, 0),
-                departureTime: Time.fromHMS(8, 0, 0),
+                arrivalTime: timeFromHMS(8, 0, 0),
+                departureTime: timeFromHMS(8, 0, 0),
               },
               {
                 id: 1,
-                arrivalTime: Time.fromHMS(8, 5, 0),
-                departureTime: Time.fromHMS(8, 5, 0),
+                arrivalTime: timeFromHMS(8, 5, 0),
+                departureTime: timeFromHMS(8, 5, 0),
               },
             ],
           },
@@ -93,13 +93,13 @@ describe('buildStopsAdjacencyStructure', () => {
             stops: [
               {
                 id: 0,
-                arrivalTime: Time.fromHMS(8, 0, 0),
-                departureTime: Time.fromHMS(8, 0, 0),
+                arrivalTime: timeFromHMS(8, 0, 0),
+                departureTime: timeFromHMS(8, 0, 0),
               },
               {
                 id: 1,
-                arrivalTime: Time.fromHMS(8, 5, 0),
-                departureTime: Time.fromHMS(8, 5, 0),
+                arrivalTime: timeFromHMS(8, 5, 0),
+                departureTime: timeFromHMS(8, 5, 0),
               },
             ],
           },
@@ -161,8 +161,8 @@ describe('buildStopsAdjacencyStructure', () => {
             stops: [
               {
                 id: 0,
-                arrivalTime: Time.fromHMS(8, 0, 0),
-                departureTime: Time.fromHMS(8, 0, 0),
+                arrivalTime: timeFromHMS(8, 0, 0),
+                departureTime: timeFromHMS(8, 0, 0),
               },
             ],
           },
@@ -176,8 +176,8 @@ describe('buildStopsAdjacencyStructure', () => {
             stops: [
               {
                 id: 1,
-                arrivalTime: Time.fromHMS(8, 30, 0),
-                departureTime: Time.fromHMS(8, 30, 0),
+                arrivalTime: timeFromHMS(8, 30, 0),
+                departureTime: timeFromHMS(8, 30, 0),
               },
             ],
           },
@@ -224,8 +224,8 @@ describe('buildStopsAdjacencyStructure', () => {
             stops: [
               {
                 id: 0,
-                arrivalTime: Time.fromHMS(8, 0, 0),
-                departureTime: Time.fromHMS(8, 0, 0),
+                arrivalTime: timeFromHMS(8, 0, 0),
+                departureTime: timeFromHMS(8, 0, 0),
               },
             ],
           },
@@ -266,8 +266,8 @@ describe('buildStopsAdjacencyStructure', () => {
             stops: [
               {
                 id: 0,
-                arrivalTime: Time.fromHMS(8, 0, 0),
-                departureTime: Time.fromHMS(8, 0, 0),
+                arrivalTime: timeFromHMS(8, 0, 0),
+                departureTime: timeFromHMS(8, 0, 0),
               },
             ],
           },
@@ -434,10 +434,10 @@ describe('GTFS stop times parser', () => {
       new Route(
         0,
         new Uint16Array([
-          Time.fromHMS(8, 0, 0).toMinutes(),
-          Time.fromHMS(8, 5, 0).toMinutes(),
-          Time.fromHMS(8, 10, 0).toMinutes(),
-          Time.fromHMS(8, 15, 0).toMinutes(),
+          timeFromHMS(8, 0, 0),
+          timeFromHMS(8, 5, 0),
+          timeFromHMS(8, 10, 0),
+          timeFromHMS(8, 15, 0),
         ]),
         encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
         new Uint32Array([0, 1]),
@@ -499,14 +499,14 @@ describe('GTFS stop times parser', () => {
       new Route(
         0,
         new Uint16Array([
-          Time.fromHMS(8, 0, 0).toMinutes(),
-          Time.fromHMS(8, 5, 0).toMinutes(),
-          Time.fromHMS(8, 10, 0).toMinutes(),
-          Time.fromHMS(8, 15, 0).toMinutes(),
-          Time.fromHMS(9, 0, 0).toMinutes(),
-          Time.fromHMS(9, 5, 0).toMinutes(),
-          Time.fromHMS(9, 10, 0).toMinutes(),
-          Time.fromHMS(9, 15, 0).toMinutes(),
+          timeFromHMS(8, 0, 0),
+          timeFromHMS(8, 5, 0),
+          timeFromHMS(8, 10, 0),
+          timeFromHMS(8, 15, 0),
+          timeFromHMS(9, 0, 0),
+          timeFromHMS(9, 5, 0),
+          timeFromHMS(9, 10, 0),
+          timeFromHMS(9, 15, 0),
         ]),
         encodePickUpDropOffTypes(
           [REGULAR, REGULAR, REGULAR, REGULAR],
@@ -574,14 +574,14 @@ describe('GTFS stop times parser', () => {
       new Route(
         0,
         new Uint16Array([
-          Time.fromHMS(8, 0, 0).toMinutes(),
-          Time.fromHMS(8, 5, 0).toMinutes(),
-          Time.fromHMS(8, 10, 0).toMinutes(),
-          Time.fromHMS(8, 15, 0).toMinutes(),
-          Time.fromHMS(9, 0, 0).toMinutes(),
-          Time.fromHMS(9, 5, 0).toMinutes(),
-          Time.fromHMS(9, 10, 0).toMinutes(),
-          Time.fromHMS(9, 15, 0).toMinutes(),
+          timeFromHMS(8, 0, 0),
+          timeFromHMS(8, 5, 0),
+          timeFromHMS(8, 10, 0),
+          timeFromHMS(8, 15, 0),
+          timeFromHMS(9, 0, 0),
+          timeFromHMS(9, 5, 0),
+          timeFromHMS(9, 10, 0),
+          timeFromHMS(9, 15, 0),
         ]),
         encodePickUpDropOffTypes(
           [REGULAR, REGULAR, REGULAR, REGULAR],
@@ -641,10 +641,10 @@ describe('GTFS stop times parser', () => {
       new Route(
         0,
         new Uint16Array([
-          Time.fromHMS(8, 0, 0).toMinutes(),
-          Time.fromHMS(8, 5, 0).toMinutes(),
-          Time.fromHMS(8, 10, 0).toMinutes(),
-          Time.fromHMS(8, 15, 0).toMinutes(),
+          timeFromHMS(8, 0, 0),
+          timeFromHMS(8, 5, 0),
+          timeFromHMS(8, 10, 0),
+          timeFromHMS(8, 15, 0),
         ]),
         encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
         new Uint32Array([0, 1]),
@@ -652,10 +652,7 @@ describe('GTFS stop times parser', () => {
       ),
       new Route(
         1,
-        new Uint16Array([
-          Time.fromHMS(9, 0, 0).toMinutes(),
-          Time.fromHMS(9, 15, 0).toMinutes(),
-        ]),
+        new Uint16Array([timeFromHMS(9, 0, 0), timeFromHMS(9, 15, 0)]),
         encodePickUpDropOffTypes([REGULAR], [REGULAR]),
         new Uint32Array([0]),
         0,
@@ -706,10 +703,7 @@ describe('GTFS stop times parser', () => {
     assert.deepEqual(result.routes, [
       new Route(
         0,
-        new Uint16Array([
-          Time.fromHMS(8, 0, 0).toMinutes(),
-          Time.fromHMS(8, 5, 0).toMinutes(),
-        ]),
+        new Uint16Array([timeFromHMS(8, 0, 0), timeFromHMS(8, 5, 0)]),
         encodePickUpDropOffTypes([REGULAR], [REGULAR]),
         new Uint32Array([0]),
         0,

@@ -16,10 +16,10 @@ describe('Date converter', () => {
 
 describe('Time converter', () => {
   it('should convert a valid service time to numerical format', () => {
-    assert.equal(toTime('10:23:00').toMinutes(), 623);
+    assert.equal(toTime('10:23:00'), 623);
   });
   it('should convert a valid service time after midnight to numerical format', () => {
-    assert.equal(toTime('25:13:00').toMinutes(), 1513);
+    assert.equal(toTime('25:13:00'), 1513);
   });
   it('should throw when trying to convert an invalid time', () => {
     assert.throws(() => toTime('2513:31'));

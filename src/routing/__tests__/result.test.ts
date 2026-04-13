@@ -4,9 +4,8 @@ import { describe, it } from 'node:test';
 import { Timetable } from '../../router.js';
 import { Stop, StopId } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
-import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
-import { Time } from '../../timetable/time.js';
+import { timeFromHMS, timeFromString } from '../../timetable/time.js';
 import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
@@ -108,18 +107,18 @@ describe('Result', () => {
           stops: [
             {
               id: 0,
-              arrivalTime: Time.fromString('08:00:00'),
-              departureTime: Time.fromString('08:05:00'),
+              arrivalTime: timeFromString('08:00:00'),
+              departureTime: timeFromString('08:05:00'),
             },
             {
               id: 1,
-              arrivalTime: Time.fromString('08:30:00'),
-              departureTime: Time.fromString('08:35:00'),
+              arrivalTime: timeFromString('08:30:00'),
+              departureTime: timeFromString('08:35:00'),
             },
             {
               id: 2,
-              arrivalTime: Time.fromString('09:00:00'),
-              departureTime: Time.fromString('09:05:00'),
+              arrivalTime: timeFromString('09:00:00'),
+              departureTime: timeFromString('09:05:00'),
             },
           ],
         },
@@ -133,18 +132,18 @@ describe('Result', () => {
           stops: [
             {
               id: 2,
-              arrivalTime: Time.fromString('09:10:00'),
-              departureTime: Time.fromString('09:15:00'),
+              arrivalTime: timeFromString('09:10:00'),
+              departureTime: timeFromString('09:15:00'),
             },
             {
               id: 3,
-              arrivalTime: Time.fromString('09:45:00'),
-              departureTime: Time.fromString('09:50:00'),
+              arrivalTime: timeFromString('09:45:00'),
+              departureTime: timeFromString('09:50:00'),
             },
             {
               id: 5,
-              arrivalTime: Time.fromString('10:10:00'),
-              departureTime: Time.fromString('10:15:00'),
+              arrivalTime: timeFromString('10:10:00'),
+              departureTime: timeFromString('10:15:00'),
             },
           ],
         },
@@ -177,9 +176,9 @@ describe('Result', () => {
   const mockTimetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
 
   const mockQuery = new Query.Builder()
-    .from('stop1')
-    .to(new Set(['stop3', 'stop4']))
-    .departureTime(Time.fromHMS(8, 0, 0))
+    .from(0)
+    .to(new Set([2, 3]))
+    .departureTime(timeFromHMS(8, 0, 0))
     .build();
 
   describe('bestRoute', () => {
@@ -204,10 +203,10 @@ describe('Result', () => {
 
     it('should return undefined for unreachable destination', () => {
       const earliestArrivals = new Map([
-        [1, { arrival: Time.fromHMS(8, 30, 0), legNumber: 0 }],
+        [1, { arrival: timeFromHMS(8, 30, 0), legNumber: 0 }],
       ]);
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
       ];
 
       const result = new Result(
@@ -221,19 +220,19 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('stop4'); // stop4 not in earliestArrivals
+      const route = result.bestRoute(3); // stop4 not in earliestArrivals
       assert.strictEqual(route, undefined);
     });
 
     it('should return route to closest destination when multiple destinations exist', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // faster destination
-        [3, { arrival: Time.fromHMS(9, 30, 0), legNumber: 1 }], // slower destination
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }], // faster destination
+        [3, { arrival: timeFromHMS(9, 30, 0), legNumber: 1 }], // slower destination
       ]);
 
       const vehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -241,7 +240,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[2, vehicleEdge]]), // Round 1
       ];
 
@@ -267,13 +266,13 @@ describe('Result', () => {
 
     it('should return route to fastest child stop when parent stop is queried', () => {
       const earliestArrivals = new Map([
-        [2, { arrival: Time.fromHMS(9, 10, 0), legNumber: 1 }], // intermediate stop
-        [5, { arrival: Time.fromHMS(10, 10, 0), legNumber: 2 }], // child1 - faster
-        [6, { arrival: Time.fromHMS(10, 30, 0), legNumber: 2 }], // child2 - slower
+        [2, { arrival: timeFromHMS(9, 10, 0), legNumber: 1 }], // intermediate stop
+        [5, { arrival: timeFromHMS(10, 10, 0), legNumber: 2 }], // child1 - faster
+        [6, { arrival: timeFromHMS(10, 30, 0), legNumber: 2 }], // child2 - slower
       ]);
 
       const vehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(10, 10, 0),
+        arrival: timeFromHMS(10, 10, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 1,
@@ -281,12 +280,12 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[2, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[2, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([
           [
             2,
             {
-              arrival: Time.fromHMS(9, 10, 0),
+              arrival: timeFromHMS(9, 10, 0),
               stopIndex: 0,
               hopOffStopIndex: 2,
               routeId: 0,
@@ -308,7 +307,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('parent');
+      const route = result.bestRoute(4);
       assert(route);
       assert.strictEqual(route.legs.length, 2);
       const lastLeg = route.legs[route.legs.length - 1];
@@ -318,12 +317,12 @@ describe('Result', () => {
 
     it('should handle simple single-leg route reconstruction', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // destination
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }], // destination
       ]);
 
       const vehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -331,7 +330,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[2, vehicleEdge]]), // Round 1
       ];
 
@@ -346,7 +345,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('stop3');
+      const route = result.bestRoute(2);
       assert(route);
       assert.strictEqual(route.legs.length, 1);
       const firstLeg = route.legs[0];
@@ -357,13 +356,13 @@ describe('Result', () => {
 
     it('should handle multi-leg route with transfer', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // intermediate stop
-        [3, { arrival: Time.fromHMS(9, 45, 0), legNumber: 2 }], // final destination
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }], // intermediate stop
+        [3, { arrival: timeFromHMS(9, 45, 0), legNumber: 2 }], // final destination
       ]);
 
       const firstVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -371,7 +370,7 @@ describe('Result', () => {
       };
 
       const secondVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 45, 0),
+        arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 1,
@@ -379,7 +378,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[2, firstVehicleEdge]]), // Round 1
         new Map<StopId, RoutingEdge>([[3, secondVehicleEdge]]), // Round 2
       ];
@@ -395,7 +394,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('stop4');
+      const route = result.bestRoute(3);
       assert(route);
       assert.strictEqual(route.legs.length, 2); // two vehicle legs (transfer is implicit in route change)
       const firstLeg = route.legs[0];
@@ -410,14 +409,14 @@ describe('Result', () => {
   });
 
   describe('bestRouteToStopId', () => {
-    it('should return route when given a single StopId', () => {
+    it('should return route when given a single SourceStopId', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // destination
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }], // destination
       ]);
 
       const vehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -425,7 +424,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[2, vehicleEdge]]), // Round 1
       ];
 
@@ -440,7 +439,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRouteToStopId(2); // Using StopId instead of SourceStopId
+      const route = result.bestRouteToSourceStopId('stop3'); // Using SourceStopId instead of StopId
       assert(route);
       assert.strictEqual(route.legs.length, 1);
       const firstLeg = route.legs[0];
@@ -449,15 +448,15 @@ describe('Result', () => {
       assert.strictEqual(firstLeg.to.id, 2);
     });
 
-    it('should return route to closest destination when given a Set of StopIds', () => {
+    it('should return route to closest destination when given a Set of SourceStopIds', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // destination (faster)
-        [3, { arrival: Time.fromHMS(9, 45, 0), legNumber: 1 }], // destination (slower)
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }], // destination (faster)
+        [3, { arrival: timeFromHMS(9, 45, 0), legNumber: 1 }], // destination (slower)
       ]);
 
       const vehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -465,7 +464,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[2, vehicleEdge]]), // Round 1
       ];
 
@@ -480,7 +479,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRouteToStopId(new Set([2, 3])); // Using Set of StopIds
+      const route = result.bestRouteToSourceStopId(new Set(['stop3', 'stop4'])); // Using Set of SourceStopIds
       assert(route);
       assert.strictEqual(route.legs.length, 1);
       const firstLeg = route.legs[0];
@@ -493,13 +492,13 @@ describe('Result', () => {
   describe('continuous trips', () => {
     it('should handle single continuous trip correctly', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [1, { arrival: Time.fromHMS(8, 30, 0), legNumber: 1 }], // intermediate stop
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }], // final destination via continuous trip
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [1, { arrival: timeFromHMS(8, 30, 0), legNumber: 1 }], // intermediate stop
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }], // final destination via continuous trip
       ]);
 
       const firstVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(8, 30, 0),
+        arrival: timeFromHMS(8, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 0,
@@ -507,7 +506,7 @@ describe('Result', () => {
       };
 
       const continuousVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 1,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -516,7 +515,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([
           [1, firstVehicleEdge],
           [2, continuousVehicleEdge],
@@ -534,7 +533,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('stop3');
+      const route = result.bestRoute(2);
       assert(route);
       assert.strictEqual(route.legs.length, 1);
       const leg = route.legs[0];
@@ -545,12 +544,12 @@ describe('Result', () => {
 
     it('should handle continuous trips with route change mid-journey', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [3, { arrival: Time.fromHMS(9, 45, 0), legNumber: 1 }], // destination via continuous trip to route 1
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [3, { arrival: timeFromHMS(9, 45, 0), legNumber: 1 }], // destination via continuous trip to route 1
       ]);
 
       const firstVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -558,7 +557,7 @@ describe('Result', () => {
       };
 
       const continuousVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 45, 0),
+        arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 1,
@@ -567,7 +566,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[3, continuousVehicleEdge]]), // Round 1
       ];
 
@@ -582,7 +581,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('stop4');
+      const route = result.bestRoute(3);
       assert(route);
       assert.strictEqual(route.legs.length, 1);
 
@@ -593,28 +592,28 @@ describe('Result', () => {
     });
     it('should handle route reconstruction with actual transfer edges', () => {
       const earliestArrivals = new Map([
-        [0, { arrival: Time.fromHMS(8, 0, 0), legNumber: 0 }], // origin
-        [1, { arrival: Time.fromHMS(8, 30, 0), legNumber: 1 }], // first vehicle leg destination
-        [2, { arrival: Time.fromHMS(8, 35, 0), legNumber: 1 }], // after transfer (same round as transfer doesn't advance round)
-        [3, { arrival: Time.fromHMS(9, 15, 0), legNumber: 2 }], // final destination
+        [0, { arrival: timeFromHMS(8, 0, 0), legNumber: 0 }], // origin
+        [1, { arrival: timeFromHMS(8, 30, 0), legNumber: 1 }], // first vehicle leg destination
+        [2, { arrival: timeFromHMS(8, 35, 0), legNumber: 1 }], // after transfer (same round as transfer doesn't advance round)
+        [3, { arrival: timeFromHMS(9, 15, 0), legNumber: 2 }], // final destination
       ]);
 
       const firstVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(8, 30, 0),
+        arrival: timeFromHMS(8, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 0,
         tripIndex: 0,
       };
       const transferEdge: TransferEdge = {
-        arrival: Time.fromHMS(8, 35, 0),
+        arrival: timeFromHMS(8, 35, 0),
         from: 1,
         to: 2,
         type: 'RECOMMENDED',
-        minTransferTime: Duration.fromMinutes(5),
+        minTransferTime: 5,
       };
       const secondVehicleEdge: VehicleEdge = {
-        arrival: Time.fromHMS(9, 15, 0),
+        arrival: timeFromHMS(9, 15, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 1,
@@ -622,7 +621,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([
           [1, firstVehicleEdge], // First vehicle leg
           [2, transferEdge], // Transfer happens in same round as vehicle leg
@@ -641,7 +640,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const route = result.bestRoute('stop4');
+      const route = result.bestRoute(3);
       assert(route);
 
       assert.strictEqual(
@@ -683,7 +682,7 @@ describe('Result', () => {
   describe('arrivalAt', () => {
     it('should return arrival time for a reachable stop', () => {
       const arrivalTime = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         legNumber: 1,
       };
       const earliestArrivals = new Map([[2, arrivalTime]]);
@@ -700,13 +699,13 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const arrival = result.arrivalAt('stop3');
+      const arrival = result.arrivalAt(2);
       assert.deepStrictEqual(arrival, arrivalTime);
     });
 
     it('should return undefined for unreachable stop', () => {
       const earliestArrivals = new Map([
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }],
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }],
       ]);
       const graph: Map<StopId, RoutingEdge>[] = [];
 
@@ -721,17 +720,17 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const arrival = result.arrivalAt('stop4');
+      const arrival = result.arrivalAt(3);
       assert.strictEqual(arrival, undefined);
     });
 
     it('should return earliest arrival among equivalent stops', () => {
       const earlierArrival = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         legNumber: 1,
       };
       const laterArrival = {
-        arrival: Time.fromHMS(9, 30, 0),
+        arrival: timeFromHMS(9, 30, 0),
         legNumber: 1,
       };
 
@@ -752,17 +751,17 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const arrival = result.arrivalAt('parent');
+      const arrival = result.arrivalAt(4);
       assert.deepStrictEqual(arrival, earlierArrival);
     });
 
     it('should respect maxTransfers constraint', () => {
       const directArrival = {
-        arrival: Time.fromHMS(9, 30, 0),
+        arrival: timeFromHMS(9, 30, 0),
         legNumber: 1,
       };
       const transferArrival = {
-        arrival: Time.fromHMS(9, 0, 0),
+        arrival: timeFromHMS(9, 0, 0),
         legNumber: 2,
       };
 
@@ -771,7 +770,7 @@ describe('Result', () => {
       ]);
 
       const vehicleEdge1: VehicleEdge = {
-        arrival: Time.fromHMS(9, 30, 0),
+        arrival: timeFromHMS(9, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
         routeId: 0,
@@ -779,7 +778,7 @@ describe('Result', () => {
       };
 
       const vehicleEdge2: VehicleEdge = {
-        arrival: Time.fromHMS(9, 45, 0),
+        arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 1,
@@ -787,7 +786,7 @@ describe('Result', () => {
       };
 
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map<StopId, RoutingEdge>([[0, { arrival: Time.fromHMS(8, 0, 0) }]]), // Round 0 - origins
+        new Map<StopId, RoutingEdge>([[0, { arrival: timeFromHMS(8, 0, 0) }]]), // Round 0 - origins
         new Map<StopId, RoutingEdge>([[2, vehicleEdge1]]), // Round 1 - direct route (no transfers)
         new Map<StopId, RoutingEdge>([[2, vehicleEdge2]]), // Round 2 - route with 1 transfer
       ];
@@ -803,16 +802,16 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const arrivalWithLimit = result.arrivalAt('stop3', 0);
+      const arrivalWithLimit = result.arrivalAt(2, 0);
       assert.deepStrictEqual(arrivalWithLimit, directArrival);
 
-      const arrivalWithoutLimit = result.arrivalAt('stop3');
+      const arrivalWithoutLimit = result.arrivalAt(2);
       assert.deepStrictEqual(arrivalWithoutLimit, transferArrival);
     });
 
     it('should handle non-existent stops', () => {
       const earliestArrivals = new Map([
-        [2, { arrival: Time.fromHMS(9, 0, 0), legNumber: 1 }],
+        [2, { arrival: timeFromHMS(9, 0, 0), legNumber: 1 }],
       ]);
       const graph: Map<StopId, RoutingEdge>[] = [];
 
@@ -827,7 +826,7 @@ describe('Result', () => {
         mockTimetable,
       );
 
-      const arrival = result.arrivalAt('nonexistent');
+      const arrival = result.arrivalAt(324);
       assert.strictEqual(arrival, undefined);
     });
   });

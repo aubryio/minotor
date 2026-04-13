@@ -1,6 +1,6 @@
 import { StopId } from '../stops/stops.js';
 import { SerializedRoute } from './io.js';
-import { Time } from './time.js';
+import { Time, TIME_ORIGIN } from './time.js';
 import { ServiceRouteId } from './timetable.js';
 
 /**
@@ -11,14 +11,7 @@ import { ServiceRouteId } from './timetable.js';
  */
 export type RouteId = number;
 
-/**
- * Details about the pickup and drop-off modalities at each stop in each trip of a route.
- */
-export type PickUpDropOffType =
-  | 'REGULAR'
-  | 'NOT_AVAILABLE'
-  | 'MUST_PHONE_AGENCY'
-  | 'MUST_COORDINATE_WITH_DRIVER';
+export type RawPickUpDropOffType = 0 | 1 | 2 | 3;
 
 export const REGULAR = 0;
 export const NOT_AVAILABLE = 1;
@@ -34,29 +27,6 @@ export type TripRouteIndex = number;
  * A stop route index corresponds to the index of a given stop in a route.
  */
 export type StopRouteIndex = number;
-
-const pickUpDropOffTypeMap: PickUpDropOffType[] = [
-  'REGULAR',
-  'NOT_AVAILABLE',
-  'MUST_PHONE_AGENCY',
-  'MUST_COORDINATE_WITH_DRIVER',
-];
-
-/**
- * Converts a numerical representation of a pick-up/drop-off type
- * into its corresponding string representation.
- *
- * @param numericalType - The numerical value representing the pick-up/drop-off type.
- * @returns The corresponding PickUpDropOffType as a string.
- * @throws An error if the numerical type is invalid.
- */
-const toPickupDropOffType = (numericalType: number): PickUpDropOffType => {
-  const type = pickUpDropOffTypeMap[numericalType];
-  if (!type) {
-    throw new Error(`Invalid pickup/drop-off type ${numericalType}`);
-  }
-  return type;
-};
 
 /**
  * A route identifies all trips of a given service route sharing the same list of stops.
@@ -80,7 +50,7 @@ export class Route {
    * Bit layout per byte: [pickup_1 (2 bits)][drop_off_1 (2 bits)][pickup_0 (2 bits)][drop_off_0 (2 bits)]
    * Example: For stops 0 and 1 in a trip, one byte encodes all 4 values
    */
-  private readonly pickUpDropOffTypes: Uint8Array;
+  private readonly pickupDropOffTypes: Uint8Array;
   /**
    * A binary array of stopIds in the route.
    * [stop1, stop2, stop3,...]
@@ -113,13 +83,13 @@ export class Route {
   constructor(
     id: RouteId,
     stopTimes: Uint16Array,
-    pickUpDropOffTypes: Uint8Array,
+    pickupDropOffTypes: Uint8Array,
     stops: Uint32Array,
     serviceRouteId: ServiceRouteId,
   ) {
     this.id = id;
     this.stopTimes = stopTimes;
-    this.pickUpDropOffTypes = pickUpDropOffTypes;
+    this.pickupDropOffTypes = pickupDropOffTypes;
     this.stops = stops;
     this.serviceRouteId = serviceRouteId;
     this.nbStops = stops.length;
@@ -196,14 +166,14 @@ export class Route {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const stop = trip.stops[stopIndex]!;
         const baseIndex = (tripIndex * numStops + stopIndex) * 2;
-        stopTimes[baseIndex] = stop.arrivalTime.toMinutes();
-        stopTimes[baseIndex + 1] = stop.departureTime.toMinutes();
+        stopTimes[baseIndex] = stop.arrivalTime;
+        stopTimes[baseIndex + 1] = stop.departureTime;
       }
     }
 
-    // Create pickUpDropOffTypes array (2-bit encoded) for all trips
+    // Create pickupDropOffTypes array (2-bit encoded) for all trips
     const totalStopEntries = trips.length * numStops;
-    const pickUpDropOffTypes = new Uint8Array(Math.ceil(totalStopEntries / 2));
+    const pickupDropOffTypes = new Uint8Array(Math.ceil(totalStopEntries / 2));
 
     for (let tripIndex = 0; tripIndex < trips.length; tripIndex++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -220,11 +190,11 @@ export class Route {
         if (isSecondPair) {
           // Second pair: pickup in upper 2 bits, dropOff in bits 4-5
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          pickUpDropOffTypes[byteIndex]! |= (pickUp << 6) | (dropOff << 4);
+          pickupDropOffTypes[byteIndex]! |= (pickUp << 6) | (dropOff << 4);
         } else {
           // First pair: pickup in bits 2-3, dropOff in lower 2 bits
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          pickUpDropOffTypes[byteIndex]! |= (pickUp << 2) | dropOff;
+          pickupDropOffTypes[byteIndex]! |= (pickUp << 2) | dropOff;
         }
       }
     }
@@ -232,7 +202,7 @@ export class Route {
     return new Route(
       id,
       stopTimes,
-      pickUpDropOffTypes,
+      pickupDropOffTypes,
       stopIds,
       serviceRouteId,
     );
@@ -246,7 +216,7 @@ export class Route {
   serialize(): SerializedRoute {
     return {
       stopTimes: this.stopTimes,
-      pickUpDropOffTypes: this.pickUpDropOffTypes,
+      pickupDropOffTypes: this.pickupDropOffTypes,
       stops: this.stops,
       serviceRouteId: this.serviceRouteId,
     };
@@ -285,7 +255,7 @@ export class Route {
    *
    * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
-   * @returns The arrival time at the specified stop and trip as a Time object.
+   * @returns The arrival time at the specified stop and trip as a Time.
    */
   arrivalAt(stopIndex: StopRouteIndex, tripIndex: TripRouteIndex): Time {
     const arrivalIndex = (tripIndex * this.stops.length + stopIndex) * 2;
@@ -295,7 +265,7 @@ export class Route {
         `Arrival time not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
-    return Time.fromMinutes(arrival);
+    return arrival;
   }
 
   /**
@@ -303,7 +273,7 @@ export class Route {
    *
    * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
-   * @returns The departure time at the specified stop and trip as a Time object.
+   * @returns The departure time at the specified stop and trip as a Time.
    */
   departureFrom(stopIndex: StopRouteIndex, tripIndex: TripRouteIndex): Time {
     const departureIndex = (tripIndex * this.stops.length + stopIndex) * 2 + 1;
@@ -313,7 +283,7 @@ export class Route {
         `Departure time not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
       );
     }
-    return Time.fromMinutes(departure);
+    return departure;
   }
 
   /**
@@ -326,12 +296,12 @@ export class Route {
   pickUpTypeFrom(
     stopIndex: StopRouteIndex,
     tripIndex: TripRouteIndex,
-  ): PickUpDropOffType {
+  ): RawPickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + stopIndex;
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
 
-    const byte = this.pickUpDropOffTypes[byteIndex];
+    const byte = this.pickupDropOffTypes[byteIndex];
     if (byte === undefined) {
       throw new Error(
         `Pick up type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
@@ -341,7 +311,7 @@ export class Route {
     const pickUpValue = isSecondPair
       ? (byte >> 6) & 0x03 // Upper 2 bits for second pair
       : (byte >> 2) & 0x03; // Bits 2-3 for first pair
-    return toPickupDropOffType(pickUpValue);
+    return pickUpValue as RawPickUpDropOffType;
   }
 
   /**
@@ -354,12 +324,12 @@ export class Route {
   dropOffTypeAt(
     stopIndex: StopRouteIndex,
     tripIndex: TripRouteIndex,
-  ): PickUpDropOffType {
+  ): RawPickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + stopIndex;
     const byteIndex = Math.floor(globalIndex / 2);
     const isSecondPair = globalIndex % 2 === 1;
 
-    const byte = this.pickUpDropOffTypes[byteIndex];
+    const byte = this.pickupDropOffTypes[byteIndex];
     if (byte === undefined) {
       throw new Error(
         `Drop off type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
@@ -369,7 +339,7 @@ export class Route {
     const dropOffValue = isSecondPair
       ? (byte >> 4) & 0x03 // Bits 4-5 for second pair
       : byte & 0x03; // Lower 2 bits for first pair
-    return toPickupDropOffType(dropOffValue);
+    return dropOffValue as RawPickUpDropOffType;
   }
 
   /**
@@ -386,7 +356,7 @@ export class Route {
    */
   findEarliestTrip(
     stopIndex: StopRouteIndex,
-    after: Time = Time.ORIGIN,
+    after: Time = TIME_ORIGIN,
     beforeTrip?: TripRouteIndex,
   ): TripRouteIndex | undefined {
     if (this.nbTrips <= 0) return undefined;
@@ -400,7 +370,7 @@ export class Route {
     while (lo <= hi) {
       const mid = (lo + hi) >>> 1;
       const depMid = this.departureFrom(stopIndex, mid);
-      if (depMid.isBefore(after)) {
+      if (depMid < after) {
         lo = mid + 1;
       } else {
         lb = mid;

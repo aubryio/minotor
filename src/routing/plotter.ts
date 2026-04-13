@@ -1,4 +1,5 @@
 import { StopId } from '../stops/stops.js';
+import { durationToString, timeToString } from '../timetable/time.js';
 import { Result } from './result.js';
 import { RoutingEdge, TransferEdge, VehicleEdge } from './router.js';
 
@@ -308,10 +309,10 @@ export class Plotter {
     const routeName = serviceRouteInfo.name;
     const routeType = serviceRouteInfo.type;
 
-    const departureTime = route
-      .departureFrom(edge.stopIndex, edge.tripIndex)
-      .toString();
-    const arrivalTime = edge.arrival.toString();
+    const departureTime = timeToString(
+      route.departureFrom(edge.stopIndex, edge.tripIndex),
+    );
+    const arrivalTime = timeToString(edge.arrival);
 
     const escapedRouteName = this.escapeDotString(routeName);
     const escapedRouteType = this.escapeDotString(routeType);
@@ -334,7 +335,10 @@ export class Plotter {
     const roundColor = this.getRoundColor(round);
     const transferOvalId = this.transferEdgeNodeId(edge.from, edge.to, round);
 
-    const transferTime = edge.minTransferTime?.toString() || 'N/A';
+    const transferTime =
+      edge.minTransferTime !== undefined
+        ? durationToString(edge.minTransferTime)
+        : 'N/A';
     const escapedTransferTime = this.escapeDotString(transferTime);
     const ovalLabel = `Transfer\\n${escapedTransferTime}`;
 
@@ -386,9 +390,9 @@ export class Plotter {
     const fromRouteType = fromServiceRouteInfo?.type || 'UNKNOWN';
     const toRouteType = toServiceRouteInfo?.type || 'UNKNOWN';
 
-    const fromArrivalTime = fromEdge.arrival.toString();
+    const fromArrivalTime = timeToString(fromEdge.arrival);
     const toDepartureTime = toRoute
-      ? toRoute.departureFrom(toEdge.stopIndex, toEdge.tripIndex).toString()
+      ? timeToString(toRoute.departureFrom(toEdge.stopIndex, toEdge.tripIndex))
       : 'N/A';
 
     const escapedFromRouteName = this.escapeDotString(fromRouteName);

@@ -2,9 +2,17 @@ import repl from 'node:repl';
 
 import fs from 'fs';
 
-import { Query, Router, StopsIndex, Time, Timetable } from '../router.js';
+import { Query, Router, StopsIndex, Timetable } from '../router.js';
 import type { Stop } from '../stops/stops.js';
+import {
+  MUST_COORDINATE_WITH_DRIVER,
+  MUST_PHONE_AGENCY,
+  NOT_AVAILABLE,
+  RawPickUpDropOffType,
+  REGULAR,
+} from '../timetable/route.js';
 import { Route } from '../timetable/route.js';
+import { timeFromString, timeToString } from '../timetable/time.js';
 import { plotGraphToDotFile } from './utils.js';
 
 export const startRepl = (stopsPath: string, timetablePath: string) => {
@@ -97,12 +105,12 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         return;
       }
 
-      const departureTime = Time.fromString(atTime);
+      const departureTime = timeFromString(atTime);
 
       try {
         const query = new Query.Builder()
-          .from(fromStop.sourceStopId)
-          .to(toStop.sourceStopId)
+          .from(fromStop.id)
+          .to(toStop.id)
           .departureTime(departureTime)
           .maxTransfers(maxTransfers)
           .build();
@@ -110,15 +118,15 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         const router = new Router(timetable, stopsIndex);
 
         const result = router.route(query);
-        const arrivalTime = result.arrivalAt(toStop.sourceStopId);
+        const arrivalTime = result.arrivalAt(toStop.id);
         if (arrivalTime === undefined) {
           console.log(`Destination not reachable`);
         } else {
           console.log(
-            `Arriving to ${toStop.name} at ${arrivalTime.arrival.toString()} with ${arrivalTime.legNumber - 1} transfers from ${fromStop.name}.`,
+            `Arriving to ${toStop.name} at ${timeToString(arrivalTime.arrival)} with ${arrivalTime.legNumber - 1} transfers from ${fromStop.name}.`,
           );
         }
-        const bestRoute = result.bestRoute(toStop.sourceStopId);
+        const bestRoute = result.bestRoute(toStop.id);
 
         if (bestRoute) {
           console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
@@ -194,11 +202,11 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         return;
       }
 
-      const departureTime = Time.fromString(atTime);
+      const departureTime = timeFromString(atTime);
       try {
         const query = new Query.Builder()
-          .from(fromStop.sourceStopId)
-          .to(toStop.sourceStopId)
+          .from(fromStop.id)
+          .to(toStop.id)
           .departureTime(departureTime)
           .maxTransfers(maxTransfers)
           .build();
@@ -215,15 +223,15 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
     },
   });
 
-  const formatPickupDropoffType = (type: string): string => {
+  const formatPickupDropoffType = (type: RawPickUpDropOffType): string => {
     switch (type) {
-      case 'REGULAR':
+      case REGULAR:
         return 'R';
-      case 'NOT_AVAILABLE':
+      case NOT_AVAILABLE:
         return 'N';
-      case 'MUST_PHONE_AGENCY':
+      case MUST_PHONE_AGENCY:
         return 'A';
-      case 'MUST_COORDINATE_WITH_DRIVER':
+      case MUST_COORDINATE_WITH_DRIVER:
         return 'D';
       default:
         return '?';
@@ -304,7 +312,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
             const dropOffStr = formatPickupDropoffType(dropOffType);
 
             console.log(
-              `  ${stopIndex + 1}. ${stop.name}: arr ${arrival.toString()} (${pickupStr}) → dep ${departure.toString()} (${dropOffStr})`,
+              `  ${stopIndex + 1}. ${stop.name}: arr ${timeToString(arrival)} (${pickupStr}) → dep ${timeToString(departure)} (${dropOffStr})`,
             );
           }
         }
@@ -346,7 +354,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         console.log(`Number of routes: ${routes.length}`);
 
         const equivalentStops = stopsIndex
-          .equivalentStops(stop.sourceStopId)
+          .equivalentStops(stop.id)
           .filter((equivStop) => equivStop.id !== stop.id);
         console.log(`Number of equivalent stops: ${equivalentStops.length}`);
 
@@ -383,7 +391,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
               ? ` (Pl. ${destStop.platform})`
               : '';
             const minTime = transfer.minTransferTime
-              ? ` (min: ${Math.floor(transfer.minTransferTime.toSeconds() / 60)}min)`
+              ? ` (min: ${transfer.minTransferTime}min)`
               : '';
             console.log(
               `${index + 1}. ${transfer.type} to ${destStop?.name ?? 'Unknown'}${platform} (${transfer.destination}, ${destStop?.sourceStopId ?? 'N/A'})${minTime}`,
@@ -427,8 +435,8 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
                 );
 
                 console.log(
-                  `${totalContinuations}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
-                    `Route ${continuation.routeId} (${destServiceRouteInfo.name}) Trip ${continuation.tripIndex} at ${continuationTime.toString()} ` +
+                  `${totalContinuations}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${timeToString(originTime)} → ` +
+                    `Route ${continuation.routeId} (${destServiceRouteInfo.name}) Trip ${continuation.tripIndex} at ${timeToString(continuationTime)} ` +
                     `at ${destStop.name}${destPlatform} (${destStopId}, ${destStop.sourceStopId})`,
                 );
               }
@@ -470,8 +478,8 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
                 );
 
                 console.log(
-                  `${totalGuaranteedTransfers}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${originTime.toString()} → ` +
-                    `Route ${guaranteedTrip.routeId} (${destServiceRouteInfo.name}) Trip ${guaranteedTrip.tripIndex} at ${destinationTime.toString()} `,
+                  `${totalGuaranteedTransfers}. From Route ${route.id} (${serviceRouteInfo.name}) Trip ${tripIndex} at ${timeToString(originTime)} → ` +
+                    `Route ${guaranteedTrip.routeId} (${destServiceRouteInfo.name}) Trip ${guaranteedTrip.tripIndex} at ${timeToString(destinationTime)} `,
                 );
                 console.log(stopIndex, route.id, tripIndex);
               }

@@ -156,10 +156,9 @@ program
       );
       const router = new Router(timetable, stopsIndex);
 
-      const queries = loadQueriesFromJson(routesPath);
+      const queries = loadQueriesFromJson(routesPath, stopsIndex);
       const performanceResults = testRouterPerformance(
         router,
-        stopsIndex,
         queries,
         parseInt(options.iterations, 10),
       );

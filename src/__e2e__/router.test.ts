@@ -3,7 +3,8 @@ import { describe, it } from 'node:test';
 
 import fs from 'fs';
 
-import { Query, Router, StopsIndex, Time, Timetable } from '../router.js';
+import { Query, Router, StopsIndex, Timetable } from '../router.js';
+import { timeFromString } from '../timetable/time.js';
 
 const routes = [
   {
@@ -22,7 +23,7 @@ const routes = [
         from: '8504086:0:2',
         to: '8504086:0:4',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '03:00',
+        minTransferTime: 3,
       },
       {
         from: '8504086:0:4',
@@ -35,7 +36,7 @@ const routes = [
         from: '8504077:0:1',
         to: '8577737:0:B',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '02:00',
+        minTransferTime: 2,
       },
       {
         from: '8577737:0:B',
@@ -62,7 +63,7 @@ const routes = [
         from: '8503000:0:33',
         to: '8503000:0:6',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '07:00',
+        minTransferTime: 7,
       },
       {
         from: '8503000:0:6',
@@ -75,7 +76,7 @@ const routes = [
         from: '8509000:0:9',
         to: '8509000:0:10',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '03:00',
+        minTransferTime: 3,
       },
       {
         from: '8509000:0:10',
@@ -123,7 +124,7 @@ const routes = [
         from: '8507000:0:10',
         to: '8507000:0:2',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '06:00',
+        minTransferTime: 6,
       },
       {
         from: '8507000:0:2',
@@ -134,12 +135,12 @@ const routes = [
       },
       {
         from: '8503000:0:34',
-        to: '8503000:0:10',
+        to: '8503000:0:11',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '07:00',
+        minTransferTime: 7,
       },
       {
-        from: '8503000:0:10',
+        from: '8503000:0:11',
         to: '8509002:0:2',
         departure: '10:07',
         arrival: '11:11',
@@ -149,7 +150,7 @@ const routes = [
         from: '8509002:0:2',
         to: '8509002:0:6',
         type: 'REQUIRES_MINIMAL_TIME',
-        minTransferTime: '04:00',
+        minTransferTime: 4,
       },
       {
         from: '8509002:0:6',
@@ -180,23 +181,36 @@ describe('E2E Tests for Transit Router', () => {
       assert.ok(fromStop, `Stop not found: ${from}`);
       assert.ok(toStop, `Stop not found: ${to}`);
 
-      const departureTime = Time.fromString(at);
+      const departureTime = timeFromString(at);
 
       const queryObject = new Query.Builder()
-        .from(fromStop.sourceStopId)
-        .to(toStop.sourceStopId)
+        .from(fromStop.id)
+        .to(toStop.id)
         .departureTime(departureTime)
         .maxTransfers(5)
         .build();
 
       const result = router.route(queryObject);
-      const bestRoute = result.bestRoute(toStop.sourceStopId);
+      const bestRoute = result.bestRoute(toStop.id);
       console.log();
       assert.ok(bestRoute, 'No route found');
       const actualRoute = bestRoute.asJson();
+      const actualRouteWithSourceIds = actualRoute.map((segment) => {
+        const fromStop = stopsIndex.findStopById(segment.from);
+        const toStop = stopsIndex.findStopById(segment.to);
+
+        assert.ok(fromStop?.sourceStopId, `Stop not found: ${segment.from}`);
+        assert.ok(toStop?.sourceStopId, `Stop not found: ${segment.to}`);
+
+        return {
+          ...segment,
+          from: fromStop.sourceStopId,
+          to: toStop.sourceStopId,
+        };
+      });
 
       assert.deepStrictEqual(
-        actualRoute,
+        actualRouteWithSourceIds,
         route,
         `Route mismatch for query from ${from} to ${to} at ${at}`,
       );

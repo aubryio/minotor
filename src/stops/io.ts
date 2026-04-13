@@ -2,10 +2,9 @@ import {
   LocationType as ProtoLocationType,
   Stop as ProtoStop,
   StopsMap as ProtoStopsMap,
-} from './proto/stops.js';
+} from './proto/v1/stops.js';
 import { LocationType, Stop } from './stops.js';
 
-const CURRENT_VERSION = '0.0.3';
 const serializeStop = (stop: Stop): ProtoStop => {
   return {
     name: stop.name,
@@ -21,7 +20,6 @@ const serializeStop = (stop: Stop): ProtoStop => {
 
 export const serializeStopsMap = (stops: Stop[]): ProtoStopsMap => {
   const protoStopsMap: ProtoStopsMap = {
-    version: CURRENT_VERSION,
     stops: stops.map((value) => serializeStop(value)),
   };
 
@@ -43,9 +41,6 @@ const deserializeStop = (stopId: number, protoStop: ProtoStop): Stop => {
 };
 
 export const deserializeStopsMap = (protoStopsMap: ProtoStopsMap): Stop[] => {
-  if (protoStopsMap.version !== CURRENT_VERSION) {
-    throw new Error(`Unsupported stopMap version ${protoStopsMap.version}`);
-  }
   return protoStopsMap.stops.map((value, intKey) =>
     deserializeStop(intKey, value),
   );
@@ -55,16 +50,18 @@ const parseProtoLocationType = (
   protoLocationType: ProtoLocationType,
 ): LocationType => {
   switch (protoLocationType) {
-    case ProtoLocationType.SIMPLE_STOP_OR_PLATFORM:
+    case ProtoLocationType.LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM:
       return 'SIMPLE_STOP_OR_PLATFORM';
-    case ProtoLocationType.STATION:
+    case ProtoLocationType.LOCATION_TYPE_STATION:
       return 'STATION';
-    case ProtoLocationType.ENTRANCE_EXIT:
+    case ProtoLocationType.LOCATION_TYPE_ENTRANCE_EXIT:
       return 'ENTRANCE_EXIT';
-    case ProtoLocationType.GENERIC_NODE:
+    case ProtoLocationType.LOCATION_TYPE_GENERIC_NODE:
       return 'GENERIC_NODE';
-    case ProtoLocationType.BOARDING_AREA:
+    case ProtoLocationType.LOCATION_TYPE_BOARDING_AREA:
       return 'BOARDING_AREA';
+    case ProtoLocationType.LOCATION_TYPE_UNSPECIFIED:
+      throw new Error('Unspecified protobuf location type.');
     case ProtoLocationType.UNRECOGNIZED:
       throw new Error('Unrecognized protobuf location type.');
   }
@@ -75,14 +72,14 @@ const serializeLocationType = (
 ): ProtoLocationType => {
   switch (locationType) {
     case 'SIMPLE_STOP_OR_PLATFORM':
-      return ProtoLocationType.SIMPLE_STOP_OR_PLATFORM;
+      return ProtoLocationType.LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM;
     case 'STATION':
-      return ProtoLocationType.STATION;
+      return ProtoLocationType.LOCATION_TYPE_STATION;
     case 'ENTRANCE_EXIT':
-      return ProtoLocationType.ENTRANCE_EXIT;
+      return ProtoLocationType.LOCATION_TYPE_ENTRANCE_EXIT;
     case 'GENERIC_NODE':
-      return ProtoLocationType.GENERIC_NODE;
+      return ProtoLocationType.LOCATION_TYPE_GENERIC_NODE;
     case 'BOARDING_AREA':
-      return ProtoLocationType.BOARDING_AREA;
+      return ProtoLocationType.LOCATION_TYPE_BOARDING_AREA;
   }
 };

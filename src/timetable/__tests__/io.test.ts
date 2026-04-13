@@ -1,7 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { Duration } from '../duration.js';
 import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
@@ -13,7 +12,7 @@ import {
   serializeTripTransfers,
 } from '../io.js';
 import { REGULAR, Route } from '../route.js';
-import { Time } from '../time.js';
+import { timeFromHMS } from '../time.js';
 import { ServiceRoute, StopAdjacency, TripStop } from '../timetable.js';
 import { encode } from '../tripStopId.js';
 
@@ -28,7 +27,7 @@ describe('Timetable IO', () => {
         {
           destination: 1,
           type: 'GUARANTEED',
-          minTransferTime: Duration.fromMinutes(3),
+          minTransferTime: 3,
         },
       ],
       routes: [1],
@@ -37,20 +36,14 @@ describe('Timetable IO', () => {
   const routesAdjacency = [
     new Route(
       0,
-      new Uint16Array([
-        Time.fromHMS(16, 40, 0).toMinutes(),
-        Time.fromHMS(16, 50, 0).toMinutes(),
-      ]),
+      new Uint16Array([timeFromHMS(16, 40, 0), timeFromHMS(16, 50, 0)]),
       new Uint8Array([REGULAR, REGULAR]),
       new Uint32Array([1, 2]),
       0,
     ),
     new Route(
       1,
-      new Uint16Array([
-        Time.fromHMS(15, 20, 0).toMinutes(),
-        Time.fromHMS(15, 30, 0).toMinutes(),
-      ]),
+      new Uint16Array([timeFromHMS(15, 20, 0), timeFromHMS(15, 30, 0)]),
       new Uint8Array([REGULAR, REGULAR]),
       new Uint32Array([2, 1]),
       1,
@@ -62,15 +55,15 @@ describe('Timetable IO', () => {
   ];
   const stopsAdjacencyProto = [
     {
-      transfers: [{ destination: 2, type: 0 }],
+      transfers: [{ destination: 2, type: 1 }],
       routes: [0],
     },
     {
       transfers: [
         {
           destination: 1,
-          type: 1,
-          minTransferTime: 180,
+          type: 2,
+          minTransferTime: 3,
         },
       ],
       routes: [1],
@@ -80,31 +73,27 @@ describe('Timetable IO', () => {
   const routesAdjacencyProto = [
     {
       stopTimes: new Uint8Array(
-        new Uint16Array([
-          Time.fromHMS(16, 40, 0).toMinutes(),
-          Time.fromHMS(16, 50, 0).toMinutes(),
-        ]).buffer,
+        new Uint16Array([timeFromHMS(16, 40, 0), timeFromHMS(16, 50, 0)])
+          .buffer,
       ),
-      pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
+      pickupDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
       stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
       serviceRouteId: 0,
     },
     {
       stopTimes: new Uint8Array(
-        new Uint16Array([
-          Time.fromHMS(15, 20, 0).toMinutes(),
-          Time.fromHMS(15, 30, 0).toMinutes(),
-        ]).buffer,
+        new Uint16Array([timeFromHMS(15, 20, 0), timeFromHMS(15, 30, 0)])
+          .buffer,
       ),
-      pickUpDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
+      pickupDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
       stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
       serviceRouteId: 1,
     },
   ];
 
   const routesProto = [
-    { type: 2, name: 'Route 1', routes: [0] },
-    { type: 2, name: 'Route 2', routes: [1] },
+    { type: 3, name: 'Route 1', routes: [0] },
+    { type: 3, name: 'Route 2', routes: [1] },
   ];
 
   it('should serialize a stops adjacency matrix to a Uint8Array', () => {

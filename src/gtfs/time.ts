@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 
-import { Time } from '../timetable/time.js';
+import { Time, timeFromHMS } from '../timetable/time.js';
 
 export type GtfsDate = number;
 export type GtfsTime = string;
@@ -25,7 +25,7 @@ export const toTime = (time: GtfsTime): Time => {
   if (!splits[0] || !splits[1] || !splits[2]) {
     throw new Error(`Invalid time ${time}.`);
   }
-  return Time.fromHMS(
+  return timeFromHMS(
     parseInt(splits[0]),
     parseInt(splits[1]),
     parseInt(splits[2]),

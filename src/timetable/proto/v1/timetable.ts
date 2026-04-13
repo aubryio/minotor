@@ -2,35 +2,39 @@
 // versions:
 //   protoc-gen-ts_proto  v2.10.1
 //   protoc               v3.19.6
-// source: src/timetable/proto/timetable.proto
+// source: src/timetable/proto/v1/timetable.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = "minotor.timetable";
+export const protobufPackage = "minotor.timetable.v1";
 
 export enum TransferType {
-  RECOMMENDED_TRANSFER_POINT = 0,
-  TIMED_TRANSFER = 1,
-  REQUIRES_MINIMAL_TIME = 2,
-  IN_SEAT_TRANSFER = 3,
+  TRANSFER_TYPE_UNSPECIFIED = 0,
+  TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT = 1,
+  TRANSFER_TYPE_TIMED_TRANSFER = 2,
+  TRANSFER_TYPE_REQUIRES_MINIMAL_TIME = 3,
+  TRANSFER_TYPE_IN_SEAT_TRANSFER = 4,
   UNRECOGNIZED = -1,
 }
 
 export function transferTypeFromJSON(object: any): TransferType {
   switch (object) {
     case 0:
-    case "RECOMMENDED_TRANSFER_POINT":
-      return TransferType.RECOMMENDED_TRANSFER_POINT;
+    case "TRANSFER_TYPE_UNSPECIFIED":
+      return TransferType.TRANSFER_TYPE_UNSPECIFIED;
     case 1:
-    case "TIMED_TRANSFER":
-      return TransferType.TIMED_TRANSFER;
+    case "TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT":
+      return TransferType.TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT;
     case 2:
-    case "REQUIRES_MINIMAL_TIME":
-      return TransferType.REQUIRES_MINIMAL_TIME;
+    case "TRANSFER_TYPE_TIMED_TRANSFER":
+      return TransferType.TRANSFER_TYPE_TIMED_TRANSFER;
     case 3:
-    case "IN_SEAT_TRANSFER":
-      return TransferType.IN_SEAT_TRANSFER;
+    case "TRANSFER_TYPE_REQUIRES_MINIMAL_TIME":
+      return TransferType.TRANSFER_TYPE_REQUIRES_MINIMAL_TIME;
+    case 4:
+    case "TRANSFER_TYPE_IN_SEAT_TRANSFER":
+      return TransferType.TRANSFER_TYPE_IN_SEAT_TRANSFER;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -40,14 +44,16 @@ export function transferTypeFromJSON(object: any): TransferType {
 
 export function transferTypeToJSON(object: TransferType): string {
   switch (object) {
-    case TransferType.RECOMMENDED_TRANSFER_POINT:
-      return "RECOMMENDED_TRANSFER_POINT";
-    case TransferType.TIMED_TRANSFER:
-      return "TIMED_TRANSFER";
-    case TransferType.REQUIRES_MINIMAL_TIME:
-      return "REQUIRES_MINIMAL_TIME";
-    case TransferType.IN_SEAT_TRANSFER:
-      return "IN_SEAT_TRANSFER";
+    case TransferType.TRANSFER_TYPE_UNSPECIFIED:
+      return "TRANSFER_TYPE_UNSPECIFIED";
+    case TransferType.TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT:
+      return "TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT";
+    case TransferType.TRANSFER_TYPE_TIMED_TRANSFER:
+      return "TRANSFER_TYPE_TIMED_TRANSFER";
+    case TransferType.TRANSFER_TYPE_REQUIRES_MINIMAL_TIME:
+      return "TRANSFER_TYPE_REQUIRES_MINIMAL_TIME";
+    case TransferType.TRANSFER_TYPE_IN_SEAT_TRANSFER:
+      return "TRANSFER_TYPE_IN_SEAT_TRANSFER";
     case TransferType.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
@@ -55,51 +61,55 @@ export function transferTypeToJSON(object: TransferType): string {
 }
 
 export enum RouteType {
-  TRAM = 0,
-  SUBWAY = 1,
-  RAIL = 2,
-  BUS = 3,
-  FERRY = 4,
-  CABLE_TRAM = 5,
-  AERIAL_LIFT = 6,
-  FUNICULAR = 7,
-  TROLLEYBUS = 8,
-  MONORAIL = 9,
+  ROUTE_TYPE_UNSPECIFIED = 0,
+  ROUTE_TYPE_TRAM = 1,
+  ROUTE_TYPE_SUBWAY = 2,
+  ROUTE_TYPE_RAIL = 3,
+  ROUTE_TYPE_BUS = 4,
+  ROUTE_TYPE_FERRY = 5,
+  ROUTE_TYPE_CABLE_TRAM = 6,
+  ROUTE_TYPE_AERIAL_LIFT = 7,
+  ROUTE_TYPE_FUNICULAR = 8,
+  ROUTE_TYPE_TROLLEYBUS = 9,
+  ROUTE_TYPE_MONORAIL = 10,
   UNRECOGNIZED = -1,
 }
 
 export function routeTypeFromJSON(object: any): RouteType {
   switch (object) {
     case 0:
-    case "TRAM":
-      return RouteType.TRAM;
+    case "ROUTE_TYPE_UNSPECIFIED":
+      return RouteType.ROUTE_TYPE_UNSPECIFIED;
     case 1:
-    case "SUBWAY":
-      return RouteType.SUBWAY;
+    case "ROUTE_TYPE_TRAM":
+      return RouteType.ROUTE_TYPE_TRAM;
     case 2:
-    case "RAIL":
-      return RouteType.RAIL;
+    case "ROUTE_TYPE_SUBWAY":
+      return RouteType.ROUTE_TYPE_SUBWAY;
     case 3:
-    case "BUS":
-      return RouteType.BUS;
+    case "ROUTE_TYPE_RAIL":
+      return RouteType.ROUTE_TYPE_RAIL;
     case 4:
-    case "FERRY":
-      return RouteType.FERRY;
+    case "ROUTE_TYPE_BUS":
+      return RouteType.ROUTE_TYPE_BUS;
     case 5:
-    case "CABLE_TRAM":
-      return RouteType.CABLE_TRAM;
+    case "ROUTE_TYPE_FERRY":
+      return RouteType.ROUTE_TYPE_FERRY;
     case 6:
-    case "AERIAL_LIFT":
-      return RouteType.AERIAL_LIFT;
+    case "ROUTE_TYPE_CABLE_TRAM":
+      return RouteType.ROUTE_TYPE_CABLE_TRAM;
     case 7:
-    case "FUNICULAR":
-      return RouteType.FUNICULAR;
+    case "ROUTE_TYPE_AERIAL_LIFT":
+      return RouteType.ROUTE_TYPE_AERIAL_LIFT;
     case 8:
-    case "TROLLEYBUS":
-      return RouteType.TROLLEYBUS;
+    case "ROUTE_TYPE_FUNICULAR":
+      return RouteType.ROUTE_TYPE_FUNICULAR;
     case 9:
-    case "MONORAIL":
-      return RouteType.MONORAIL;
+    case "ROUTE_TYPE_TROLLEYBUS":
+      return RouteType.ROUTE_TYPE_TROLLEYBUS;
+    case 10:
+    case "ROUTE_TYPE_MONORAIL":
+      return RouteType.ROUTE_TYPE_MONORAIL;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -109,26 +119,28 @@ export function routeTypeFromJSON(object: any): RouteType {
 
 export function routeTypeToJSON(object: RouteType): string {
   switch (object) {
-    case RouteType.TRAM:
-      return "TRAM";
-    case RouteType.SUBWAY:
-      return "SUBWAY";
-    case RouteType.RAIL:
-      return "RAIL";
-    case RouteType.BUS:
-      return "BUS";
-    case RouteType.FERRY:
-      return "FERRY";
-    case RouteType.CABLE_TRAM:
-      return "CABLE_TRAM";
-    case RouteType.AERIAL_LIFT:
-      return "AERIAL_LIFT";
-    case RouteType.FUNICULAR:
-      return "FUNICULAR";
-    case RouteType.TROLLEYBUS:
-      return "TROLLEYBUS";
-    case RouteType.MONORAIL:
-      return "MONORAIL";
+    case RouteType.ROUTE_TYPE_UNSPECIFIED:
+      return "ROUTE_TYPE_UNSPECIFIED";
+    case RouteType.ROUTE_TYPE_TRAM:
+      return "ROUTE_TYPE_TRAM";
+    case RouteType.ROUTE_TYPE_SUBWAY:
+      return "ROUTE_TYPE_SUBWAY";
+    case RouteType.ROUTE_TYPE_RAIL:
+      return "ROUTE_TYPE_RAIL";
+    case RouteType.ROUTE_TYPE_BUS:
+      return "ROUTE_TYPE_BUS";
+    case RouteType.ROUTE_TYPE_FERRY:
+      return "ROUTE_TYPE_FERRY";
+    case RouteType.ROUTE_TYPE_CABLE_TRAM:
+      return "ROUTE_TYPE_CABLE_TRAM";
+    case RouteType.ROUTE_TYPE_AERIAL_LIFT:
+      return "ROUTE_TYPE_AERIAL_LIFT";
+    case RouteType.ROUTE_TYPE_FUNICULAR:
+      return "ROUTE_TYPE_FUNICULAR";
+    case RouteType.ROUTE_TYPE_TROLLEYBUS:
+      return "ROUTE_TYPE_TROLLEYBUS";
+    case RouteType.ROUTE_TYPE_MONORAIL:
+      return "ROUTE_TYPE_MONORAIL";
     case RouteType.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
@@ -151,7 +163,7 @@ export interface Route {
    * Format: [drop_off_1][pickup_1][drop_off_0][pickup_0]
    * 2 bits per value
    */
-  pickUpDropOffTypes: Uint8Array;
+  pickupDropOffTypes: Uint8Array;
   /**
    * Stops encoded as a 32 bit uint array.
    * Format: [stop1, stop2, stop3, etc.]
@@ -189,7 +201,6 @@ export interface ServiceRoute {
 }
 
 export interface Timetable {
-  version: string;
   stopsAdjacency: StopAdjacency[];
   routesAdjacency: Route[];
   serviceRoutes: ServiceRoute[];
@@ -200,7 +211,7 @@ export interface Timetable {
 function createBaseRoute(): Route {
   return {
     stopTimes: new Uint8Array(0),
-    pickUpDropOffTypes: new Uint8Array(0),
+    pickupDropOffTypes: new Uint8Array(0),
     stops: new Uint8Array(0),
     serviceRouteId: 0,
   };
@@ -211,8 +222,8 @@ export const Route: MessageFns<Route> = {
     if (message.stopTimes.length !== 0) {
       writer.uint32(10).bytes(message.stopTimes);
     }
-    if (message.pickUpDropOffTypes.length !== 0) {
-      writer.uint32(18).bytes(message.pickUpDropOffTypes);
+    if (message.pickupDropOffTypes.length !== 0) {
+      writer.uint32(18).bytes(message.pickupDropOffTypes);
     }
     if (message.stops.length !== 0) {
       writer.uint32(26).bytes(message.stops);
@@ -243,7 +254,7 @@ export const Route: MessageFns<Route> = {
             break;
           }
 
-          message.pickUpDropOffTypes = reader.bytes();
+          message.pickupDropOffTypes = reader.bytes();
           continue;
         }
         case 3: {
@@ -274,8 +285,8 @@ export const Route: MessageFns<Route> = {
   fromJSON(object: any): Route {
     return {
       stopTimes: isSet(object.stopTimes) ? bytesFromBase64(object.stopTimes) : new Uint8Array(0),
-      pickUpDropOffTypes: isSet(object.pickUpDropOffTypes)
-        ? bytesFromBase64(object.pickUpDropOffTypes)
+      pickupDropOffTypes: isSet(object.pickupDropOffTypes)
+        ? bytesFromBase64(object.pickupDropOffTypes)
         : new Uint8Array(0),
       stops: isSet(object.stops) ? bytesFromBase64(object.stops) : new Uint8Array(0),
       serviceRouteId: isSet(object.serviceRouteId) ? globalThis.Number(object.serviceRouteId) : 0,
@@ -287,8 +298,8 @@ export const Route: MessageFns<Route> = {
     if (message.stopTimes.length !== 0) {
       obj.stopTimes = base64FromBytes(message.stopTimes);
     }
-    if (message.pickUpDropOffTypes.length !== 0) {
-      obj.pickUpDropOffTypes = base64FromBytes(message.pickUpDropOffTypes);
+    if (message.pickupDropOffTypes.length !== 0) {
+      obj.pickupDropOffTypes = base64FromBytes(message.pickupDropOffTypes);
     }
     if (message.stops.length !== 0) {
       obj.stops = base64FromBytes(message.stops);
@@ -305,7 +316,7 @@ export const Route: MessageFns<Route> = {
   fromPartial<I extends Exact<DeepPartial<Route>, I>>(object: I): Route {
     const message = createBaseRoute();
     message.stopTimes = object.stopTimes ?? new Uint8Array(0);
-    message.pickUpDropOffTypes = object.pickUpDropOffTypes ?? new Uint8Array(0);
+    message.pickupDropOffTypes = object.pickupDropOffTypes ?? new Uint8Array(0);
     message.stops = object.stops ?? new Uint8Array(0);
     message.serviceRouteId = object.serviceRouteId ?? 0;
     return message;
@@ -772,7 +783,6 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
 
 function createBaseTimetable(): Timetable {
   return {
-    version: "",
     stopsAdjacency: [],
     routesAdjacency: [],
     serviceRoutes: [],
@@ -783,23 +793,20 @@ function createBaseTimetable(): Timetable {
 
 export const Timetable: MessageFns<Timetable> = {
   encode(message: Timetable, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.version !== "") {
-      writer.uint32(10).string(message.version);
-    }
     for (const v of message.stopsAdjacency) {
-      StopAdjacency.encode(v!, writer.uint32(18).fork()).join();
+      StopAdjacency.encode(v!, writer.uint32(10).fork()).join();
     }
     for (const v of message.routesAdjacency) {
-      Route.encode(v!, writer.uint32(26).fork()).join();
+      Route.encode(v!, writer.uint32(18).fork()).join();
     }
     for (const v of message.serviceRoutes) {
-      ServiceRoute.encode(v!, writer.uint32(34).fork()).join();
+      ServiceRoute.encode(v!, writer.uint32(26).fork()).join();
     }
     for (const v of message.tripContinuations) {
-      TripTransferEntry.encode(v!, writer.uint32(42).fork()).join();
+      TripTransferEntry.encode(v!, writer.uint32(34).fork()).join();
     }
     for (const v of message.guaranteedTripTransfers) {
-      TripTransferEntry.encode(v!, writer.uint32(50).fork()).join();
+      TripTransferEntry.encode(v!, writer.uint32(42).fork()).join();
     }
     return writer;
   },
@@ -816,7 +823,7 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.version = reader.string();
+          message.stopsAdjacency.push(StopAdjacency.decode(reader, reader.uint32()));
           continue;
         }
         case 2: {
@@ -824,7 +831,7 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.stopsAdjacency.push(StopAdjacency.decode(reader, reader.uint32()));
+          message.routesAdjacency.push(Route.decode(reader, reader.uint32()));
           continue;
         }
         case 3: {
@@ -832,7 +839,7 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.routesAdjacency.push(Route.decode(reader, reader.uint32()));
+          message.serviceRoutes.push(ServiceRoute.decode(reader, reader.uint32()));
           continue;
         }
         case 4: {
@@ -840,19 +847,11 @@ export const Timetable: MessageFns<Timetable> = {
             break;
           }
 
-          message.serviceRoutes.push(ServiceRoute.decode(reader, reader.uint32()));
+          message.tripContinuations.push(TripTransferEntry.decode(reader, reader.uint32()));
           continue;
         }
         case 5: {
           if (tag !== 42) {
-            break;
-          }
-
-          message.tripContinuations.push(TripTransferEntry.decode(reader, reader.uint32()));
-          continue;
-        }
-        case 6: {
-          if (tag !== 50) {
             break;
           }
 
@@ -870,7 +869,6 @@ export const Timetable: MessageFns<Timetable> = {
 
   fromJSON(object: any): Timetable {
     return {
-      version: isSet(object.version) ? globalThis.String(object.version) : "",
       stopsAdjacency: globalThis.Array.isArray(object?.stopsAdjacency)
         ? object.stopsAdjacency.map((e: any) => StopAdjacency.fromJSON(e))
         : [],
@@ -891,9 +889,6 @@ export const Timetable: MessageFns<Timetable> = {
 
   toJSON(message: Timetable): unknown {
     const obj: any = {};
-    if (message.version !== "") {
-      obj.version = message.version;
-    }
     if (message.stopsAdjacency?.length) {
       obj.stopsAdjacency = message.stopsAdjacency.map((e) => StopAdjacency.toJSON(e));
     }
@@ -917,7 +912,6 @@ export const Timetable: MessageFns<Timetable> = {
   },
   fromPartial<I extends Exact<DeepPartial<Timetable>, I>>(object: I): Timetable {
     const message = createBaseTimetable();
-    message.version = object.version ?? "";
     message.stopsAdjacency = object.stopsAdjacency?.map((e) => StopAdjacency.fromPartial(e)) || [];
     message.routesAdjacency = object.routesAdjacency?.map((e) => Route.fromPartial(e)) || [];
     message.serviceRoutes = object.serviceRoutes?.map((e) => ServiceRoute.fromPartial(e)) || [];

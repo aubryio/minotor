@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package minotor.stops.v1;
+
+enum LocationType {
+  LOCATION_TYPE_UNSPECIFIED = 0;
+  LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM = 1;
+  LOCATION_TYPE_STATION = 2;
+  LOCATION_TYPE_ENTRANCE_EXIT = 3;
+  LOCATION_TYPE_GENERIC_NODE = 4;
+  LOCATION_TYPE_BOARDING_AREA = 5;
+}
+
+message Stop {
+  string name = 1;
+  optional string source_stop_id = 2;
+  optional float lat = 3;
+  optional float lon = 4;
+  repeated uint32 children = 5;
+  optional uint32 parent = 6;
+  LocationType location_type = 7;
+  optional string platform = 8;
+}
+
+message StopsMap {
+  repeated Stop stops = 2;
+}

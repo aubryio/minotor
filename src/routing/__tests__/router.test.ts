@@ -3,9 +3,8 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
-import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
-import { Time } from '../../timetable/time.js';
+import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
   ServiceRoute,
   StopAdjacency,
@@ -41,18 +40,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:15:00'),
-                  departureTime: Time.fromString('08:25:00'),
+                  arrivalTime: timeFromHM(8, 15),
+                  departureTime: timeFromHM(8, 25),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:35:00'),
-                  departureTime: Time.fromString('08:45:00'),
+                  arrivalTime: timeFromHM(8, 35),
+                  departureTime: timeFromHM(8, 45),
                 },
               ],
             },
@@ -104,9 +103,9 @@ describe('Router', () => {
 
     it('should find a direct route', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop3')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(2)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
@@ -118,9 +117,9 @@ describe('Router', () => {
 
     it('should return an empty result when no route is possible', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('nonexistentStop')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(12)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
@@ -132,19 +131,16 @@ describe('Router', () => {
 
     it('should correctly calculate the arrival time to a stop', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop3')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(2)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
-      const timeToStop3 = result.arrivalAt('stop3');
+      const timeToStop3 = result.arrivalAt(2);
 
       // Route 0 arrives at stop3 at 08:35
-      assert.strictEqual(
-        timeToStop3?.arrival.toMinutes(),
-        Time.fromString('08:35:00').toMinutes(),
-      );
+      assert.strictEqual(timeToStop3?.arrival, timeFromHM(8, 35));
     });
   });
 
@@ -175,18 +171,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:15:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 15),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:30:00'),
-                  departureTime: Time.fromString('08:45:00'),
+                  arrivalTime: timeFromHM(8, 30),
+                  departureTime: timeFromHM(8, 45),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('09:00:00'),
-                  departureTime: Time.fromString('09:10:00'),
+                  arrivalTime: timeFromHM(9, 0),
+                  departureTime: timeFromHM(9, 10),
                 },
               ],
             },
@@ -201,18 +197,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 3,
-                  arrivalTime: Time.fromString('08:05:00'),
-                  departureTime: Time.fromString('08:20:00'),
+                  arrivalTime: timeFromHM(8, 5),
+                  departureTime: timeFromHM(8, 20),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('09:00:00'),
-                  departureTime: Time.fromString('09:15:00'),
+                  arrivalTime: timeFromHM(9, 0),
+                  departureTime: timeFromHM(9, 15),
                 },
                 {
                   id: 4,
-                  arrivalTime: Time.fromString('09:20:00'),
-                  departureTime: Time.fromString('09:35:00'),
+                  arrivalTime: timeFromHM(9, 20),
+                  departureTime: timeFromHM(9, 35),
                 },
               ],
             },
@@ -289,9 +285,9 @@ describe('Router', () => {
 
     it('should find a route with a change', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop5')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(4)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
@@ -306,19 +302,16 @@ describe('Router', () => {
 
     it('should correctly calculate the arrival time to a stop', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop5')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(4)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
-      const timeToStop5 = result.arrivalAt('stop5');
+      const timeToStop5 = result.arrivalAt(4);
 
       // Line 2 arrives at stop5 at 09:20
-      assert.strictEqual(
-        timeToStop5?.arrival.toMinutes(),
-        Time.fromString('09:20:00').toMinutes(),
-      );
+      assert.strictEqual(timeToStop5?.arrival, timeFromHM(9, 20));
     });
   });
 
@@ -338,7 +331,7 @@ describe('Router', () => {
             {
               destination: 4,
               type: 'REQUIRES_MINIMAL_TIME',
-              minTransferTime: Duration.fromSeconds(300), // 5 minutes walking
+              minTransferTime: durationFromSeconds(300), // 5 minutes walking
             },
           ],
           routes: [0],
@@ -359,18 +352,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:15:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 15),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:25:00'),
-                  departureTime: Time.fromString('08:35:00'),
+                  arrivalTime: timeFromHM(8, 25),
+                  departureTime: timeFromHM(8, 35),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:45:00'),
-                  departureTime: Time.fromString('08:55:00'),
+                  arrivalTime: timeFromHM(8, 45),
+                  departureTime: timeFromHM(8, 55),
                 },
               ],
             },
@@ -385,18 +378,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 3,
-                  arrivalTime: Time.fromString('08:10:00'),
-                  departureTime: Time.fromString('08:20:00'),
+                  arrivalTime: timeFromHM(8, 10),
+                  departureTime: timeFromHM(8, 20),
                 },
                 {
                   id: 4,
-                  arrivalTime: Time.fromString('08:40:00'),
-                  departureTime: Time.fromString('08:50:00'),
+                  arrivalTime: timeFromHM(8, 40),
+                  departureTime: timeFromHM(8, 50),
                 },
                 {
                   id: 5,
-                  arrivalTime: Time.fromString('09:10:00'),
-                  departureTime: Time.fromString('09:10:00'),
+                  arrivalTime: timeFromHM(9, 10),
+                  departureTime: timeFromHM(9, 10),
                 },
               ],
             },
@@ -480,9 +473,9 @@ describe('Router', () => {
 
     it('should find a route with a walking transfer', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop6')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(5)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
@@ -497,19 +490,16 @@ describe('Router', () => {
 
     it('should correctly calculate the arrival time at intermediate stop', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop6')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(5)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
-      const timeToStop5 = result.arrivalAt('stop5');
+      const timeToStop5 = result.arrivalAt(4);
 
       // Arrive at stop2 at 08:25, walk 5 min to stop5, arrive at 08:30
-      assert.strictEqual(
-        timeToStop5?.arrival.toMinutes(),
-        Time.fromString('08:30:00').toMinutes(),
-      );
+      assert.strictEqual(timeToStop5?.arrival, timeFromHM(8, 30));
     });
   });
 
@@ -541,18 +531,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:15:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 15),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:30:00'),
-                  departureTime: Time.fromString('08:45:00'),
+                  arrivalTime: timeFromHM(8, 30),
+                  departureTime: timeFromHM(8, 45),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('09:00:00'),
-                  departureTime: Time.fromString('09:15:00'),
+                  arrivalTime: timeFromHM(9, 0),
+                  departureTime: timeFromHM(9, 15),
                 },
               ],
             },
@@ -567,18 +557,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 3,
-                  arrivalTime: Time.fromString('08:10:00'),
-                  departureTime: Time.fromString('08:25:00'),
+                  arrivalTime: timeFromHM(8, 10),
+                  departureTime: timeFromHM(8, 25),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:50:00'),
-                  departureTime: Time.fromString('09:05:00'),
+                  arrivalTime: timeFromHM(8, 50),
+                  departureTime: timeFromHM(9, 5),
                 },
                 {
                   id: 4,
-                  arrivalTime: Time.fromString('09:10:00'),
-                  departureTime: Time.fromString('09:25:00'),
+                  arrivalTime: timeFromHM(9, 10),
+                  departureTime: timeFromHM(9, 25),
                 },
               ],
             },
@@ -593,13 +583,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:15:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 15),
                 },
                 {
                   id: 4,
-                  arrivalTime: Time.fromString('09:45:00'),
-                  departureTime: Time.fromString('10:00:00'),
+                  arrivalTime: timeFromHM(9, 45),
+                  departureTime: timeFromHM(10, 0),
                 },
               ],
             },
@@ -679,9 +669,9 @@ describe('Router', () => {
 
     it('should prefer a faster route with a change over a slower direct route', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop5')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(4)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
@@ -725,13 +715,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:15:00'),
-                  departureTime: Time.fromString('08:25:00'),
+                  arrivalTime: timeFromHM(8, 15),
+                  departureTime: timeFromHM(8, 25),
                 },
               ],
             },
@@ -746,18 +736,18 @@ describe('Router', () => {
               stops: [
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:15:00'),
-                  departureTime: Time.fromString('08:25:00'),
+                  arrivalTime: timeFromHM(8, 15),
+                  departureTime: timeFromHM(8, 25),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:35:00'),
-                  departureTime: Time.fromString('08:45:00'),
+                  arrivalTime: timeFromHM(8, 35),
+                  departureTime: timeFromHM(8, 45),
                 },
                 {
                   id: 3,
-                  arrivalTime: Time.fromString('08:55:00'),
-                  departureTime: Time.fromString('09:05:00'),
+                  arrivalTime: timeFromHM(8, 55),
+                  departureTime: timeFromHM(9, 5),
                 },
               ],
             },
@@ -830,9 +820,9 @@ describe('Router', () => {
 
     it('should find a route using continuation (in-seat transfer)', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop4')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(3)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
@@ -845,19 +835,16 @@ describe('Router', () => {
 
     it('should correctly calculate arrival time with continuation', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop4')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(3)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
-      const timeToStop4 = result.arrivalAt('stop4');
+      const timeToStop4 = result.arrivalAt(3);
 
       // Route 1 (continuation of Route 0) arrives at stop4 at 08:55
-      assert.strictEqual(
-        timeToStop4?.arrival.toMinutes(),
-        Time.fromString('08:55:00').toMinutes(),
-      );
+      assert.strictEqual(timeToStop4?.arrival, timeFromHM(8, 55));
     });
   });
 
@@ -893,13 +880,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:20:00'),
-                  departureTime: Time.fromString('08:30:00'),
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 30),
                 },
               ],
             },
@@ -916,13 +903,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:15:00'),
-                  departureTime: Time.fromString('08:21:00'),
+                  arrivalTime: timeFromHM(8, 15),
+                  departureTime: timeFromHM(8, 21),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:40:00'),
-                  departureTime: Time.fromString('08:50:00'),
+                  arrivalTime: timeFromHM(8, 40),
+                  departureTime: timeFromHM(8, 50),
                 },
               ],
             },
@@ -987,10 +974,10 @@ describe('Router', () => {
 
     it('should consider guaranteed transfer even with less time than minTransferTime', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop3')
-        .departureTime(Time.fromString('08:00:00'))
-        .minTransferTime(Duration.fromSeconds(300)) // 5 minutes, but transfer only has 1 minute
+        .from(0)
+        .to(2)
+        .departureTime(timeFromHM(8, 0))
+        .minTransferTime(durationFromSeconds(300)) // 5 minutes, but transfer only has 1 minute
         .build();
 
       const result: Result = router.route(query);
@@ -1010,10 +997,7 @@ describe('Router', () => {
 
       // Should arrive at 08:40 because the guaranteed transfer allows catching
       // the 08:21 departure despite only having 1 minute of transfer time
-      assert.strictEqual(
-        result.arrivalAt('stop3')?.arrival.toMinutes(),
-        Time.fromString('08:40:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(2)?.arrival, timeFromHM(8, 40));
     });
   });
 
@@ -1044,13 +1028,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:20:00'),
-                  departureTime: Time.fromString('08:30:00'),
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 30),
                 },
               ],
             },
@@ -1067,13 +1051,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:15:00'),
-                  departureTime: Time.fromString('08:21:00'),
+                  arrivalTime: timeFromHM(8, 15),
+                  departureTime: timeFromHM(8, 21),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:35:00'),
-                  departureTime: Time.fromString('08:45:00'),
+                  arrivalTime: timeFromHM(8, 35),
+                  departureTime: timeFromHM(8, 45),
                 },
               ],
             },
@@ -1081,13 +1065,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:20:00'),
-                  departureTime: Time.fromString('08:26:00'),
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 26),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:45:00'),
-                  departureTime: Time.fromString('08:55:00'),
+                  arrivalTime: timeFromHM(8, 45),
+                  departureTime: timeFromHM(8, 55),
                 },
               ],
             },
@@ -1146,10 +1130,10 @@ describe('Router', () => {
 
     it('should not consider transfer with less time than minTransferTime', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop3')
-        .departureTime(Time.fromString('08:00:00'))
-        .minTransferTime(Duration.fromSeconds(300)) // 5 minutes required for transfer
+        .from(0)
+        .to(2)
+        .departureTime(timeFromHM(8, 0))
+        .minTransferTime(durationFromSeconds(300)) // 5 minutes required for transfer
         .build();
 
       const result: Result = router.route(query);
@@ -1164,10 +1148,7 @@ describe('Router', () => {
       // Trip 0 of route 1 departs at 08:21 - NOT catchable (only 1 minute transfer time)
       // Trip 1 of route 1 departs at 08:26 - catchable (6 minutes transfer time)
       // So we should arrive at stop3 at 08:45 (trip 1 arrival), not 08:35 (trip 0 arrival)
-      assert.strictEqual(
-        result.arrivalAt('stop3')?.arrival.toMinutes(),
-        Time.fromString('08:45:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(2)?.arrival, timeFromHM(8, 45));
     });
   });
 
@@ -1199,13 +1180,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:20:00'),
-                  departureTime: Time.fromString('08:30:00'),
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 30),
                 },
               ],
             },
@@ -1220,13 +1201,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:25:00'),
-                  departureTime: Time.fromString('08:35:00'),
+                  arrivalTime: timeFromHM(8, 25),
+                  departureTime: timeFromHM(8, 35),
                 },
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:45:00'),
-                  departureTime: Time.fromString('08:55:00'),
+                  arrivalTime: timeFromHM(8, 45),
+                  departureTime: timeFromHM(8, 55),
                 },
               ],
             },
@@ -1241,13 +1222,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 2,
-                  arrivalTime: Time.fromString('08:50:00'),
-                  departureTime: Time.fromString('09:00:00'),
+                  arrivalTime: timeFromHM(8, 50),
+                  departureTime: timeFromHM(9, 0),
                 },
                 {
                   id: 3,
-                  arrivalTime: Time.fromString('09:10:00'),
-                  departureTime: Time.fromString('09:20:00'),
+                  arrivalTime: timeFromHM(9, 10),
+                  departureTime: timeFromHM(9, 20),
                 },
               ],
             },
@@ -1308,9 +1289,9 @@ describe('Router', () => {
 
     it('should not find route when maxTransfers is too low', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop4')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(3)
+        .departureTime(timeFromHM(8, 0))
         .maxTransfers(1) // Only allows 1 transfer, but we need 2
         .build();
 
@@ -1323,9 +1304,9 @@ describe('Router', () => {
 
     it('should find route when maxTransfers is sufficient', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop4')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(3)
+        .departureTime(timeFromHM(8, 0))
         .maxTransfers(2) // Allows 2 transfers, which is exactly what we need
         .build();
 
@@ -1338,21 +1319,18 @@ describe('Router', () => {
 
     it('should find intermediate stops even with low maxTransfers', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop4')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(3)
+        .departureTime(timeFromHM(8, 0))
         .maxTransfers(1)
         .build();
 
       const result: Result = router.route(query);
 
       // stop3 should still be reachable with 1 transfer (stop1 -> stop2 -> stop3)
-      const arrivalAtStop3 = result.arrivalAt('stop3');
+      const arrivalAtStop3 = result.arrivalAt(2);
       assert.ok(arrivalAtStop3);
-      assert.strictEqual(
-        arrivalAtStop3.arrival.toMinutes(),
-        Time.fromString('08:45:00').toMinutes(),
-      );
+      assert.strictEqual(arrivalAtStop3.arrival, timeFromHM(8, 45));
     });
   });
 
@@ -1380,13 +1358,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:30:00'),
-                  departureTime: Time.fromString('08:40:00'),
+                  arrivalTime: timeFromHM(8, 30),
+                  departureTime: timeFromHM(8, 40),
                 },
               ],
             },
@@ -1401,13 +1379,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:20:00'),
-                  departureTime: Time.fromString('08:30:00'),
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 30),
                 },
               ],
             },
@@ -1449,42 +1427,36 @@ describe('Router', () => {
 
     it('should use fastest route when all modes allowed', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
 
       // Should use the faster RAIL route, arriving at 08:20
-      assert.strictEqual(
-        result.arrivalAt('stop2')?.arrival.toMinutes(),
-        Time.fromString('08:20:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 20));
     });
 
     it('should only use allowed transport modes', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
         .transportModes(new Set(['BUS'] as const))
         .build();
 
       const result: Result = router.route(query);
 
       // Should use the slower BUS route since RAIL is excluded, arriving at 08:30
-      assert.strictEqual(
-        result.arrivalAt('stop2')?.arrival.toMinutes(),
-        Time.fromString('08:30:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 30));
     });
 
     it('should return no route when no matching transport mode', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
         .transportModes(new Set(['FERRY'] as const)) // Neither route is a ferry
         .build();
 
@@ -1518,13 +1490,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('08:00:00'),
-                  departureTime: Time.fromString('08:10:00'),
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('08:30:00'),
-                  departureTime: Time.fromString('08:40:00'),
+                  arrivalTime: timeFromHM(8, 30),
+                  departureTime: timeFromHM(8, 40),
                 },
               ],
             },
@@ -1532,13 +1504,13 @@ describe('Router', () => {
               stops: [
                 {
                   id: 0,
-                  arrivalTime: Time.fromString('09:00:00'),
-                  departureTime: Time.fromString('09:10:00'),
+                  arrivalTime: timeFromHM(9, 0),
+                  departureTime: timeFromHM(9, 10),
                 },
                 {
                   id: 1,
-                  arrivalTime: Time.fromString('09:30:00'),
-                  departureTime: Time.fromString('09:40:00'),
+                  arrivalTime: timeFromHM(9, 30),
+                  departureTime: timeFromHM(9, 40),
                 },
               ],
             },
@@ -1579,41 +1551,35 @@ describe('Router', () => {
 
     it('should find first available trip after departure time', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('08:00:00'))
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
         .build();
 
       const result: Result = router.route(query);
 
       // Should catch the first trip (08:10), arriving at 08:30
-      assert.strictEqual(
-        result.arrivalAt('stop2')?.arrival.toMinutes(),
-        Time.fromString('08:30:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 30));
     });
 
     it('should skip trips that have already departed', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('08:15:00')) // After first trip departs
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 15)) // After first trip departs
         .build();
 
       const result: Result = router.route(query);
 
       // Should catch the second trip (09:10), arriving at 09:30
-      assert.strictEqual(
-        result.arrivalAt('stop2')?.arrival.toMinutes(),
-        Time.fromString('09:30:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(9, 30));
     });
 
     it('should return no route when departing after all trips', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('10:00:00')) // After all trips have departed
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(10, 0)) // After all trips have departed
         .build();
 
       const result: Result = router.route(query);
@@ -1625,18 +1591,15 @@ describe('Router', () => {
 
     it('should catch trip when departure time exactly matches', () => {
       const query = new Query.Builder()
-        .from('stop1')
-        .to('stop2')
-        .departureTime(Time.fromString('08:10:00')) // Exactly when first trip departs
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 10)) // Exactly when first trip departs
         .build();
 
       const result: Result = router.route(query);
 
       // Should still catch the first trip
-      assert.strictEqual(
-        result.arrivalAt('stop2')?.arrival.toMinutes(),
-        Time.fromString('08:30:00').toMinutes(),
-      );
+      assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 30));
     });
   });
 });

@@ -1,244 +1,140 @@
-import { Duration } from './duration.js';
+/**
+ * A Time represented as minutes since midnight.
+ * Note that this value can go beyond 1440 (24*60) to model services overlapping with the next day.
+ */
+export type Time = number;
 
 /**
- * A class representing a time as minutes since midnight.
+ * A Duration represented as minutes.
  */
-export class Time {
-  public static INFINITY = new Time(Number.MAX_SAFE_INTEGER);
-  public static ORIGIN = new Time(0);
-  /*
-   * Number of minutes since midnight.
-   Note that this value can go beyond 3600 to model services overlapping with the next day.
-   */
-  private minutesSinceMidnight: number;
+export type Duration = number;
 
-  private constructor(minutes: number) {
-    this.minutesSinceMidnight = minutes;
+export const TIME_INFINITY: Time = Number.MAX_SAFE_INTEGER;
+export const TIME_ORIGIN: Time = 0;
+
+export const DURATION_ZERO: Duration = 0;
+
+/**
+ * Creates a Time from hours, minutes, and seconds.
+ * Rounds to the closest minute as times are represented in minutes from midnight.
+ *
+ * @param hours - The hours component of the time.
+ * @param minutes - The minutes component of the time.
+ * @param seconds - The seconds component of the time.
+ * @returns A Time representing the specified time.
+ */
+export const timeFromHMS = (
+  hours: number,
+  minutes: number,
+  seconds: number,
+): Time => {
+  if (
+    hours < 0 ||
+    minutes < 0 ||
+    seconds < 0 ||
+    minutes >= 60 ||
+    seconds >= 60
+  ) {
+    throw new Error(
+      'Invalid time. Ensure hours, minutes, and seconds are valid values.',
+    );
   }
+  const totalSeconds = seconds + 60 * minutes + 3600 * hours;
+  return Math.round(totalSeconds / 60);
+};
 
-  /**
-   * Creates a Time instance from the number of minutes since midnight.
-   *
-   * @param minutes - The number of minutes since midnight.
-   * @returns A Time instance representing the specified time.
-   */
-  static fromMinutes(minutes: number): Time {
-    return new Time(minutes);
+/**
+ * Creates a Time from hours and minutes.
+ *
+ * @param hours - The hours component of the time.
+ * @param minutes - The minutes component of the time.
+ * @returns A Time representing the specified time.
+ */
+export const timeFromHM = (hours: number, minutes: number): Time => {
+  if (hours < 0 || minutes < 0 || minutes >= 60) {
+    throw new Error('Invalid time. Ensure hours and minutes are valid values.');
   }
+  return minutes + hours * 60;
+};
 
-  /**
-   * Creates a Time instance from hours, minutes, and seconds.
-   * Rounds to the closest minute as times are represented in minutes from midnight.
-   *
-   * @param hours - The hours component of the time.
-   * @param minutes - The minutes component of the time.
-   * @param seconds - The seconds component of the time.
-   * @returns A Time instance representing the specified time.
-   */
-  static fromHMS(hours: number, minutes: number, seconds: number): Time {
-    if (
-      hours < 0 ||
-      minutes < 0 ||
-      seconds < 0 ||
-      minutes >= 60 ||
-      seconds >= 60
-    ) {
-      throw new Error(
-        'Invalid time. Ensure hours, minutes, and seconds are valid values.',
-      );
-    }
-    const totalSeconds = seconds + 60 * minutes + 3600 * hours;
-    const roundedMinutes = Math.round(totalSeconds / 60);
-    return new Time(roundedMinutes);
+/**
+ * Parses a JavaScript Date object and creates a Time.
+ *
+ * @param date - A JavaScript Date object representing the time.
+ * @returns A Time representing the parsed time.
+ */
+export const timeFromDate = (date: Date): Time => {
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
+  return timeFromHMS(hours, minutes, seconds);
+};
+
+/**
+ * Parses a time string in the format "HH:MM:SS" or "HH:MM" and creates a Time.
+ *
+ * @param timeStr - A string representing the time in "HH:MM:SS" or "HH:MM" format.
+ * @returns A Time representing the parsed time.
+ */
+export const timeFromString = (timeStr: string): Time => {
+  const [hoursStr, minutesStr, secondsStr] = timeStr.split(':');
+  if (
+    hoursStr === undefined ||
+    minutesStr === undefined ||
+    hoursStr.trim() === '' ||
+    minutesStr.trim() === '' ||
+    isNaN(Number(hoursStr)) ||
+    isNaN(Number(minutesStr)) ||
+    (secondsStr !== undefined &&
+      (secondsStr.trim() === '' || isNaN(Number(secondsStr))))
+  ) {
+    throw new Error(
+      'Input string must be in the format "HH:MM:SS" or "HH:MM".',
+    );
   }
+  const hours = parseInt(hoursStr, 10);
+  const minutes = parseInt(minutesStr, 10);
+  const seconds = secondsStr !== undefined ? parseInt(secondsStr, 10) : 0;
+  return timeFromHMS(hours, minutes, seconds);
+};
 
-  /**
-   * Creates a Time instance from hours, minutes.
-   *
-   * @param hours - The hours component of the time.
-   * @param minutes - The minutes component of the time.
-   * @returns A Time instance representing the specified time.
-   */
-  static fromHM(hours: number, minutes: number): Time {
-    if (hours < 0 || minutes < 0 || minutes >= 60) {
-      throw new Error(
-        'Invalid time. Ensure hours and minutes are valid values.',
-      );
-    }
-    return new Time(minutes + hours * 60);
+/**
+ * Converts a Time to a string in "HH:MM" format.
+ * Hours wrap around at 24 (e.g., 25:30 becomes 01:30).
+ *
+ * @param time - The Time to convert.
+ * @returns A string representing the time.
+ */
+export const timeToString = (time: Time): string => {
+  let hours = Math.floor(time / 60);
+  const minutes = Math.floor(time % 60);
+  if (hours >= 24) {
+    hours = hours % 24;
   }
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
 
-  /**
-   * Parses a JavaScript Date object and creates a Time instance.
-   *
-   * @param date - A JavaScript Date object representing the time.
-   * @returns A Time instance representing the parsed time.
-   */
-  static fromDate(date: Date): Time {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const seconds = date.getSeconds();
-    return Time.fromHMS(hours, minutes, seconds);
-  }
+/**
+ * Creates a Duration from a given number of seconds.
+ *
+ * @param seconds - The number of seconds for the duration.
+ * @returns A Duration representing the specified duration in minutes.
+ */
+export const durationFromSeconds = (seconds: number): Duration =>
+  Math.round(seconds / 60);
 
-  /**
-   * Parses a time string in the format "HH:MM:SS" or "HH:MM" and creates a Time instance.
-   *
-   * @param timeStr - A string representing the time in "HH:MM:SS" or "HH:MM" format.
-   * @returns A Time instance representing the parsed time.
-   */
-  static fromString(timeStr: string): Time {
-    const [hoursStr, minutesStr, secondsStr] = timeStr.split(':');
-    if (
-      hoursStr === undefined ||
-      minutesStr === undefined ||
-      hoursStr.trim() === '' ||
-      minutesStr.trim() === '' ||
-      isNaN(Number(hoursStr)) ||
-      isNaN(Number(minutesStr)) ||
-      (secondsStr !== undefined &&
-        (secondsStr.trim() === '' || isNaN(Number(secondsStr))))
-    ) {
-      throw new Error(
-        'Input string must be in the format "HH:MM:SS" or "HH:MM".',
-      );
-    }
-    const hours = parseInt(hoursStr, 10);
-    const minutes = parseInt(minutesStr, 10);
-    const seconds = secondsStr !== undefined ? parseInt(secondsStr, 10) : 0;
-    return Time.fromHMS(hours, minutes, seconds);
-  }
-
-  /**
-   * Converts the Time instance to a string in "HH:MM:SS" format.
-   *
-   * @returns A string representing the time.
-   */
-  toString(): string {
-    let hours = Math.floor(this.minutesSinceMidnight / 60);
-    const minutes = Math.floor(this.minutesSinceMidnight % 60);
-    if (hours >= 24) {
-      hours = hours % 24;
-    }
+/**
+ * Converts a Duration to a string in "HH:MM" or "(M)Mmin" format.
+ *
+ * @param duration - The Duration to convert (in minutes).
+ * @returns A string representing the duration.
+ */
+export const durationToString = (duration: Duration): string => {
+  const hours = Math.floor(duration / 60);
+  const minutes = duration % 60;
+  if (hours > 0) {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  } else {
+    return `${minutes}min`;
   }
-
-  /**
-   * Converts the Time instance to the total number of minutes since midnight, rounded to the closest minute.
-   *
-   * @returns The time in minutes since midnight.
-   */
-  toMinutes(): number {
-    return this.minutesSinceMidnight;
-  }
-
-  /**
-   * Adds a Duration to the current Time instance and returns a new Time instance.
-   *
-   * @param duration - A Duration instance representing the duration to add.
-   * @returns A new Time instance with the added duration.
-   */
-  plus(duration: Duration): Time {
-    const totalSeconds = this.minutesSinceMidnight * 60 + duration.toSeconds();
-    return new Time(Math.round(totalSeconds / 60));
-  }
-
-  /**
-   * Subtracts a Duration from the current Time instance and returns a new Time instance.
-   *
-   * @param duration - A Duration instance representing the duration to subtract.
-   * @returns A new Time instance with the subtracted duration.
-   */
-  minus(duration: Duration): Time {
-    let totalSeconds = this.minutesSinceMidnight * 60 - duration.toSeconds();
-    if (totalSeconds < 0) {
-      totalSeconds += 24 * 3600; // Adjust for negative time to loop back to previous day
-    }
-    return new Time(Math.round(totalSeconds / 60));
-  }
-
-  /**
-   * Subtracts another Time instance from the current Time instance and returns the Duration.
-   *
-   * @param otherTime - A Time instance representing the time to subtract.
-   * @returns A Duration instance representing the time difference.
-   */
-  diff(otherTime: Time): Duration {
-    const totalMinutes = this.minutesSinceMidnight - otherTime.toMinutes();
-    return Duration.fromSeconds(Math.abs(totalMinutes * 60));
-  }
-
-  /**
-   * Computes the maximum Time instance among the provided Time instances.
-   *
-   * @param times - An array of Time instances to compare.
-   * @returns A Time instance representing the maximum time.
-   */
-  static max(...times: Time[]): Time {
-    if (times.length === 0) {
-      throw new Error('At least one Time instance is required.');
-    }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    let maxTime = times[0]!;
-    for (let i = 1; i < times.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      if (times[i]!.minutesSinceMidnight > maxTime.minutesSinceMidnight) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        maxTime = times[i]!;
-      }
-    }
-    return maxTime;
-  }
-
-  /**
-   * Computes the minimum Time instance among the provided Time instances.
-   *
-   * @param times - An array of Time instances to compare.
-   * @returns A Time instance representing the minimum time.
-   */
-  static min(...times: Time[]): Time {
-    if (times.length === 0) {
-      throw new Error('At least one Time instance is required.');
-    }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    let minTime = times[0]!;
-    for (let i = 1; i < times.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      if (times[i]!.minutesSinceMidnight < minTime.minutesSinceMidnight) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        minTime = times[i]!;
-      }
-    }
-    return minTime;
-  }
-
-  /**
-   * Determines if the current Time instance is after another Time instance.
-   *
-   * @param otherTime - A Time instance to compare against.
-   * @returns True if the current Time instance is after the other Time instance, otherwise false.
-   */
-  isAfter(otherTime: Time): boolean {
-    return this.minutesSinceMidnight > otherTime.minutesSinceMidnight;
-  }
-
-  /**
-   * Determines if the current Time instance is before another Time instance.
-   *
-   * @param otherTime - A Time instance to compare against.
-   * @returns True if the current Time instance is before the other Time instance, otherwise false.
-   */
-  isBefore(otherTime: Time): boolean {
-    return this.minutesSinceMidnight < otherTime.minutesSinceMidnight;
-  }
-
-  /**
-   * Determines if the current Time instance is equal to another Time instance.
-   *
-   * @param otherTime - A Time instance to compare against.
-   * @returns True if the current Time instance is equal to the other Time instance, otherwise false.
-   */
-  equals(otherTime: Time): boolean {
-    return this.minutesSinceMidnight === otherTime.minutesSinceMidnight;
-  }
-}
+};

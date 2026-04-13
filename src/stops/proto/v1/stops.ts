@@ -2,39 +2,43 @@
 // versions:
 //   protoc-gen-ts_proto  v2.10.1
 //   protoc               v3.19.6
-// source: src/stops/proto/stops.proto
+// source: src/stops/proto/v1/stops.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = "minotor.stops";
+export const protobufPackage = "minotor.stops.v1";
 
 export enum LocationType {
-  SIMPLE_STOP_OR_PLATFORM = 0,
-  STATION = 1,
-  ENTRANCE_EXIT = 2,
-  GENERIC_NODE = 3,
-  BOARDING_AREA = 4,
+  LOCATION_TYPE_UNSPECIFIED = 0,
+  LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM = 1,
+  LOCATION_TYPE_STATION = 2,
+  LOCATION_TYPE_ENTRANCE_EXIT = 3,
+  LOCATION_TYPE_GENERIC_NODE = 4,
+  LOCATION_TYPE_BOARDING_AREA = 5,
   UNRECOGNIZED = -1,
 }
 
 export function locationTypeFromJSON(object: any): LocationType {
   switch (object) {
     case 0:
-    case "SIMPLE_STOP_OR_PLATFORM":
-      return LocationType.SIMPLE_STOP_OR_PLATFORM;
+    case "LOCATION_TYPE_UNSPECIFIED":
+      return LocationType.LOCATION_TYPE_UNSPECIFIED;
     case 1:
-    case "STATION":
-      return LocationType.STATION;
+    case "LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM":
+      return LocationType.LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM;
     case 2:
-    case "ENTRANCE_EXIT":
-      return LocationType.ENTRANCE_EXIT;
+    case "LOCATION_TYPE_STATION":
+      return LocationType.LOCATION_TYPE_STATION;
     case 3:
-    case "GENERIC_NODE":
-      return LocationType.GENERIC_NODE;
+    case "LOCATION_TYPE_ENTRANCE_EXIT":
+      return LocationType.LOCATION_TYPE_ENTRANCE_EXIT;
     case 4:
-    case "BOARDING_AREA":
-      return LocationType.BOARDING_AREA;
+    case "LOCATION_TYPE_GENERIC_NODE":
+      return LocationType.LOCATION_TYPE_GENERIC_NODE;
+    case 5:
+    case "LOCATION_TYPE_BOARDING_AREA":
+      return LocationType.LOCATION_TYPE_BOARDING_AREA;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -44,16 +48,18 @@ export function locationTypeFromJSON(object: any): LocationType {
 
 export function locationTypeToJSON(object: LocationType): string {
   switch (object) {
-    case LocationType.SIMPLE_STOP_OR_PLATFORM:
-      return "SIMPLE_STOP_OR_PLATFORM";
-    case LocationType.STATION:
-      return "STATION";
-    case LocationType.ENTRANCE_EXIT:
-      return "ENTRANCE_EXIT";
-    case LocationType.GENERIC_NODE:
-      return "GENERIC_NODE";
-    case LocationType.BOARDING_AREA:
-      return "BOARDING_AREA";
+    case LocationType.LOCATION_TYPE_UNSPECIFIED:
+      return "LOCATION_TYPE_UNSPECIFIED";
+    case LocationType.LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM:
+      return "LOCATION_TYPE_SIMPLE_STOP_OR_PLATFORM";
+    case LocationType.LOCATION_TYPE_STATION:
+      return "LOCATION_TYPE_STATION";
+    case LocationType.LOCATION_TYPE_ENTRANCE_EXIT:
+      return "LOCATION_TYPE_ENTRANCE_EXIT";
+    case LocationType.LOCATION_TYPE_GENERIC_NODE:
+      return "LOCATION_TYPE_GENERIC_NODE";
+    case LocationType.LOCATION_TYPE_BOARDING_AREA:
+      return "LOCATION_TYPE_BOARDING_AREA";
     case LocationType.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
@@ -62,7 +68,7 @@ export function locationTypeToJSON(object: LocationType): string {
 
 export interface Stop {
   name: string;
-  sourceStopId: string;
+  sourceStopId?: string | undefined;
   lat?: number | undefined;
   lon?: number | undefined;
   children: number[];
@@ -72,14 +78,13 @@ export interface Stop {
 }
 
 export interface StopsMap {
-  version: string;
   stops: Stop[];
 }
 
 function createBaseStop(): Stop {
   return {
     name: "",
-    sourceStopId: "",
+    sourceStopId: undefined,
     lat: undefined,
     lon: undefined,
     children: [],
@@ -94,7 +99,7 @@ export const Stop: MessageFns<Stop> = {
     if (message.name !== "") {
       writer.uint32(10).string(message.name);
     }
-    if (message.sourceStopId !== "") {
+    if (message.sourceStopId !== undefined) {
       writer.uint32(18).string(message.sourceStopId);
     }
     if (message.lat !== undefined) {
@@ -213,7 +218,7 @@ export const Stop: MessageFns<Stop> = {
   fromJSON(object: any): Stop {
     return {
       name: isSet(object.name) ? globalThis.String(object.name) : "",
-      sourceStopId: isSet(object.sourceStopId) ? globalThis.String(object.sourceStopId) : "",
+      sourceStopId: isSet(object.sourceStopId) ? globalThis.String(object.sourceStopId) : undefined,
       lat: isSet(object.lat) ? globalThis.Number(object.lat) : undefined,
       lon: isSet(object.lon) ? globalThis.Number(object.lon) : undefined,
       children: globalThis.Array.isArray(object?.children) ? object.children.map((e: any) => globalThis.Number(e)) : [],
@@ -228,7 +233,7 @@ export const Stop: MessageFns<Stop> = {
     if (message.name !== "") {
       obj.name = message.name;
     }
-    if (message.sourceStopId !== "") {
+    if (message.sourceStopId !== undefined) {
       obj.sourceStopId = message.sourceStopId;
     }
     if (message.lat !== undefined) {
@@ -258,7 +263,7 @@ export const Stop: MessageFns<Stop> = {
   fromPartial<I extends Exact<DeepPartial<Stop>, I>>(object: I): Stop {
     const message = createBaseStop();
     message.name = object.name ?? "";
-    message.sourceStopId = object.sourceStopId ?? "";
+    message.sourceStopId = object.sourceStopId ?? undefined;
     message.lat = object.lat ?? undefined;
     message.lon = object.lon ?? undefined;
     message.children = object.children?.map((e) => e) || [];
@@ -270,14 +275,11 @@ export const Stop: MessageFns<Stop> = {
 };
 
 function createBaseStopsMap(): StopsMap {
-  return { version: "", stops: [] };
+  return { stops: [] };
 }
 
 export const StopsMap: MessageFns<StopsMap> = {
   encode(message: StopsMap, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.version !== "") {
-      writer.uint32(10).string(message.version);
-    }
     for (const v of message.stops) {
       Stop.encode(v!, writer.uint32(18).fork()).join();
     }
@@ -291,14 +293,6 @@ export const StopsMap: MessageFns<StopsMap> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.version = reader.string();
-          continue;
-        }
         case 2: {
           if (tag !== 18) {
             break;
@@ -317,17 +311,11 @@ export const StopsMap: MessageFns<StopsMap> = {
   },
 
   fromJSON(object: any): StopsMap {
-    return {
-      version: isSet(object.version) ? globalThis.String(object.version) : "",
-      stops: globalThis.Array.isArray(object?.stops) ? object.stops.map((e: any) => Stop.fromJSON(e)) : [],
-    };
+    return { stops: globalThis.Array.isArray(object?.stops) ? object.stops.map((e: any) => Stop.fromJSON(e)) : [] };
   },
 
   toJSON(message: StopsMap): unknown {
     const obj: any = {};
-    if (message.version !== "") {
-      obj.version = message.version;
-    }
     if (message.stops?.length) {
       obj.stops = message.stops.map((e) => Stop.toJSON(e));
     }
@@ -339,7 +327,6 @@ export const StopsMap: MessageFns<StopsMap> = {
   },
   fromPartial<I extends Exact<DeepPartial<StopsMap>, I>>(object: I): StopsMap {
     const message = createBaseStopsMap();
-    message.version = object.version ?? "";
     message.stops = object.stops?.map((e) => Stop.fromPartial(e)) || [];
     return message;
   },
