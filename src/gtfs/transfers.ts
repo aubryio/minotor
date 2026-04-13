@@ -1,6 +1,6 @@
 import { SourceStopId, StopId } from '../stops/stops.js';
-import { Duration } from '../timetable/duration.js';
 import { Route } from '../timetable/route.js';
+import { durationFromSeconds } from '../timetable/time.js';
 import {
   ServiceRouteId,
   Timetable,
@@ -121,7 +121,7 @@ const processGuaranteedStopTransfer = (
     destination: toStop,
     type: 'GUARANTEED',
     ...(transferEntry.min_transfer_time !== undefined && {
-      minTransferTime: Duration.fromSeconds(transferEntry.min_transfer_time),
+      minTransferTime: durationFromSeconds(transferEntry.min_transfer_time),
     }),
   };
 
@@ -165,7 +165,7 @@ const processStopToStopTransfer = (
     destination: toStop,
     type: parseGtfsTransferType(transferEntry.transfer_type),
     ...(transferEntry.min_transfer_time !== undefined && {
-      minTransferTime: Duration.fromSeconds(transferEntry.min_transfer_time),
+      minTransferTime: durationFromSeconds(transferEntry.min_transfer_time),
     }),
   };
 
@@ -299,9 +299,8 @@ const disambiguateTransferStopsIndices = (
     const fromArrivalTime = fromRoute.arrivalAt(originStopIndex, fromTripIndex);
     for (const toStopIndex of toStopIndices) {
       const toDepartureTime = toRoute.departureFrom(toStopIndex, toTripIndex);
-      if (toDepartureTime.isAfter(fromArrivalTime)) {
-        const timeDifference =
-          toDepartureTime.toMinutes() - fromArrivalTime.toMinutes();
+      if (toDepartureTime > fromArrivalTime) {
+        const timeDifference = toDepartureTime - fromArrivalTime;
         if (timeDifference < bestTimeDifference) {
           bestTimeDifference = timeDifference;
           bestFromStopIndex = originStopIndex;

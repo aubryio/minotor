@@ -1,6 +1,5 @@
-import { SourceStopId } from '../stops/stops.js';
-import { Duration } from '../timetable/duration.js';
-import { Time } from '../timetable/time.js';
+import { StopId } from '../stops/stops.js';
+import { Duration, durationFromSeconds, Time } from '../timetable/time.js';
 import { ALL_TRANSPORT_MODES, RouteType } from '../timetable/timetable.js';
 
 export type QueryOptions = {
@@ -10,8 +9,8 @@ export type QueryOptions = {
 };
 
 export class Query {
-  from: SourceStopId;
-  to: Set<SourceStopId>;
+  from: StopId;
+  to: Set<StopId>;
   departureTime: Time;
   lastDepartureTime?: Time;
   options: QueryOptions;
@@ -24,25 +23,23 @@ export class Query {
   }
 
   static Builder = class {
-    fromValue!: SourceStopId;
-    toValue: Set<SourceStopId> = new Set();
+    fromValue!: StopId;
+    toValue: Set<StopId> = new Set();
     departureTimeValue!: Time;
-    // lastDepartureTimeValue?: Date;
-    // via: StopId[] = [];
     optionsValue: {
       maxTransfers: number;
       minTransferTime: Duration;
       transportModes: Set<RouteType>;
     } = {
       maxTransfers: 5,
-      minTransferTime: Duration.fromSeconds(120),
+      minTransferTime: durationFromSeconds(120),
       transportModes: ALL_TRANSPORT_MODES,
     };
 
     /**
      * Sets the starting stop.
      */
-    from(from: SourceStopId): this {
+    from(from: StopId): this {
       this.fromValue = from;
       return this;
     }
@@ -50,16 +47,15 @@ export class Query {
     /**
      * Sets the destination stops(s), routing will stop when all the provided stops are reached.
      */
-    to(to: SourceStopId | Set<SourceStopId>): this {
+    to(to: StopId | Set<StopId>): this {
       this.toValue = to instanceof Set ? to : new Set([to]);
       return this;
     }
 
     /**
-     * Sets the departure time for the query.
+     * Sets the departure time for the query as minutes since midnight.
      * Note that the router will favor routes that depart shortly after the provided departure time,
      * even if a later route might arrive at the same time.
-     * Range queries will allow to specify a range of departure times in the future.
      */
     departureTime(departureTime: Time): this {
       this.departureTimeValue = departureTime;
@@ -75,7 +71,8 @@ export class Query {
     }
 
     /**
-     * Sets the minimum transfer time to use when no transfer time is provided in the data.
+     * Sets the minimum transfer time (in minutes)
+     * to use when no transfer time is provided in the data.
      */
     minTransferTime(minTransferTime: Duration): this {
       this.optionsValue.minTransferTime = minTransferTime;

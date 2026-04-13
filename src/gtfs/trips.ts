@@ -163,7 +163,7 @@ const finalizeRouteFromBuilder = (
     }
   }
   // Use 2-bit encoding for pickup/drop-off types
-  const pickUpDropOffTypesArray = encodePickUpDropOffTypes(
+  const pickupDropOffTypesArray = encodePickUpDropOffTypes(
     allPickUpTypes,
     allDropOffTypes,
   );
@@ -172,7 +172,7 @@ const finalizeRouteFromBuilder = (
       serviceRouteId: builder.serviceRouteId,
       stops: stopsArray,
       stopTimes: stopTimesArray,
-      pickUpDropOffTypes: pickUpDropOffTypesArray,
+      pickupDropOffTypes: pickupDropOffTypesArray,
     },
     gtfsTripIds,
   ];
@@ -395,8 +395,8 @@ export const parseStopTimes = async (
       );
       continue;
     }
-    arrivalTimes.push(toTime(arrival).toMinutes());
-    departureTimes.push(toTime(departure).toMinutes());
+    arrivalTimes.push(toTime(arrival));
+    departureTimes.push(toTime(departure));
     pickUpTypes.push(parsePickupDropOffType(line.pickup_type));
     dropOffTypes.push(parsePickupDropOffType(line.drop_off_type));
 
@@ -418,7 +418,7 @@ export const parseStopTimes = async (
       new Route(
         routeId,
         routeData.stopTimes,
-        routeData.pickUpDropOffTypes,
+        routeData.pickupDropOffTypes,
         routeData.stops,
         routeData.serviceRouteId,
       ),

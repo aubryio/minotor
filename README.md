@@ -84,14 +84,14 @@ Or by location:
 #### Routing (Browser or Node.js)
 
 ```
-import { Query, Router, Time } from 'minotor';
+import { Query, Router } from 'minotor';
 
 const router = new Router(timetable, stopsIndex);
 
 const query = new Query.Builder()
   .from('Parent8504100')
   .to('Parent8504748')
-  .departureTime(Time.fromHMS(8,0,0))
+  .departureTime(8*60)
   .maxTransfers(5)
   .build();
 const result = router.route(query);

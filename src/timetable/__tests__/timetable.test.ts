@@ -1,9 +1,8 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { Duration } from '../duration.js';
 import { NOT_AVAILABLE, Route } from '../route.js';
-import { Time } from '../time.js';
+import { timeFromHMS } from '../time.js';
 import {
   RouteType,
   ServiceRoute,
@@ -25,7 +24,7 @@ describe('Timetable', () => {
         {
           destination: 1,
           type: 'GUARANTEED',
-          minTransferTime: Duration.fromMinutes(3),
+          minTransferTime: 3,
         },
       ],
       routes: [1, 0],
@@ -43,13 +42,13 @@ describe('Timetable', () => {
         stops: [
           {
             id: 1,
-            arrivalTime: Time.fromHMS(16, 40, 0),
-            departureTime: Time.fromHMS(16, 50, 0),
+            arrivalTime: timeFromHMS(16, 40, 0),
+            departureTime: timeFromHMS(16, 50, 0),
           },
           {
             id: 2,
-            arrivalTime: Time.fromHMS(17, 20, 0),
-            departureTime: Time.fromHMS(17, 30, 0),
+            arrivalTime: timeFromHMS(17, 20, 0),
+            departureTime: timeFromHMS(17, 30, 0),
             pickUpType: NOT_AVAILABLE,
           },
         ],
@@ -58,13 +57,13 @@ describe('Timetable', () => {
         stops: [
           {
             id: 1,
-            arrivalTime: Time.fromHMS(18, 0, 0),
-            departureTime: Time.fromHMS(18, 10, 0),
+            arrivalTime: timeFromHMS(18, 0, 0),
+            departureTime: timeFromHMS(18, 10, 0),
           },
           {
             id: 2,
-            arrivalTime: Time.fromHMS(19, 0, 0),
-            departureTime: Time.fromHMS(19, 10, 0),
+            arrivalTime: timeFromHMS(19, 0, 0),
+            departureTime: timeFromHMS(19, 10, 0),
           },
         ],
       },
@@ -78,13 +77,13 @@ describe('Timetable', () => {
         stops: [
           {
             id: 2,
-            arrivalTime: Time.fromHMS(18, 20, 0),
-            departureTime: Time.fromHMS(18, 30, 0),
+            arrivalTime: timeFromHMS(18, 20, 0),
+            departureTime: timeFromHMS(18, 30, 0),
           },
           {
             id: 1,
-            arrivalTime: Time.fromHMS(19, 0, 0),
-            departureTime: Time.fromHMS(19, 10, 0),
+            arrivalTime: timeFromHMS(19, 0, 0),
+            departureTime: timeFromHMS(19, 10, 0),
           },
         ],
       },
@@ -125,7 +124,7 @@ describe('Timetable', () => {
   it('should find the earliest trip for stop1 on route1 after a specific time', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute(0)!;
-    const afterTime = Time.fromHMS(17, 0, 0);
+    const afterTime = timeFromHMS(17, 0, 0);
     const tripIndex = route.findEarliestTrip(0, afterTime);
     assert.strictEqual(tripIndex, 1);
   });
@@ -133,7 +132,7 @@ describe('Timetable', () => {
   it('should return undefined if no valid trip exists after a specific time', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const route = sampleTimetable.getRoute(0)!;
-    const afterTime = Time.fromHMS(23, 40, 0);
+    const afterTime = timeFromHMS(23, 40, 0);
     const tripIndex = route.findEarliestTrip(0, afterTime);
     assert.strictEqual(tripIndex, undefined);
   });

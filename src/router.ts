@@ -8,8 +8,7 @@ import { Router } from './routing/router.js';
 import type { LocationType, SourceStopId, StopId } from './stops/stops.js';
 import type { Stop } from './stops/stops.js';
 import { StopsIndex } from './stops/stopsIndex.js';
-import { Duration } from './timetable/duration.js';
-import { Time } from './timetable/time.js';
+import type { Duration, Time } from './timetable/time.js';
 import type {
   RouteType,
   ServiceRouteInfo,

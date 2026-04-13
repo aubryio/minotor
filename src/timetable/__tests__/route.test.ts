@@ -9,28 +9,28 @@ import {
   REGULAR,
   Route,
 } from '../route.js';
-import { Time } from '../time.js';
+import { TIME_ORIGIN, timeFromHMS } from '../time.js';
 
 describe('Route', () => {
   const stopTimes = new Uint16Array([
     // Trip 0: Stop 1 -> Stop 2
-    Time.fromHMS(8, 0, 0).toMinutes(),
-    Time.fromHMS(8, 1, 0).toMinutes(),
-    Time.fromHMS(8, 30, 0).toMinutes(),
-    Time.fromHMS(8, 31, 0).toMinutes(),
+    timeFromHMS(8, 0, 0),
+    timeFromHMS(8, 1, 0),
+    timeFromHMS(8, 30, 0),
+    timeFromHMS(8, 31, 0),
     // Trip 1: Stop 1 -> Stop 2
-    Time.fromHMS(9, 0, 0).toMinutes(),
-    Time.fromHMS(9, 1, 0).toMinutes(),
-    Time.fromHMS(9, 30, 0).toMinutes(),
-    Time.fromHMS(9, 31, 0).toMinutes(),
+    timeFromHMS(9, 0, 0),
+    timeFromHMS(9, 1, 0),
+    timeFromHMS(9, 30, 0),
+    timeFromHMS(9, 31, 0),
     // Trip 2: Stop 1 -> Stop 2
-    Time.fromHMS(10, 0, 0).toMinutes(),
-    Time.fromHMS(10, 1, 0).toMinutes(),
-    Time.fromHMS(10, 30, 0).toMinutes(),
-    Time.fromHMS(10, 31, 0).toMinutes(),
+    timeFromHMS(10, 0, 0),
+    timeFromHMS(10, 1, 0),
+    timeFromHMS(10, 30, 0),
+    timeFromHMS(10, 31, 0),
   ]);
 
-  const pickUpDropOffTypes = encodePickUpDropOffTypes(
+  const pickupDropOffTypes = encodePickUpDropOffTypes(
     [
       // Trip 0
       REGULAR,
@@ -61,7 +61,7 @@ describe('Route', () => {
   const route = new Route(
     0,
     stopTimes,
-    pickUpDropOffTypes,
+    pickupDropOffTypes,
     stops,
     serviceRouteId,
   );
@@ -89,7 +89,7 @@ describe('Route', () => {
     it('should serialize route data correctly', () => {
       const serialized = route.serialize();
       assert.deepStrictEqual(serialized.stopTimes, stopTimes);
-      assert.deepStrictEqual(serialized.pickUpDropOffTypes, pickUpDropOffTypes);
+      assert.deepStrictEqual(serialized.pickupDropOffTypes, pickupDropOffTypes);
       assert.deepStrictEqual(serialized.stops, stops);
       assert.strictEqual(serialized.serviceRouteId, serviceRouteId);
     });
@@ -110,18 +110,12 @@ describe('Route', () => {
   describe('arrivalAt', () => {
     it('should return correct arrival time for trip 0 at stop index 0', () => {
       const arrival = route.arrivalAt(0, 0);
-      assert.strictEqual(
-        arrival.toMinutes(),
-        Time.fromHMS(8, 0, 0).toMinutes(),
-      );
+      assert.strictEqual(arrival, timeFromHMS(8, 0, 0));
     });
 
     it('should return correct arrival time for trip 1 at stop index 1', () => {
       const arrival = route.arrivalAt(1, 1);
-      assert.strictEqual(
-        arrival.toMinutes(),
-        Time.fromHMS(9, 30, 0).toMinutes(),
-      );
+      assert.strictEqual(arrival, timeFromHMS(9, 30, 0));
     });
 
     it('should throw error for invalid stop index', () => {
@@ -139,18 +133,12 @@ describe('Route', () => {
   describe('departureFrom', () => {
     it('should return correct departure time for trip 0 at stop index 0', () => {
       const departure = route.departureFrom(0, 0);
-      assert.strictEqual(
-        departure.toMinutes(),
-        Time.fromHMS(8, 1, 0).toMinutes(),
-      );
+      assert.strictEqual(departure, timeFromHMS(8, 1, 0));
     });
 
     it('should return correct departure time for trip 2 at stop index 1', () => {
       const departure = route.departureFrom(1, 2);
-      assert.strictEqual(
-        departure.toMinutes(),
-        Time.fromHMS(10, 31, 0).toMinutes(),
-      );
+      assert.strictEqual(departure, timeFromHMS(10, 31, 0));
     });
 
     it('should throw error for invalid stop index', () => {
@@ -171,17 +159,17 @@ describe('Route', () => {
   describe('pickUpTypeFrom', () => {
     it('should return REGULAR pickup type for trip 0 at stop index 0', () => {
       const pickUpType = route.pickUpTypeFrom(0, 0);
-      assert.strictEqual(pickUpType, 'REGULAR');
+      assert.strictEqual(pickUpType, REGULAR);
     });
 
     it('should return NOT_AVAILABLE pickup type for trip 0 at stop index 1', () => {
       const pickUpType = route.pickUpTypeFrom(1, 0);
-      assert.strictEqual(pickUpType, 'NOT_AVAILABLE');
+      assert.strictEqual(pickUpType, NOT_AVAILABLE);
     });
 
     it('should return MUST_PHONE_AGENCY pickup type for trip 2 at stop index 0', () => {
       const pickUpType = route.pickUpTypeFrom(0, 2);
-      assert.strictEqual(pickUpType, 'MUST_PHONE_AGENCY');
+      assert.strictEqual(pickUpType, MUST_PHONE_AGENCY);
     });
 
     it('should throw error for invalid stop index', () => {
@@ -202,12 +190,12 @@ describe('Route', () => {
   describe('dropOffTypeAt', () => {
     it('should return REGULAR drop off type for trip 0 at stop index 0', () => {
       const dropOffType = route.dropOffTypeAt(0, 0);
-      assert.strictEqual(dropOffType, 'REGULAR');
+      assert.strictEqual(dropOffType, REGULAR);
     });
 
     it('should return REGULAR drop off type for trip 1 at stop index 1', () => {
       const dropOffType = route.dropOffTypeAt(1, 1);
-      assert.strictEqual(dropOffType, 'REGULAR');
+      assert.strictEqual(dropOffType, REGULAR);
     });
 
     it('should throw error for invalid stop index', () => {
@@ -232,19 +220,19 @@ describe('Route', () => {
     });
 
     it('should find earliest trip after specified time', () => {
-      const afterTime = Time.fromHMS(8, 30, 0);
+      const afterTime = timeFromHMS(8, 30, 0);
       const tripIndex = route.findEarliestTrip(0, afterTime);
       assert.strictEqual(tripIndex, 1);
     });
 
     it('should find earliest trip with exact match time', () => {
-      const afterTime = Time.fromHMS(9, 1, 0);
+      const afterTime = timeFromHMS(9, 1, 0);
       const tripIndex = route.findEarliestTrip(0, afterTime);
       assert.strictEqual(tripIndex, 1);
     });
 
     it('should return undefined when no trip is available after specified time', () => {
-      const afterTime = Time.fromHMS(23, 0, 0);
+      const afterTime = timeFromHMS(23, 0, 0);
       const tripIndex = route.findEarliestTrip(0, afterTime);
       assert.strictEqual(tripIndex, undefined);
     });
@@ -256,17 +244,17 @@ describe('Route', () => {
     });
 
     it('should respect beforeTrip constraint', () => {
-      const tripIndex = route.findEarliestTrip(0, Time.fromHMS(8, 2, 0), 1);
+      const tripIndex = route.findEarliestTrip(0, timeFromHMS(8, 2, 0), 1);
       assert.strictEqual(tripIndex, undefined);
     });
 
     it('should return undefined when beforeTrip is 0', () => {
-      const tripIndex = route.findEarliestTrip(0, Time.ORIGIN, 0);
+      const tripIndex = route.findEarliestTrip(0, TIME_ORIGIN, 0);
       assert.strictEqual(tripIndex, undefined);
     });
 
     it('should handle MUST_PHONE_AGENCY pickup type', () => {
-      const afterTime = Time.fromHMS(9, 30, 0);
+      const afterTime = timeFromHMS(9, 30, 0);
       const tripIndex = route.findEarliestTrip(0, afterTime);
       // Should find trip 2 even though it requires phone agency
       assert.strictEqual(tripIndex, 2);

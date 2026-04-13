@@ -1,4 +1,3 @@
-import { Duration } from './duration.js';
 import {
   Route as ProtoRoute,
   RouteType as ProtoRouteType,
@@ -6,7 +5,7 @@ import {
   StopAdjacency as ProtoStopAdjacency,
   TransferType as ProtoTransferType,
   TripTransferEntry as ProtoTripTransferEntry,
-} from './proto/timetable.js';
+} from './proto/v1/timetable.js';
 import { Route } from './route.js';
 import {
   RouteType,
@@ -22,7 +21,7 @@ import { decode, encode, TripStopId } from './tripStopId.js';
 
 export type SerializedRoute = {
   stopTimes: Uint16Array;
-  pickUpDropOffTypes: Uint8Array;
+  pickupDropOffTypes: Uint8Array;
   stops: Uint32Array;
   serviceRouteId: ServiceRouteId;
 };
@@ -134,7 +133,7 @@ export const serializeStopsAdjacency = (
             destination: transfer.destination,
             type: serializeTransferType(transfer.type),
             ...(transfer.minTransferTime !== undefined && {
-              minTransferTime: transfer.minTransferTime.toSeconds(),
+              minTransferTime: transfer.minTransferTime,
             }),
           }))
         : [],
@@ -152,7 +151,7 @@ export const serializeRoutesAdjacency = (
     const routeData = route.serialize();
     protoRoutesAdjacency.push({
       stopTimes: uint16ArrayToBytes(routeData.stopTimes),
-      pickUpDropOffTypes: routeData.pickUpDropOffTypes,
+      pickupDropOffTypes: routeData.pickupDropOffTypes,
       stops: uint32ArrayToBytes(routeData.stops),
       serviceRouteId: routeData.serviceRouteId,
     });
@@ -190,7 +189,7 @@ export const deserializeStopsAdjacency = (
         destination: transfer.destination,
         type: parseTransferType(transfer.type),
         ...(transfer.minTransferTime !== undefined && {
-          minTransferTime: Duration.fromSeconds(transfer.minTransferTime),
+          minTransferTime: transfer.minTransferTime,
         }),
       };
       transfers.push(newTransfer);
@@ -223,7 +222,7 @@ export const deserializeRoutesAdjacency = (
       new Route(
         i,
         bytesToUint16Array(value.stopTimes),
-        value.pickUpDropOffTypes,
+        value.pickupDropOffTypes,
         stops,
         value.serviceRouteId,
       ),
@@ -253,13 +252,15 @@ export const deserializeServiceRoutesMap = (
 
 const parseTransferType = (type: ProtoTransferType): TransferType => {
   switch (type) {
-    case ProtoTransferType.RECOMMENDED_TRANSFER_POINT:
+    case ProtoTransferType.TRANSFER_TYPE_UNSPECIFIED:
+      throw new Error('Unspecified protobuf transfer type.');
+    case ProtoTransferType.TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT:
       return 'RECOMMENDED';
-    case ProtoTransferType.TIMED_TRANSFER:
+    case ProtoTransferType.TRANSFER_TYPE_TIMED_TRANSFER:
       return 'GUARANTEED';
-    case ProtoTransferType.REQUIRES_MINIMAL_TIME:
+    case ProtoTransferType.TRANSFER_TYPE_REQUIRES_MINIMAL_TIME:
       return 'REQUIRES_MINIMAL_TIME';
-    case ProtoTransferType.IN_SEAT_TRANSFER:
+    case ProtoTransferType.TRANSFER_TYPE_IN_SEAT_TRANSFER:
       return 'IN_SEAT';
     case ProtoTransferType.UNRECOGNIZED:
       throw new Error('Unrecognized protobuf transfer type.');
@@ -269,37 +270,39 @@ const parseTransferType = (type: ProtoTransferType): TransferType => {
 const serializeTransferType = (type: TransferType): ProtoTransferType => {
   switch (type) {
     case 'RECOMMENDED':
-      return ProtoTransferType.RECOMMENDED_TRANSFER_POINT;
+      return ProtoTransferType.TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT;
     case 'GUARANTEED':
-      return ProtoTransferType.TIMED_TRANSFER;
+      return ProtoTransferType.TRANSFER_TYPE_TIMED_TRANSFER;
     case 'REQUIRES_MINIMAL_TIME':
-      return ProtoTransferType.REQUIRES_MINIMAL_TIME;
+      return ProtoTransferType.TRANSFER_TYPE_REQUIRES_MINIMAL_TIME;
     case 'IN_SEAT':
-      return ProtoTransferType.IN_SEAT_TRANSFER;
+      return ProtoTransferType.TRANSFER_TYPE_IN_SEAT_TRANSFER;
   }
 };
 
 const parseRouteType = (type: ProtoRouteType): RouteType => {
   switch (type) {
-    case ProtoRouteType.TRAM:
+    case ProtoRouteType.ROUTE_TYPE_UNSPECIFIED:
+      throw new Error('Unspecified protobuf route type.');
+    case ProtoRouteType.ROUTE_TYPE_TRAM:
       return 'TRAM';
-    case ProtoRouteType.SUBWAY:
+    case ProtoRouteType.ROUTE_TYPE_SUBWAY:
       return 'SUBWAY';
-    case ProtoRouteType.RAIL:
+    case ProtoRouteType.ROUTE_TYPE_RAIL:
       return 'RAIL';
-    case ProtoRouteType.BUS:
+    case ProtoRouteType.ROUTE_TYPE_BUS:
       return 'BUS';
-    case ProtoRouteType.FERRY:
+    case ProtoRouteType.ROUTE_TYPE_FERRY:
       return 'FERRY';
-    case ProtoRouteType.CABLE_TRAM:
+    case ProtoRouteType.ROUTE_TYPE_CABLE_TRAM:
       return 'CABLE_TRAM';
-    case ProtoRouteType.AERIAL_LIFT:
+    case ProtoRouteType.ROUTE_TYPE_AERIAL_LIFT:
       return 'AERIAL_LIFT';
-    case ProtoRouteType.FUNICULAR:
+    case ProtoRouteType.ROUTE_TYPE_FUNICULAR:
       return 'FUNICULAR';
-    case ProtoRouteType.TROLLEYBUS:
+    case ProtoRouteType.ROUTE_TYPE_TROLLEYBUS:
       return 'TROLLEYBUS';
-    case ProtoRouteType.MONORAIL:
+    case ProtoRouteType.ROUTE_TYPE_MONORAIL:
       return 'MONORAIL';
     case ProtoRouteType.UNRECOGNIZED:
     default:
@@ -310,25 +313,25 @@ const parseRouteType = (type: ProtoRouteType): RouteType => {
 const serializeRouteType = (type: RouteType): ProtoRouteType => {
   switch (type) {
     case 'TRAM':
-      return ProtoRouteType.TRAM;
+      return ProtoRouteType.ROUTE_TYPE_TRAM;
     case 'SUBWAY':
-      return ProtoRouteType.SUBWAY;
+      return ProtoRouteType.ROUTE_TYPE_SUBWAY;
     case 'RAIL':
-      return ProtoRouteType.RAIL;
+      return ProtoRouteType.ROUTE_TYPE_RAIL;
     case 'BUS':
-      return ProtoRouteType.BUS;
+      return ProtoRouteType.ROUTE_TYPE_BUS;
     case 'FERRY':
-      return ProtoRouteType.FERRY;
+      return ProtoRouteType.ROUTE_TYPE_FERRY;
     case 'CABLE_TRAM':
-      return ProtoRouteType.CABLE_TRAM;
+      return ProtoRouteType.ROUTE_TYPE_CABLE_TRAM;
     case 'AERIAL_LIFT':
-      return ProtoRouteType.AERIAL_LIFT;
+      return ProtoRouteType.ROUTE_TYPE_AERIAL_LIFT;
     case 'FUNICULAR':
-      return ProtoRouteType.FUNICULAR;
+      return ProtoRouteType.ROUTE_TYPE_FUNICULAR;
     case 'TROLLEYBUS':
-      return ProtoRouteType.TROLLEYBUS;
+      return ProtoRouteType.ROUTE_TYPE_TROLLEYBUS;
     case 'MONORAIL':
-      return ProtoRouteType.MONORAIL;
+      return ProtoRouteType.ROUTE_TYPE_MONORAIL;
   }
 };
 

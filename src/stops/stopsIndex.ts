@@ -5,7 +5,7 @@ import { addAll, createIndex, search, SearchResult } from 'slimsearch';
 
 import { generateAccentVariants } from './i18n.js';
 import { deserializeStopsMap, serializeStopsMap } from './io.js';
-import { StopsMap as ProtoStopsMap } from './proto/stops.js';
+import { StopsMap as ProtoStopsMap } from './proto/v1/stops.js';
 import { SourceStopId, SourceStopsMap, Stop, StopId } from './stops.js';
 
 type StopPoint = { id: StopId; lat: number; lon: number };
@@ -31,7 +31,9 @@ export class StopsIndex {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const stop = stops[id]!;
 
-      this.sourceStopsMap.set(stop.sourceStopId, id);
+      if (stop.sourceStopId !== undefined) {
+        this.sourceStopsMap.set(stop.sourceStopId, id);
+      }
 
       const effectiveStopId = stop.parent ?? id;
       if (!stopsSet.has(effectiveStopId)) {
@@ -171,11 +173,7 @@ export class StopsIndex {
   /**
    * Find ids of all sibling stops.
    */
-  equivalentStops(sourceId: SourceStopId): Stop[] {
-    const id = this.sourceStopsMap.get(sourceId);
-    if (id === undefined) {
-      return [];
-    }
+  equivalentStops(id: StopId): Stop[] {
     const stop = this.stops[id];
     if (!stop) {
       return [];

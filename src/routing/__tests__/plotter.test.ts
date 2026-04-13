@@ -4,9 +4,8 @@ import { describe, it } from 'node:test';
 import { Timetable } from '../../router.js';
 import { Stop, StopId } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
-import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
-import { Time } from '../../timetable/time.js';
+import { timeFromHMS, timeFromString } from '../../timetable/time.js';
 import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
 import { Plotter } from '../plotter.js';
 import { Query } from '../query.js';
@@ -41,13 +40,13 @@ describe('Plotter', () => {
           stops: [
             {
               id: 0,
-              arrivalTime: Time.fromString('08:00:00'),
-              departureTime: Time.fromString('08:05:00'),
+              arrivalTime: timeFromString('08:00:00'),
+              departureTime: timeFromString('08:05:00'),
             },
             {
               id: 1,
-              arrivalTime: Time.fromString('08:30:00'),
-              departureTime: Time.fromString('08:35:00'),
+              arrivalTime: timeFromString('08:30:00'),
+              departureTime: timeFromString('08:35:00'),
             },
           ],
         },
@@ -66,9 +65,9 @@ describe('Plotter', () => {
   const mockStopsIndex = new StopsIndex([stop1, stop2]);
   const mockTimetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
   const mockQuery = new Query.Builder()
-    .from('stop1')
-    .to(new Set(['stop2']))
-    .departureTime(Time.fromHMS(8, 0, 0))
+    .from(0)
+    .to(new Set([1]))
+    .departureTime(timeFromHMS(8, 0, 0))
     .build();
 
   describe('plotDotGraph', () => {
@@ -95,7 +94,7 @@ describe('Plotter', () => {
 
     it('should include station nodes', () => {
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map([[0, { arrival: Time.fromHMS(8, 0, 0) }]]),
+        new Map([[0, { arrival: timeFromHMS(8, 0, 0) }]]),
       ];
 
       const result = new Result(
@@ -150,7 +149,7 @@ describe('Plotter', () => {
 
       const specialStopsIndex = new StopsIndex([stop1, stop2, specialStop]);
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map([[2, { arrival: Time.fromHMS(8, 0, 0) }]]),
+        new Map([[2, { arrival: timeFromHMS(8, 0, 0) }]]),
       ];
 
       const result = new Result(
@@ -178,14 +177,14 @@ describe('Plotter', () => {
 
     it('should use correct colors', () => {
       const graph: Map<StopId, RoutingEdge>[] = [
-        new Map([[0, { arrival: Time.fromHMS(8, 0, 0) }]]),
+        new Map([[0, { arrival: timeFromHMS(8, 0, 0) }]]),
         new Map([
           [
             1,
             {
               stopIndex: 0,
               hopOffStopIndex: 1,
-              arrival: Time.fromHMS(8, 30, 0),
+              arrival: timeFromHMS(8, 30, 0),
               routeId: 0,
               tripIndex: 0,
             },
@@ -197,9 +196,9 @@ describe('Plotter', () => {
             {
               from: 0,
               to: 1,
-              arrival: Time.fromHMS(8, 45, 0),
+              arrival: timeFromHMS(8, 45, 0),
               type: 'RECOMMENDED',
-              minTransferTime: Duration.fromMinutes(5),
+              minTransferTime: 5,
             },
           ],
         ]),

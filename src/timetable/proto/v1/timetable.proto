@@ -1,13 +1,13 @@
 syntax = "proto3";
 
-package minotor.timetable;
+package minotor.timetable.v1;
 
 message Route {
   /**
    * Arrivals and departures encoded as a 16 bit uint array.
    * Format: [arrival1, departure1, arrival2, departure2, etc.]
    */
-  bytes stopTimes = 1;
+  bytes stop_times = 1;
   /**
    * PickUp and DropOff types represented as an 8 bit uint array.
    * Values:
@@ -18,32 +18,33 @@ message Route {
    * Format: [drop_off_1][pickup_1][drop_off_0][pickup_0]
    * 2 bits per value
    */
-  bytes pickUpDropOffTypes = 2;
+  bytes pickup_drop_off_types = 2;
   /**
    * Stops encoded as a 32 bit uint array.
    * Format: [stop1, stop2, stop3, etc.]
    */
   bytes stops = 3;
-  uint32 serviceRouteId = 4;
+  uint32 service_route_id = 4;
 }
 
 enum TransferType {
-  RECOMMENDED_TRANSFER_POINT = 0;
-  TIMED_TRANSFER = 1;
-  REQUIRES_MINIMAL_TIME = 2;
-  IN_SEAT_TRANSFER = 3;
+  TRANSFER_TYPE_UNSPECIFIED = 0;
+  TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT = 1;
+  TRANSFER_TYPE_TIMED_TRANSFER = 2;
+  TRANSFER_TYPE_REQUIRES_MINIMAL_TIME = 3;
+  TRANSFER_TYPE_IN_SEAT_TRANSFER = 4;
 }
 
 message Transfer {
   uint32 destination = 1;
   TransferType type = 2;
-  optional uint32 minTransferTime = 3;
+  optional uint32 min_transfer_time = 3;
 }
 
 message TripStop {
-  uint32 stopIndex = 1;
-  uint32 routeId = 2;
-  uint32 tripIndex = 3;
+  uint32 stop_index = 1;
+  uint32 route_id = 2;
+  uint32 trip_index = 3;
 }
 
 message TripTransferEntry {
@@ -57,16 +58,17 @@ message StopAdjacency {
 }
 
 enum RouteType {
-  TRAM = 0;
-  SUBWAY = 1;
-  RAIL = 2;
-  BUS = 3;
-  FERRY = 4;
-  CABLE_TRAM = 5;
-  AERIAL_LIFT = 6;
-  FUNICULAR = 7;
-  TROLLEYBUS = 8;
-  MONORAIL = 9;
+  ROUTE_TYPE_UNSPECIFIED = 0;
+  ROUTE_TYPE_TRAM = 1;
+  ROUTE_TYPE_SUBWAY = 2;
+  ROUTE_TYPE_RAIL = 3;
+  ROUTE_TYPE_BUS = 4;
+  ROUTE_TYPE_FERRY = 5;
+  ROUTE_TYPE_CABLE_TRAM = 6;
+  ROUTE_TYPE_AERIAL_LIFT = 7;
+  ROUTE_TYPE_FUNICULAR = 8;
+  ROUTE_TYPE_TROLLEYBUS = 9;
+  ROUTE_TYPE_MONORAIL = 10;
 }
 
 message ServiceRoute {
@@ -76,10 +78,9 @@ message ServiceRoute {
 }
 
 message Timetable {
-  string version = 1;
-  repeated StopAdjacency stopsAdjacency = 2;
-  repeated Route routesAdjacency = 3;
-  repeated ServiceRoute serviceRoutes = 4;
-  repeated TripTransferEntry tripContinuations = 5;
-  repeated TripTransferEntry guaranteedTripTransfers = 6;
+  repeated StopAdjacency stops_adjacency = 1;
+  repeated Route routes_adjacency = 2;
+  repeated ServiceRoute service_routes = 3;
+  repeated TripTransferEntry trip_continuations = 4;
+  repeated TripTransferEntry guaranteed_trip_transfers = 5;
 }

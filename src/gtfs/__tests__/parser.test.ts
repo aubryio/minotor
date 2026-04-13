@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
 
-import { Time } from '../../timetable/time.js';
+import { timeFromHMS } from '../../timetable/time.js';
 import { GtfsParser } from '../parser.js';
 describe('GTFS parser', () => {
   let parser: GtfsParser;
@@ -45,19 +45,21 @@ describe('GTFS parser', () => {
       beattyAirportStopIndex !== undefined && bullfrogStopIndex !== undefined,
     );
 
-    assert(
-      route.arrivalAt(beattyAirportStopIndex, 0).equals(Time.fromHMS(8, 0, 0)),
+    assert.strictEqual(
+      route.arrivalAt(beattyAirportStopIndex, 0),
+      timeFromHMS(8, 0, 0),
     );
-    assert(
-      route
-        .departureFrom(beattyAirportStopIndex, 0)
-        .equals(Time.fromHMS(8, 0, 0)),
+    assert.strictEqual(
+      route.departureFrom(beattyAirportStopIndex, 0),
+      timeFromHMS(8, 0, 0),
     );
-    assert(
-      route.arrivalAt(bullfrogStopIndex, 0).equals(Time.fromHMS(8, 10, 0)),
+    assert.strictEqual(
+      route.arrivalAt(bullfrogStopIndex, 0),
+      timeFromHMS(8, 10, 0),
     );
-    assert(
-      route.departureFrom(bullfrogStopIndex, 0).equals(Time.fromHMS(8, 15, 0)),
+    assert.strictEqual(
+      route.departureFrom(bullfrogStopIndex, 0),
+      timeFromHMS(8, 15, 0),
     );
 
     const routes = timetable.routesPassingThrough(furCreekResId);

@@ -1,14 +1,24 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import { Duration } from '../timetable/duration.js';
-import { Route, StopRouteIndex, TripRouteIndex } from '../timetable/route.js';
-import { Time } from '../timetable/time.js';
+import {
+  NOT_AVAILABLE,
+  Route,
+  StopRouteIndex,
+  TripRouteIndex,
+} from '../timetable/route.js';
+import {
+  Duration,
+  DURATION_ZERO,
+  Time,
+  TIME_INFINITY,
+  TIME_ORIGIN,
+} from '../timetable/time.js';
 import { Timetable, TransferType, TripStop } from '../timetable/timetable.js';
 import { Query, QueryOptions } from './query.js';
 import { Result } from './result.js';
 
-const UNREACHED = Time.INFINITY;
+const UNREACHED = TIME_INFINITY;
 
 export type OriginNode = { arrival: Time };
 
@@ -275,9 +285,9 @@ export class Router {
         const earliestArrivalAtCurrentStop =
           routingState.earliestArrivals.get(currentStop)?.arrival ?? UNREACHED;
         if (
-          dropOffType !== 'NOT_AVAILABLE' &&
-          arrivalTime.isBefore(earliestArrivalAtCurrentStop) &&
-          arrivalTime.isBefore(earliestArrivalAtAnyDestination)
+          dropOffType !== NOT_AVAILABLE &&
+          arrivalTime < earliestArrivalAtCurrentStop &&
+          arrivalTime < earliestArrivalAtAnyDestination
         ) {
           const edge: VehicleEdge = {
             routeId: activeTrip.routeId,
@@ -310,12 +320,8 @@ export class Router {
       if (
         earliestArrivalOnPreviousRound !== undefined &&
         (activeTrip === undefined ||
-          earliestArrivalOnPreviousRound.isBefore(
-            route.departureFrom(currentStopIndex, activeTrip.tripIndex),
-          ) ||
-          earliestArrivalOnPreviousRound.equals(
-            route.departureFrom(currentStopIndex, activeTrip.tripIndex),
-          ))
+          earliestArrivalOnPreviousRound <=
+            route.departureFrom(currentStopIndex, activeTrip.tripIndex))
       ) {
         const earliestTrip = route.findEarliestTrip(
           currentStopIndex,
@@ -369,16 +375,16 @@ export class Router {
     stopIndex: StopRouteIndex,
     route: Route,
     earliestTrip: TripRouteIndex,
-    after: Time = Time.ORIGIN,
+    after: Time = TIME_ORIGIN,
     beforeTrip?: TripRouteIndex,
     previousTrip?: VehicleEdge,
-    transferTime: Duration = Duration.ZERO,
+    transferTime: Duration = DURATION_ZERO,
   ): TripRouteIndex | undefined {
     const nbTrips = route.getNbTrips();
 
     for (let t = earliestTrip; t < (beforeTrip ?? nbTrips); t++) {
       const pickup = route.pickUpTypeFrom(stopIndex, t);
-      if (pickup === 'NOT_AVAILABLE') {
+      if (pickup === NOT_AVAILABLE) {
         continue;
       }
       if (previousTrip === undefined) {
@@ -397,8 +403,8 @@ export class Router {
         return t;
       }
       const departure = route.departureFrom(stopIndex, t);
-      const requiredTime = after.plus(transferTime);
-      if (!departure.isBefore(requiredTime)) {
+      const requiredTime = after + transferTime;
+      if (departure >= requiredTime) {
         return t;
       }
     }
@@ -436,15 +442,15 @@ export class Router {
           transferTime = transfer.minTransferTime;
         } else if (transfer.type === 'IN_SEAT') {
           // TODO not needed anymore now that trip continuations are handled separately
-          transferTime = Duration.ZERO;
+          transferTime = DURATION_ZERO;
         } else {
           transferTime = options.minTransferTime;
         }
-        const arrivalAfterTransfer = currentArrival.arrival.plus(transferTime);
+        const arrivalAfterTransfer = currentArrival.arrival + transferTime;
         const originalArrival =
           routingState.earliestArrivals.get(transfer.destination)?.arrival ??
           UNREACHED;
-        if (arrivalAfterTransfer.isBefore(originalArrival)) {
+        if (arrivalAfterTransfer < originalArrival) {
           arrivalsAtCurrentRound.set(transfer.destination, {
             arrival: arrivalAfterTransfer,
             from: stop,
@@ -478,7 +484,7 @@ export class Router {
     for (let i = 0; i < destinations.length; i++) {
       const destination = destinations[i]!;
       const arrival = earliestArrivals.get(destination)?.arrival ?? UNREACHED;
-      earliestArrivalAtAnyDestination = Time.min(
+      earliestArrivalAtAnyDestination = Math.min(
         earliestArrivalAtAnyDestination,
         arrival,
       );

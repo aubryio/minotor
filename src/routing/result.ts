@@ -1,9 +1,44 @@
 import { Timetable } from '../router.js';
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
+import { RawPickUpDropOffType } from '../timetable/route.js';
 import { Query } from './query.js';
 import { Leg, Route, Transfer, VehicleLeg } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
+
+/**
+ * Details about the pickup and drop-off modalities at each stop in each trip of a route.
+ */
+export type PickUpDropOffType =
+  | 'REGULAR'
+  | 'NOT_AVAILABLE'
+  | 'MUST_PHONE_AGENCY'
+  | 'MUST_COORDINATE_WITH_DRIVER';
+
+const pickUpDropOffTypeMap: PickUpDropOffType[] = [
+  'REGULAR',
+  'NOT_AVAILABLE',
+  'MUST_PHONE_AGENCY',
+  'MUST_COORDINATE_WITH_DRIVER',
+];
+
+/**
+ * Converts a numerical representation of a pick-up/drop-off type
+ * into its corresponding string representation.
+ *
+ * @param numericalType - The numerical value representing the pick-up/drop-off type.
+ * @returns The corresponding PickUpDropOffType as a string.
+ * @throws An error if the numerical type is invalid.
+ */
+const toPickupDropOffType = (
+  rawType: RawPickUpDropOffType,
+): PickUpDropOffType => {
+  const type = pickUpDropOffTypeMap[rawType];
+  if (!type) {
+    throw new Error(`Invalid pickup/drop-off type ${rawType}`);
+  }
+  return type;
+};
 
 export class Result {
   private readonly query: Query;
@@ -24,34 +59,34 @@ export class Result {
   }
 
   /**
-   * Reconstructs the best route to a stop by StopId.
+   * Reconstructs the best route to a stop by SourceStopId.
    * (to any stop reachable in less time / transfers than the destination(s) of the query)
    *
-   * @param to The destination stop by StopId.
+   * @param to The destination stop by SourceStopId.
    * @returns a route to the destination stop if it exists.
    */
-  bestRouteToStopId(to: StopId | Set<StopId>): Route | undefined {
-    const sourceStopIds =
+  bestRouteToSourceStopId(
+    to: SourceStopId | Set<SourceStopId>,
+  ): Route | undefined {
+    const stopIds =
       to instanceof Set
         ? new Set(
             Array.from(to)
               .map(
-                (stopId) => this.stopsIndex.findStopById(stopId)?.sourceStopId,
+                (stopId) => this.stopsIndex.findStopBySourceStopId(stopId)?.id,
               )
-              .filter(
-                (sourceId): sourceId is SourceStopId => sourceId !== undefined,
-              ),
+              .filter((id): id is StopId => id !== undefined),
           )
-        : this.stopsIndex.findStopById(to)?.sourceStopId;
+        : this.stopsIndex.findStopBySourceStopId(to)?.id;
 
     if (
-      sourceStopIds === undefined ||
-      (sourceStopIds instanceof Set && sourceStopIds.size === 0)
+      stopIds === undefined ||
+      (stopIds instanceof Set && stopIds.size === 0)
     ) {
       return undefined;
     }
 
-    return this.bestRoute(sourceStopIds);
+    return this.bestRoute(stopIds);
   }
 
   /**
@@ -61,7 +96,7 @@ export class Result {
    * @param to The destination stop. Defaults to the destination of the original query.
    * @returns a route to the destination stop if it exists.
    */
-  bestRoute(to?: SourceStopId | Set<SourceStopId>): Route | undefined {
+  bestRoute(to?: StopId | Set<StopId>): Route | undefined {
     const destinationList =
       to instanceof Set
         ? Array.from(to)
@@ -81,7 +116,7 @@ export class Result {
         if (arrivalTime !== undefined) {
           if (
             fastestTime === undefined ||
-            arrivalTime.arrival.isBefore(fastestTime.arrival)
+            arrivalTime.arrival < fastestTime.arrival
           ) {
             fastestDestination = destination.id;
             fastestTime = arrivalTime;
@@ -186,13 +221,11 @@ export class Result {
         firstEdge.tripIndex,
       ),
       arrivalTime: lastEdge.arrival,
-      pickUpType: firstRoute.pickUpTypeFrom(
-        firstEdge.stopIndex,
-        firstEdge.tripIndex,
+      pickUpType: toPickupDropOffType(
+        firstRoute.pickUpTypeFrom(firstEdge.stopIndex, firstEdge.tripIndex),
       ),
-      dropOffType: lastRoute.dropOffTypeAt(
-        lastEdge.hopOffStopIndex,
-        lastEdge.tripIndex,
+      dropOffType: toPickupDropOffType(
+        lastRoute.dropOffTypeAt(lastEdge.hopOffStopIndex, lastEdge.tripIndex),
       ),
     };
   }
@@ -248,7 +281,7 @@ export class Result {
    * @param maxTransfers The optional maximum number of transfers allowed.
    * @returns The arrival time if the target stop is reachable, otherwise undefined.
    */
-  arrivalAt(stop: SourceStopId, maxTransfers?: number): Arrival | undefined {
+  arrivalAt(stop: StopId, maxTransfers?: number): Arrival | undefined {
     const equivalentStops = this.stopsIndex.equivalentStops(stop);
     let earliestArrival: Arrival | undefined = undefined;
 
@@ -275,7 +308,7 @@ export class Result {
       if (arrivalTime !== undefined) {
         if (
           earliestArrival === undefined ||
-          arrivalTime.arrival.isBefore(earliestArrival.arrival)
+          arrivalTime.arrival < earliestArrival.arrival
         ) {
           earliestArrival = arrivalTime;
         }

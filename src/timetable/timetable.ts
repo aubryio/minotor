@@ -2,7 +2,6 @@
 import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
 import { StopId } from '../stops/stops.js';
-import { Duration } from './duration.js';
 import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
@@ -13,8 +12,9 @@ import {
   serializeStopsAdjacency,
   serializeTripTransfers,
 } from './io.js';
-import { Timetable as ProtoTimetable } from './proto/timetable.js';
+import { Timetable as ProtoTimetable } from './proto/v1/timetable.js';
 import { Route, RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
+import { Duration } from './time.js';
 import { encode, TripStopId } from './tripStopId.js';
 
 export type TransferType =
@@ -81,8 +81,6 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
 
 const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
 
-export const CURRENT_VERSION = '0.0.9';
-
 /**
  * The internal transit timetable format.
  */
@@ -125,7 +123,6 @@ export class Timetable {
    */
   serialize(): Uint8Array {
     const protoTimetable = {
-      version: CURRENT_VERSION,
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
@@ -150,11 +147,6 @@ export class Timetable {
   static fromData(data: Uint8Array): Timetable {
     const reader = new BinaryReader(data);
     const protoTimetable = ProtoTimetable.decode(reader);
-    if (protoTimetable.version !== CURRENT_VERSION) {
-      throw new Error(
-        `Unsupported timetable version ${protoTimetable.version}`,
-      );
-    }
     return new Timetable(
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),

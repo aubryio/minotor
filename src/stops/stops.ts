@@ -16,7 +16,7 @@ export type LocationType =
 
 export type Stop = {
   id: StopId;
-  sourceStopId: SourceStopId;
+  sourceStopId?: SourceStopId;
   name: string;
   lat?: Latitude;
   lon?: Longitude;

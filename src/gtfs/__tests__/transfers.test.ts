@@ -2,9 +2,8 @@ import assert from 'node:assert';
 import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
-import { Duration } from '../../timetable/duration.js';
 import { Route } from '../../timetable/route.js';
-import { Time } from '../../timetable/time.js';
+import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import { Timetable } from '../../timetable/timetable.js';
 import { encode } from '../../timetable/tripStopId.js';
 import { GtfsStopsMap } from '../stops.js';
@@ -77,7 +76,7 @@ describe('GTFS transfers parser', () => {
           {
             destination: 1, // Internal ID for stop '8014440:0:1'
             type: 'REQUIRES_MINIMAL_TIME',
-            minTransferTime: Duration.fromSeconds(180),
+            minTransferTime: durationFromSeconds(180),
           },
         ],
       ],
@@ -87,7 +86,7 @@ describe('GTFS transfers parser', () => {
           {
             destination: 3, // Internal ID for stop '8014447'
             type: 'RECOMMENDED',
-            minTransferTime: Duration.fromSeconds(240),
+            minTransferTime: durationFromSeconds(240),
           },
         ],
       ],
@@ -419,7 +418,7 @@ describe('GTFS transfers parser', () => {
           {
             destination: 3,
             type: 'GUARANTEED',
-            minTransferTime: Duration.fromSeconds(120),
+            minTransferTime: durationFromSeconds(120),
           },
         ],
       ],
@@ -637,7 +636,7 @@ describe('GTFS transfers parser', () => {
           {
             destination: 3,
             type: 'GUARANTEED',
-            minTransferTime: Duration.fromSeconds(0),
+            minTransferTime: durationFromSeconds(0),
           },
         ],
       ],
@@ -708,7 +707,7 @@ describe('GTFS transfers parser', () => {
           {
             destination: 1,
             type: 'GUARANTEED',
-            minTransferTime: Duration.fromSeconds(120),
+            minTransferTime: durationFromSeconds(120),
           },
         ],
       ],
@@ -784,7 +783,7 @@ describe('GTFS transfers parser', () => {
           {
             destination: 1,
             type: 'REQUIRES_MINIMAL_TIME',
-            minTransferTime: Duration.fromSeconds(180),
+            minTransferTime: durationFromSeconds(180),
           },
         ],
       ],
@@ -813,12 +812,12 @@ describe('buildTripTransfers', () => {
 
     const mockFromRoute = {
       stopRouteIndices: () => [0],
-      arrivalAt: () => Time.fromMinutes(60), // 1:00
+      arrivalAt: () => timeFromHM(1, 0), // 1:00
     } as unknown as Route;
 
     const mockToRoute = {
       stopRouteIndices: () => [1],
-      departureFrom: () => Time.fromMinutes(75), // 1:15
+      departureFrom: () => timeFromHM(1, 15), // 1:15
     } as unknown as Route;
 
     const mockTimetable = {
@@ -950,12 +949,12 @@ describe('buildTripTransfers', () => {
 
     const mockFromRoute = {
       stopRouteIndices: () => [0],
-      arrivalAt: () => Time.fromMinutes(75), // 1:15 - arrives AFTER departure
+      arrivalAt: () => timeFromHM(1, 15), // 1:15 - arrives AFTER departure
     } as unknown as Route;
 
     const mockToRoute = {
       stopRouteIndices: () => [1],
-      departureFrom: () => Time.fromMinutes(60), // 1:00 - departs BEFORE arrival
+      departureFrom: () => timeFromHM(1, 0), // 1:00 - departs BEFORE arrival
     } as unknown as Route;
 
     const mockTimetable = {
@@ -999,17 +998,17 @@ describe('buildTripTransfers', () => {
 
     const mockFromRoute = {
       stopRouteIndices: () => [0],
-      arrivalAt: () => Time.fromMinutes(60),
+      arrivalAt: () => timeFromHM(1, 0),
     } as unknown as Route;
 
     const mockToRoute1 = {
       stopRouteIndices: () => [1],
-      departureFrom: () => Time.fromMinutes(70),
+      departureFrom: () => timeFromHM(1, 10),
     } as unknown as Route;
 
     const mockToRoute2 = {
       stopRouteIndices: () => [2],
-      departureFrom: () => Time.fromMinutes(80),
+      departureFrom: () => timeFromHM(1, 20),
     } as unknown as Route;
 
     const mockTimetable = {
@@ -1083,7 +1082,7 @@ describe('buildTripTransfers', () => {
       stopRouteIndices: () => [0, 3], // Stop 100 appears twice
       arrivalAt: (stopIndex: number) => {
         // First visit at 1:00, second visit at 2:00
-        return stopIndex === 0 ? Time.fromMinutes(60) : Time.fromMinutes(120);
+        return stopIndex === 0 ? timeFromHM(1, 0) : timeFromHM(2, 0);
       },
     } as unknown as Route;
 
@@ -1092,7 +1091,7 @@ describe('buildTripTransfers', () => {
       stopRouteIndices: () => [1, 4], // Stop 200 appears twice
       departureFrom: (stopIndex: number) => {
         // First departure at 1:10, second departure at 2:30
-        return stopIndex === 1 ? Time.fromMinutes(70) : Time.fromMinutes(150);
+        return stopIndex === 1 ? timeFromHM(1, 10) : timeFromHM(2, 30);
       },
     } as unknown as Route;
 
@@ -1144,7 +1143,7 @@ describe('buildTripTransfers', () => {
       stopRouteIndices: () => [0, 3], // Stop 100 appears twice
       arrivalAt: (stopIndex: number) => {
         // Both arrivals are late: 2:00 and 3:00
-        return stopIndex === 0 ? Time.fromMinutes(120) : Time.fromMinutes(180);
+        return stopIndex === 0 ? timeFromHM(2, 0) : timeFromHM(3, 0);
       },
     } as unknown as Route;
 
@@ -1152,7 +1151,7 @@ describe('buildTripTransfers', () => {
       stopRouteIndices: () => [1, 4], // Stop 200 appears twice
       departureFrom: (stopIndex: number) => {
         // Both departures are early: 1:00 and 1:30
-        return stopIndex === 1 ? Time.fromMinutes(60) : Time.fromMinutes(90);
+        return stopIndex === 1 ? timeFromHM(1, 0) : timeFromHM(1, 30);
       },
     } as unknown as Route;
 

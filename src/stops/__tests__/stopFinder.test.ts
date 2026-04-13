@@ -150,7 +150,7 @@ describe('Stop Finder', () => {
 
   describe('equivalentStops', () => {
     it('should find equivalent stops for a given stop ID', () => {
-      const equivalentStops = stopFinder.equivalentStops('8504100:0:1');
+      const equivalentStops = stopFinder.equivalentStops(4);
       assert.deepStrictEqual(
         equivalentStops.map((stop) => stop.id),
         [4, 5, 6],
@@ -158,7 +158,7 @@ describe('Stop Finder', () => {
     });
 
     it('should return the same stop ID in an array if no equivalents', () => {
-      const equivalentStops = stopFinder.equivalentStops('8587255');
+      const equivalentStops = stopFinder.equivalentStops(0);
       assert.deepStrictEqual(
         equivalentStops.map((stop) => stop.id),
         [0],
@@ -166,7 +166,7 @@ describe('Stop Finder', () => {
     });
 
     it('should return an empty array for non-existent stop ID', () => {
-      const equivalentStops = stopFinder.equivalentStops('999');
+      const equivalentStops = stopFinder.equivalentStops(999);
       assert.deepStrictEqual(equivalentStops, []);
     });
   });
