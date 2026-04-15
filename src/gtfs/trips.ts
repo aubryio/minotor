@@ -2,7 +2,6 @@ import log from 'loglevel';
 
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { SerializedRoute } from '../timetable/io.js';
-import { FrequenciesMap } from './frequencies.js';
 import {
   MUST_COORDINATE_WITH_DRIVER,
   MUST_PHONE_AGENCY,
@@ -17,6 +16,7 @@ import {
   ServiceRouteId,
   StopAdjacency,
 } from '../timetable/timetable.js';
+import { FrequenciesMap } from './frequencies.js';
 import { GtfsRouteId, GtfsRoutesMap } from './routes.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';

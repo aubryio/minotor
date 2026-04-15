@@ -72,12 +72,6 @@ export const loadQueriesFromJson = (
 /**
  * Benchmarks {@link Router.route} across a set of queries.
  *
- * Each query is run {@link iterations} times. Before every iteration the
- * garbage collector is invoked (when exposed via `--expose-gc`) so that GC
- * pressure from previous iterations does not skew the measurement. Heap
- * memory is sampled immediately before and after the timed section; negative
- * deltas (i.e. a GC happened mid-measurement) are excluded from the mean.
- *
  * @param router - The router instance to benchmark.
  * @param tasks - The list of queries to run. One {@link PerformanceResult} is
  *   produced per query.
@@ -129,14 +123,6 @@ export const testRouterPerformance = (
 /**
  * Benchmarks {@link Result.bestRoute} — the path-reconstruction phase —
  * independently of the routing phase.
- *
- * For each query the routing result is computed **once** outside the timed
- * loop so that only the `bestRoute()` call is measured. This makes it
- * straightforward to isolate regressions or improvements in reconstruction
- * from changes to the core RAPTOR algorithm.
- *
- * The same GC and memory-sampling strategy as {@link testRouterPerformance}
- * is used so results are directly comparable.
  *
  * @param router - The router instance used to produce the routing results that
  *   are then fed into `bestRoute`.

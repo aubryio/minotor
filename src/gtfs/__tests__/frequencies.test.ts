@@ -3,8 +3,8 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { durationFromSeconds, timeFromHMS } from '../../timetable/time.js';
-import { GtfsStopsMap } from '../stops.js';
 import { FrequenciesMap, parseFrequencies } from '../frequencies.js';
+import { GtfsStopsMap } from '../stops.js';
 import { GtfsTripIdsMap, parseStopTimes } from '../trips.js';
 
 /** Builds a minimal GtfsStopsMap for the two stops used across tests. */
@@ -50,8 +50,8 @@ describe('GTFS frequencies parser', () => {
     assert(windows !== undefined);
     assert.strictEqual(windows.length, 1);
     assert.strictEqual(windows[0]?.startTime, timeFromHMS(6, 0, 0));
-    assert.strictEqual(windows[0]?.endTime, timeFromHMS(8, 0, 0));
-    assert.strictEqual(windows[0]?.headwayMins, durationFromSeconds(1800));
+    assert.strictEqual(windows[0].endTime, timeFromHMS(8, 0, 0));
+    assert.strictEqual(windows[0].headwayMins, durationFromSeconds(1800));
   });
 
   it('should ignore trips not in activeTripIds', async () => {
@@ -93,9 +93,9 @@ describe('GTFS frequencies parser', () => {
     assert(windows !== undefined);
     assert.strictEqual(windows.length, 2);
     assert.strictEqual(windows[0]?.startTime, timeFromHMS(6, 0, 0));
-    assert.strictEqual(windows[0]?.headwayMins, durationFromSeconds(1800));
+    assert.strictEqual(windows[0].headwayMins, durationFromSeconds(1800));
     assert.strictEqual(windows[1]?.startTime, timeFromHMS(8, 0, 0));
-    assert.strictEqual(windows[1]?.headwayMins, durationFromSeconds(600));
+    assert.strictEqual(windows[1].headwayMins, durationFromSeconds(600));
   });
 
   it('should parse multiple trips each with their own window', async () => {
@@ -336,7 +336,7 @@ describe('GTFS stop times parser with frequency expansion', () => {
     const activeStopIds = new Set([0, 1]);
     const stopsMap = buildTwoStopsMap();
 
-    // No frequenciesMap passed → original behaviour
+    // No frequenciesMap passed → original behavior
     const result = await parseStopTimes(
       stream,
       stopsMap,

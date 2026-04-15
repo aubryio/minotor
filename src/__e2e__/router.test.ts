@@ -135,12 +135,12 @@ const routes = [
       },
       {
         from: '8503000:0:34',
-        to: '8503000:0:11',
+        to: '8503000:0:10',
         type: 'REQUIRES_MINIMAL_TIME',
         minTransferTime: 7,
       },
       {
-        from: '8503000:0:11',
+        from: '8503000:0:10',
         to: '8509002:0:2',
         departure: '10:07',
         arrival: '11:11',
