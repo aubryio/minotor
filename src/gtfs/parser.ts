@@ -5,6 +5,7 @@ import StreamZip from 'node-stream-zip';
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
+import { FrequenciesMap, parseFrequencies } from './frequencies.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
@@ -24,6 +25,7 @@ import { Maybe } from './utils.js';
 
 const CALENDAR_FILE = 'calendar.txt';
 const CALENDAR_DATES_FILE = 'calendar_dates.txt';
+const FREQUENCIES_FILE = 'frequencies.txt';
 const ROUTES_FILE = 'routes.txt';
 const TRIPS_FILE = 'trips.txt';
 const STOP_TIMES_FILE = 'stop_times.txt';
@@ -133,6 +135,21 @@ export class GtfsParser {
       );
     }
 
+    let frequenciesMap: FrequenciesMap | undefined;
+    if (entries[FREQUENCIES_FILE]) {
+      log.info(`Parsing ${FREQUENCIES_FILE}`);
+      const frequenciesStart = performance.now();
+      const frequenciesStream = await zip.stream(FREQUENCIES_FILE);
+      frequenciesMap = await parseFrequencies(
+        frequenciesStream,
+        new Set(trips.keys()),
+      );
+      const frequenciesEnd = performance.now();
+      log.info(
+        `${frequenciesMap.size} trips with frequency data. (${(frequenciesEnd - frequenciesStart).toFixed(2)}ms)`,
+      );
+    }
+
     log.info(`Parsing ${STOP_TIMES_FILE}`);
     const stopTimesStart = performance.now();
     const stopTimesStream = await zip.stream(STOP_TIMES_FILE);
@@ -141,6 +158,7 @@ export class GtfsParser {
       parsedStops,
       trips,
       activeStopIds,
+      frequenciesMap,
     );
     const serviceRoutes = indexRoutes(validGtfsRoutes, serviceRoutesMap);
     const stopTimesEnd = performance.now();

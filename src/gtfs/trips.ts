@@ -1,5 +1,8 @@
+import log from 'loglevel';
+
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { SerializedRoute } from '../timetable/io.js';
+import { FrequenciesMap } from './frequencies.js';
 import {
   MUST_COORDINATE_WITH_DRIVER,
   MUST_PHONE_AGENCY,
@@ -265,6 +268,10 @@ export const buildStopsAdjacencyStructure = (
  * @param stopsMap A map of parsed stops from the GTFS feed.
  * @param activeTripIds A map of valid trip IDs to corresponding route IDs.
  * @param activeStopIds A set of valid stop IDs.
+ * @param frequenciesMap An optional map of frequency windows per trip.
+ *   When provided, trips listed in this map are expanded into one concrete
+ *   trip per departure that fits within each frequency window, instead of
+ *   being kept as a single template trip.
  * @returns A mapping of route IDs to route details. The routes returned correspond to the set of trips from GTFS that share the same stop list.
  */
 export const parseStopTimes = async (
@@ -272,13 +279,17 @@ export const parseStopTimes = async (
   stopsMap: GtfsStopsMap,
   activeTripIds: GtfsTripIdsMap,
   activeStopIds: Set<StopId>,
+  frequenciesMap?: FrequenciesMap,
 ): Promise<{
   routes: Route[];
   serviceRoutesMap: Map<GtfsRouteId, ServiceRouteId>;
   tripsMapping: TripsMapping;
 }> => {
   /**
-   * Adds a trip to the appropriate route builder
+   * Adds a trip to the appropriate route builder.
+   * If the trip has frequency windows, it is expanded into one concrete trip
+   * per departure that fits within each window (last departure strictly before
+   * end_time). Otherwise the trip is added as-is.
    */
   const addTrip = (currentTripId: GtfsTripId) => {
     const gtfsRouteId = activeTripIds.get(currentTripId);
@@ -294,7 +305,7 @@ export const parseStopTimes = async (
 
     const firstDeparture = departureTimes[0];
     if (firstDeparture === undefined) {
-      console.warn(`Empty trip ${currentTripId}`);
+      log.warn(`Empty trip ${currentTripId}`);
       stops = [];
       arrivalTimes = [];
       departureTimes = [];
@@ -323,14 +334,37 @@ export const parseStopTimes = async (
       }
     }
 
-    routeBuilder.trips.push({
-      firstDeparture,
-      gtfsTripId: currentTripId,
-      arrivalTimes: arrivalTimes,
-      departureTimes: departureTimes,
-      pickUpTypes: pickUpTypes,
-      dropOffTypes: dropOffTypes,
-    });
+    const frequencyWindows = frequenciesMap?.get(currentTripId);
+    if (frequencyWindows && frequencyWindows.length > 0) {
+      // The stop times in stop_times.txt are a template. Compute offsets
+      // relative to the template's first departure (T0) and generate one
+      // concrete trip per departure within each frequency window.
+      const T0 = firstDeparture;
+      for (const window of frequencyWindows) {
+        let S = window.startTime;
+        while (S < window.endTime) {
+          const offset = S - T0;
+          routeBuilder.trips.push({
+            firstDeparture: S,
+            gtfsTripId: `${currentTripId}:freq:${S}`,
+            arrivalTimes: arrivalTimes.map((t) => t + offset),
+            departureTimes: departureTimes.map((t) => t + offset),
+            pickUpTypes: [...pickUpTypes],
+            dropOffTypes: [...dropOffTypes],
+          });
+          S += window.headwayMins;
+        }
+      }
+    } else {
+      routeBuilder.trips.push({
+        firstDeparture,
+        gtfsTripId: currentTripId,
+        arrivalTimes: arrivalTimes,
+        departureTimes: departureTimes,
+        pickUpTypes: pickUpTypes,
+        dropOffTypes: dropOffTypes,
+      });
+    }
 
     stops = [];
     arrivalTimes = [];
@@ -357,13 +391,13 @@ export const parseStopTimes = async (
   for await (const rawLine of parseCsv(stopTimesStream, ['stop_sequence'])) {
     const line = rawLine as StopTimeEntry;
     if (line.trip_id === currentTripId && line.stop_sequence <= previousSeq) {
-      console.warn(
+      log.warn(
         `Stop sequences not increasing for trip ${line.trip_id}: ${line.stop_sequence} > ${previousSeq}.`,
       );
       continue;
     }
     if (!line.arrival_time && !line.departure_time) {
-      console.warn(
+      log.warn(
         `Missing arrival or departure time for ${line.trip_id} at stop ${line.stop_id}.`,
       );
       continue;
@@ -381,7 +415,7 @@ export const parseStopTimes = async (
 
     const stopData = stopsMap.get(line.stop_id);
     if (!stopData) {
-      console.warn(`Unknown stop ID: ${line.stop_id}`);
+      log.warn(`Unknown stop ID: ${line.stop_id}`);
       continue;
     }
     stops.push(stopData.id);
@@ -390,9 +424,7 @@ export const parseStopTimes = async (
     const arrival = line.arrival_time ?? line.departure_time;
 
     if (!arrival || !departure) {
-      console.warn(
-        `Missing time data for ${line.trip_id} at stop ${line.stop_id}`,
-      );
+      log.warn(`Missing time data for ${line.trip_id} at stop ${line.stop_id}`);
       continue;
     }
     arrivalTimes.push(toTime(arrival));
