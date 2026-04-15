@@ -1,3 +1,5 @@
+import log from 'loglevel';
+
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { Route } from '../timetable/route.js';
 import { durationFromSeconds } from '../timetable/time.js';
@@ -57,7 +59,7 @@ const processInSeatTransfer = (
     transferEntry.to_trip_id === undefined ||
     transferEntry.to_trip_id === ''
   ) {
-    console.warn(
+    log.warn(
       `Unsupported in-seat transfer, missing from_trip_id and/or to_trip_id.`,
     );
     return;
@@ -111,7 +113,7 @@ const processGuaranteedStopTransfer = (
 ): void => {
   // Reject transfers that specify route IDs - these are not supported for stop-to-stop transfers
   if (transferEntry.from_route_id || transferEntry.to_route_id) {
-    console.warn(
+    log.warn(
       `Unsupported transfer of type ${transferEntry.transfer_type} between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
     );
     return;
@@ -140,13 +142,13 @@ const processStopToStopTransfer = (
   transfers: TransfersMap,
 ): void => {
   if (transferEntry.from_trip_id || transferEntry.to_trip_id) {
-    console.warn(
+    log.warn(
       `Unsupported transfer of type ${transferEntry.transfer_type} between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
     );
     return;
   }
   if (transferEntry.from_route_id || transferEntry.to_route_id) {
-    console.warn(
+    log.warn(
       `Unsupported transfer of type ${transferEntry.transfer_type} between routes ${transferEntry.from_route_id} and ${transferEntry.to_route_id}.`,
     );
     return;
@@ -206,14 +208,14 @@ export const parseTransfers = async (
     }
 
     if (!transferEntry.from_stop_id || !transferEntry.to_stop_id) {
-      console.warn(`Missing transfer origin or destination stop.`);
+      log.warn(`Missing transfer origin or destination stop.`);
       continue;
     }
     const fromStop = stopsMap.get(transferEntry.from_stop_id);
     const toStop = stopsMap.get(transferEntry.to_stop_id);
 
     if (!fromStop || !toStop) {
-      console.warn(
+      log.warn(
         `Transfer references non-existent stop(s): from_stop_id=${transferEntry.from_stop_id}, to_stop_id=${transferEntry.to_stop_id}`,
       );
       continue;

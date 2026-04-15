@@ -1,3 +1,5 @@
+import log from 'loglevel';
+
 import {
   Latitude,
   LocationType,
@@ -68,7 +70,7 @@ export const parseStops = async (
     if (stop.parentSourceId) {
       const parentStop = parsedStops.get(stop.parentSourceId);
       if (!parentStop) {
-        console.warn(
+        log.warn(
           `Cannot find parent stop ${stop.parentSourceId} of ${sourceStopId}`,
         );
         continue;

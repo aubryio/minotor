@@ -13,6 +13,7 @@ import { Router, StopsIndex, Timetable } from '../router.js';
 import {
   loadQueriesFromJson,
   prettyPrintPerformanceResults,
+  testBestRoutePerformance,
   testRouterPerformance,
 } from './perf.js';
 import { startRepl } from './repl.js';
@@ -157,13 +158,20 @@ program
       const router = new Router(timetable, stopsIndex);
 
       const queries = loadQueriesFromJson(routesPath, stopsIndex);
-      const performanceResults = testRouterPerformance(
+      const iterations = parseInt(options.iterations, 10);
+
+      const routerResults = testRouterPerformance(router, queries, iterations);
+      prettyPrintPerformanceResults(routerResults, 'Router Performance');
+
+      const bestRouteResults = testBestRoutePerformance(
         router,
         queries,
-        parseInt(options.iterations, 10),
+        iterations,
       );
-
-      prettyPrintPerformanceResults(performanceResults);
+      prettyPrintPerformanceResults(
+        bestRouteResults,
+        'bestRoute Performance (reconstruction only)',
+      );
     },
   );
 

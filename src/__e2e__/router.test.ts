@@ -135,12 +135,12 @@ const routes = [
       },
       {
         from: '8503000:0:34',
-        to: '8503000:0:11',
+        to: '8503000:0:10',
         type: 'REQUIRES_MINIMAL_TIME',
         minTransferTime: 7,
       },
       {
-        from: '8503000:0:11',
+        from: '8503000:0:10',
         to: '8509002:0:2',
         departure: '10:07',
         arrival: '11:11',
@@ -158,6 +158,71 @@ const routes = [
         departure: '11:20',
         arrival: '12:27',
         route: { type: 'RAIL', name: 'RE13' },
+      },
+    ],
+  },
+  {
+    from: 'Parent8504100',
+    to: 'Parent8504749',
+    at: '09:00',
+    route: [
+      {
+        from: '8504100:0:2',
+        to: '8504086:0:2',
+        departure: '09:04',
+        arrival: '09:40',
+        route: {
+          type: 'RAIL',
+          name: 'RE3',
+        },
+      },
+      {
+        from: '8504086:0:2',
+        to: '8504086:0:4',
+        type: 'REQUIRES_MINIMAL_TIME',
+        minTransferTime: 3,
+      },
+      {
+        from: '8504086:0:4',
+        to: '8504077:0:2',
+        departure: '09:50',
+        arrival: '09:57',
+        route: {
+          type: 'RAIL',
+          name: 'S50',
+        },
+      },
+      {
+        from: '8504077:0:2',
+        to: '8577737:0:B',
+        type: 'REQUIRES_MINIMAL_TIME',
+        minTransferTime: 2,
+      },
+      {
+        from: '8577737:0:B',
+        to: '8504880:0:10000',
+        departure: '10:33',
+        arrival: '10:44',
+        route: {
+          type: 'BUS',
+          name: '263',
+        },
+      },
+      {
+        from: '8504880:0:10000',
+        to: '8530024',
+        type: 'REQUIRES_MINIMAL_TIME',
+        minTransferTime: 2,
+      },
+      {
+        from: '8530024',
+        to: '8504749',
+        departure: '11:00',
+        arrival: '11:05',
+        route: {
+          type: 'FUNICULAR',
+          name: 'FUN',
+        },
       },
     ],
   },
