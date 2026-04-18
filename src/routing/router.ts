@@ -294,12 +294,8 @@ export class Router {
     const earliestArrivalAtAnyDestination =
       this.earliestArrivalAtAnyStop(routingState);
 
-    // Cache route-level constants used on every iteration.
     const nbStops = route.getNbStops();
     const routeId = route.id;
-
-    // Active-trip state as plain locals: avoids allocating a TripStop object on
-    // every boarding and lets V8 keep these values in registers.
     let activeTripIndex: TripRouteIndex | undefined;
     let activeTripBoardStopIndex = hopOnStopIndex;
     // tripStopOffset = activeTripIndex * nbStops, precomputed when the trip changes.
