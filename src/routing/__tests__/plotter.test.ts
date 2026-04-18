@@ -10,45 +10,9 @@ import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
 import { Plotter } from '../plotter.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingEdge, RoutingState, UNREACHED_TIME } from '../router.js';
+import { RoutingState } from '../router.js';
 
 const NB_STOPS = 3;
-
-function makeRound(
-  entries: [number, RoutingEdge][],
-): (RoutingEdge | undefined)[] {
-  const round = new Array<RoutingEdge | undefined>(NB_STOPS);
-  for (const [stopId, edge] of entries) {
-    round[stopId] = edge;
-  }
-  return round;
-}
-
-/**
- * Builds a RoutingState instance from test fixtures.
- * Replaces the old plain-object pattern now that RoutingState is a class.
- */
-function makeRoutingState(
-  origins: number[],
-  destinations: number[],
-  arrivals: [number, number, number][],
-  graph: (RoutingEdge | undefined)[][],
-): RoutingState {
-  const state = new RoutingState(origins, destinations, 0, NB_STOPS);
-  // Undo the constructor's initialization of origin arrivals so that stops
-  // not explicitly listed in `arrivals` stay at UNREACHED_TIME.
-  for (const origin of origins) {
-    state.updateArrival(origin, UNREACHED_TIME, 0);
-  }
-  // Apply the test-specific arrivals.
-  for (const [stopId, time, leg] of arrivals) {
-    state.updateArrival(stopId, time, leg);
-  }
-  // Replace the graph entirely (splice mutates the array in-place, preserving
-  // the readonly reference required by the RoutingState class).
-  state.graph.splice(0, state.graph.length, ...graph);
-  return state;
-}
 
 describe('Plotter', () => {
   const stop1: Stop = {
@@ -112,7 +76,7 @@ describe('Plotter', () => {
     it('should generate valid DOT graph structure', () => {
       const result = new Result(
         mockQuery,
-        makeRoutingState([], [], [], []),
+        RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -127,11 +91,14 @@ describe('Plotter', () => {
     });
 
     it('should include station nodes', () => {
-      const graph = [makeRound([[0, { arrival: timeFromHMS(8, 0, 0) }]])];
-
       const result = new Result(
         mockQuery,
-        makeRoutingState([0], [0], [], graph),
+        RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          origins: [0],
+          destinations: [0],
+          graph: [[[0, { arrival: timeFromHMS(8, 0, 0) }]]],
+        }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -147,7 +114,7 @@ describe('Plotter', () => {
     it('should handle empty graph gracefully', () => {
       const result = new Result(
         mockQuery,
-        makeRoutingState([], [], [], []),
+        RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -172,11 +139,15 @@ describe('Plotter', () => {
       };
 
       const specialStopsIndex = new StopsIndex([stop1, stop2, specialStop]);
-      const graph = [makeRound([[2, { arrival: timeFromHMS(8, 0, 0) }]])];
 
       const result = new Result(
         mockQuery,
-        makeRoutingState([2], [2], [], graph),
+        RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          origins: [2],
+          destinations: [2],
+          graph: [[[2, { arrival: timeFromHMS(8, 0, 0) }]]],
+        }),
         specialStopsIndex,
         mockTimetable,
       );
@@ -194,37 +165,40 @@ describe('Plotter', () => {
     });
 
     it('should use correct colors', () => {
-      const graph = [
-        makeRound([[0, { arrival: timeFromHMS(8, 0, 0) }]]),
-        makeRound([
-          [
-            1,
-            {
-              stopIndex: 0,
-              hopOffStopIndex: 1,
-              arrival: timeFromHMS(8, 30, 0),
-              routeId: 0,
-              tripIndex: 0,
-            },
-          ],
-        ]),
-        makeRound([
-          [
-            1,
-            {
-              from: 0,
-              to: 1,
-              arrival: timeFromHMS(8, 45, 0),
-              type: 'RECOMMENDED',
-              minTransferTime: 5,
-            },
-          ],
-        ]),
-      ];
-
       const result = new Result(
         mockQuery,
-        makeRoutingState([0], [1], [], graph),
+        RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          origins: [0],
+          destinations: [1],
+          graph: [
+            [[0, { arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
+            [
+              [
+                1,
+                {
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                  arrival: timeFromHMS(8, 30, 0),
+                  routeId: 0,
+                  tripIndex: 0,
+                },
+              ],
+            ], // round 1 – vehicle leg
+            [
+              [
+                1,
+                {
+                  from: 0,
+                  to: 1,
+                  arrival: timeFromHMS(8, 45, 0),
+                  type: 'RECOMMENDED',
+                  minTransferTime: 5,
+                },
+              ],
+            ], // round 2 – transfer
+          ],
+        }),
         mockStopsIndex,
         mockTimetable,
       );

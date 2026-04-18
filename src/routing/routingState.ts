@@ -40,11 +40,6 @@ export type Arrival = {
 
 /**
  * Encapsulates all mutable state for a single RAPTOR routing query.
- *
- * Arrival times and leg numbers are kept in flat typed arrays indexed by stop ID,
- * giving O(1) access without any hash-map overhead in the hot route-scanning loops.
- * The graph records, per round, the best edge used to reach each stop, enabling
- * full journey reconstruction once the algorithm has finished.
  */
 export class RoutingState {
   /** Origin stop IDs for this query. */
@@ -63,14 +58,16 @@ export class RoutingState {
   /**
    * Earliest arrival time at each stop (minutes from midnight), indexed by stop ID.
    * Pre-filled with UNREACHED_TIME; updated exclusively through updateArrival().
+   * Not readonly so that fromTestData() can replace the arrays directly.
    */
-  private readonly earliestArrivalTimes: Uint16Array;
+  private earliestArrivalTimes: Uint16Array;
 
   /**
    * Round number (leg count) in which each stop was first reached, indexed by stop ID.
    * Zero-initialised by the typed array; updated exclusively through updateArrival().
+   * Not readonly so that fromTestData() can replace the arrays directly.
    */
-  private readonly earliestArrivalLegs: Uint8Array;
+  private earliestArrivalLegs: Uint8Array;
 
   /**
    * Initialises the routing state for a fresh query.
@@ -107,11 +104,7 @@ export class RoutingState {
     this.graph = [graph0];
   }
 
-  // -------------------------------------------------------------------------
-  // Accessors
-  // -------------------------------------------------------------------------
-
-  /** Total number of stops in the timetable (length of the internal arrays). */
+  /** Total number of stops in the timetable */
   get nbStops(): number {
     return this.earliestArrivalTimes.length;
   }
@@ -124,15 +117,9 @@ export class RoutingState {
     return this.earliestArrivalTimes[stop]!;
   }
 
-  // -------------------------------------------------------------------------
-  // Mutations
-  // -------------------------------------------------------------------------
-
   /**
-   * Atomically records a new earliest arrival at a stop.
-   *
-   * Both the arrival time and the leg number are always written together so
-   * the two arrays never fall out of sync.
+   * Records a new earliest arrival at a stop.
+
    *
    * @param stop The stop that was reached.
    * @param time The arrival time in minutes from midnight.
@@ -143,20 +130,70 @@ export class RoutingState {
     this.earliestArrivalLegs[stop] = leg;
   }
 
-  // -------------------------------------------------------------------------
-  // Path reconstruction helpers (not called in the hot scanning loop)
-  // -------------------------------------------------------------------------
-
   /**
    * Returns the earliest arrival at a stop as an {@link Arrival} object,
    * or undefined if the stop has not been reached.
-   *
-   * Intended for use during path reconstruction in {@link Result}, not inside
-   * the performance-critical route-scanning loop.
    */
   getArrival(stop: StopId): Arrival | undefined {
     const time = this.earliestArrivalTimes[stop]!;
     if (time >= UNREACHED_TIME) return undefined;
     return { arrival: time, legNumber: this.earliestArrivalLegs[stop]! };
+  }
+
+  /**
+   * Creates a {@link RoutingState} from fully-specified raw data.
+   *
+   * Use this in tests instead of constructing the object through the production
+   * constructor, which is designed for incremental algorithm state.
+   *
+   * @param nbStops  Total number of stops (sets array sizes).
+   * @param origins  Origin stop IDs.
+   * @param destinations  Destination stop IDs.
+   * @param arrivals  Each entry is `[stop, time, leg]` — the earliest arrival
+   *                  time in minutes and the round number for one stop.
+   * @param graph  One element per round. Each round is a sparse list of
+   *               `[stop, edge]` pairs; stops absent from the list are
+   *               left as `undefined` in the dense output array.
+   *
+   * @internal For use in tests only.
+   */
+  static fromTestData({
+    nbStops,
+    origins = [],
+    destinations = [],
+    arrivals = [],
+    graph = [],
+  }: {
+    nbStops: number;
+    origins?: StopId[];
+    destinations?: StopId[];
+    arrivals?: [stop: StopId, time: Time, leg: number][];
+    graph?: [stop: StopId, edge: RoutingEdge][][];
+  }): RoutingState {
+    const state = new RoutingState(origins, destinations, 0, nbStops);
+
+    // Replace the arrival arrays with freshly built ones so the constructor's
+    // origin-seeding doesn't bleed into the test state.
+    const earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
+    const earliestArrivalLegs = new Uint8Array(nbStops);
+    for (const [stop, time, leg] of arrivals) {
+      earliestArrivalTimes[stop] = time;
+      earliestArrivalLegs[stop] = leg;
+    }
+    state.earliestArrivalTimes = earliestArrivalTimes;
+    state.earliestArrivalLegs = earliestArrivalLegs;
+
+    // Convert the sparse per-round representation to dense arrays and replace
+    // the graph in-place.
+    const denseRounds = graph.map((round) => {
+      const arr = new Array<RoutingEdge | undefined>(nbStops);
+      for (const [stop, edge] of round) {
+        arr[stop] = edge;
+      }
+      return arr;
+    });
+    state.graph.splice(0, state.graph.length, ...denseRounds);
+
+    return state;
   }
 }
