@@ -241,7 +241,7 @@ export class Plotter {
     isOrigin: boolean;
     isDestination: boolean;
   } {
-    const isOrigin = this.result.routingState.graph[0]?.has(stopId) ?? false;
+    const isOrigin = this.result.routingState.graph[0]?.[stopId] !== undefined;
     const isDestination =
       this.result.routingState.destinations.includes(stopId);
     return { isOrigin, isDestination };
@@ -423,10 +423,11 @@ export class Plotter {
     const stations = new Set<StopId>();
     const graph = this.result.routingState.graph;
 
-    for (const roundMap of graph) {
-      for (const [stopId, edge] of roundMap) {
+    for (const roundEdges of graph) {
+      for (let stopId = 0; stopId < roundEdges.length; stopId++) {
+        const edge = roundEdges[stopId];
+        if (edge === undefined) continue;
         stations.add(stopId);
-
         if (isVehicleEdge(edge)) {
           const fromStopId = this.getVehicleEdgeFromStopId(edge);
           const toStopId = this.getVehicleEdgeToStopId(edge);
@@ -471,15 +472,17 @@ export class Plotter {
     const graph = this.result.routingState.graph;
 
     for (let round = 0; round < graph.length; round++) {
-      const roundMap = graph[round];
-      if (!roundMap) continue;
+      const roundEdges = graph[round];
+      if (!roundEdges) continue;
 
       // Skip round 0 as it contains only origin nodes
       if (round === 0) {
         continue;
       }
 
-      for (const edge of roundMap.values()) {
+      for (let stopId = 0; stopId < roundEdges.length; stopId++) {
+        const edge = roundEdges[stopId];
+        if (edge === undefined) continue;
         if (isVehicleEdge(edge)) {
           edges.push(...this.createVehicleEdge(edge, round));
 

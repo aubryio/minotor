@@ -2,6 +2,7 @@ import { Timetable } from '../router.js';
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RawPickUpDropOffType } from '../timetable/route.js';
+import { Time } from '../timetable/time.js';
 import { Query } from './query.js';
 import { Leg, Route, Transfer, VehicleLeg } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
@@ -93,36 +94,35 @@ export class Result {
 
     // Find the fastest-reached destination across all equivalent stops.
     let fastestDestination: StopId | undefined = undefined;
-    let fastestTime: Arrival | undefined = undefined;
+    let fastestArrivalTime: Time | undefined = undefined;
+    let fastestLegNumber: number | undefined = undefined;
     for (const sourceDestination of destinationIterable) {
       const equivalentStops =
         this.stopsIndex.equivalentStops(sourceDestination);
       for (const destination of equivalentStops) {
-        const arrivalTime = this.routingState.earliestArrivals.get(
-          destination.id,
-        );
-        if (arrivalTime !== undefined) {
-          if (
-            fastestTime === undefined ||
-            arrivalTime.arrival < fastestTime.arrival
-          ) {
-            fastestDestination = destination.id;
-            fastestTime = arrivalTime;
-          }
+        const arrivalData = this.routingState.getArrival(destination.id);
+        if (
+          arrivalData !== undefined &&
+          (fastestArrivalTime === undefined ||
+            arrivalData.arrival < fastestArrivalTime)
+        ) {
+          fastestDestination = destination.id;
+          fastestArrivalTime = arrivalData.arrival;
+          fastestLegNumber = arrivalData.legNumber;
         }
       }
     }
-    if (!fastestDestination || !fastestTime) {
+    if (fastestDestination === undefined || fastestLegNumber === undefined) {
       return undefined;
     }
 
     // Reconstruct the path by walking backwards through the routing graph.
     const route: Leg[] = [];
     let currentStop = fastestDestination;
-    let round = fastestTime.legNumber;
+    let round = fastestLegNumber;
     let previousVehicleEdge: VehicleEdge | undefined;
     while (round > 0) {
-      const edge = this.routingState.graph[round]?.get(currentStop);
+      const edge = this.routingState.graph[round]?.[currentStop];
       if (!edge) {
         throw new Error(
           `No edge arriving at stop ${currentStop} at round ${round}`,
@@ -290,15 +290,17 @@ export class Result {
 
     for (const equivalentStop of equivalentStops) {
       let arrivalTime;
-      if (maxTransfers === undefined) {
-        arrivalTime = this.routingState.earliestArrivals.get(equivalentStop.id);
+      if (
+        maxTransfers === undefined ||
+        this.routingState.getArrival(equivalentStop.id)?.legNumber ===
+          maxTransfers + 1
+      ) {
+        arrivalTime = this.routingState.getArrival(equivalentStop.id);
       } else {
         // We have no guarantee that the stop was visited in the last round,
         // so we need to check all rounds if it's not found in the last one.
         for (let i = maxTransfers + 1; i >= 0; i--) {
-          const arrivalEdge = this.routingState.graph[i]?.get(
-            equivalentStop.id,
-          );
+          const arrivalEdge = this.routingState.graph[i]?.[equivalentStop.id];
           if (arrivalEdge !== undefined) {
             arrivalTime = {
               arrival: arrivalEdge.arrival,

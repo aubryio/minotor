@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { Timetable } from '../../router.js';
-import { Stop, StopId } from '../../stops/stops.js';
+import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
@@ -10,7 +10,9 @@ import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
 import { Plotter } from '../plotter.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingEdge } from '../router.js';
+import { RoutingState } from '../router.js';
+
+const NB_STOPS = 3;
 
 describe('Plotter', () => {
   const stop1: Stop = {
@@ -74,11 +76,7 @@ describe('Plotter', () => {
     it('should generate valid DOT graph structure', () => {
       const result = new Result(
         mockQuery,
-        {
-          earliestArrivals: new Map(),
-          graph: [],
-          destinations: [],
-        },
+        RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -93,17 +91,14 @@ describe('Plotter', () => {
     });
 
     it('should include station nodes', () => {
-      const graph: Map<StopId, RoutingEdge>[] = [
-        new Map([[0, { arrival: timeFromHMS(8, 0, 0) }]]),
-      ];
-
       const result = new Result(
         mockQuery,
-        {
-          earliestArrivals: new Map(),
-          graph,
+        RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          origins: [0],
           destinations: [0],
-        },
+          graph: [[[0, { arrival: timeFromHMS(8, 0, 0) }]]],
+        }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -119,11 +114,7 @@ describe('Plotter', () => {
     it('should handle empty graph gracefully', () => {
       const result = new Result(
         mockQuery,
-        {
-          earliestArrivals: new Map(),
-          graph: [],
-          destinations: [],
-        },
+        RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -148,17 +139,15 @@ describe('Plotter', () => {
       };
 
       const specialStopsIndex = new StopsIndex([stop1, stop2, specialStop]);
-      const graph: Map<StopId, RoutingEdge>[] = [
-        new Map([[2, { arrival: timeFromHMS(8, 0, 0) }]]),
-      ];
 
       const result = new Result(
         mockQuery,
-        {
-          earliestArrivals: new Map(),
-          graph,
+        RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          origins: [2],
           destinations: [2],
-        },
+          graph: [[[2, { arrival: timeFromHMS(8, 0, 0) }]]],
+        }),
         specialStopsIndex,
         mockTimetable,
       );
@@ -176,41 +165,40 @@ describe('Plotter', () => {
     });
 
     it('should use correct colors', () => {
-      const graph: Map<StopId, RoutingEdge>[] = [
-        new Map([[0, { arrival: timeFromHMS(8, 0, 0) }]]),
-        new Map([
-          [
-            1,
-            {
-              stopIndex: 0,
-              hopOffStopIndex: 1,
-              arrival: timeFromHMS(8, 30, 0),
-              routeId: 0,
-              tripIndex: 0,
-            },
-          ],
-        ]),
-        new Map([
-          [
-            1,
-            {
-              from: 0,
-              to: 1,
-              arrival: timeFromHMS(8, 45, 0),
-              type: 'RECOMMENDED',
-              minTransferTime: 5,
-            },
-          ],
-        ]),
-      ];
-
       const result = new Result(
         mockQuery,
-        {
-          earliestArrivals: new Map(),
-          graph,
+        RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          origins: [0],
           destinations: [1],
-        },
+          graph: [
+            [[0, { arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
+            [
+              [
+                1,
+                {
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                  arrival: timeFromHMS(8, 30, 0),
+                  routeId: 0,
+                  tripIndex: 0,
+                },
+              ],
+            ], // round 1 – vehicle leg
+            [
+              [
+                1,
+                {
+                  from: 0,
+                  to: 1,
+                  arrival: timeFromHMS(8, 45, 0),
+                  type: 'RECOMMENDED',
+                  minTransferTime: 5,
+                },
+              ],
+            ], // round 2 – transfer
+          ],
+        }),
         mockStopsIndex,
         mockTimetable,
       );
