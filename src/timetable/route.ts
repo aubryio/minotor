@@ -269,6 +269,53 @@ export class Route {
   }
 
   /**
+   * Computes the per-trip base offset used by the hot-path scanning methods.
+   *
+   * Cache the result once when boarding a new trip and pass it to
+   * {@link arrivalAtOffset} and {@link dropOffTypeAtOffset} throughout the
+   * scanning loop to avoid recomputing `tripIndex × nbStops` on every stop.
+   *
+   * @param tripIndex - The index of the trip.
+   * @returns `tripIndex × nbStops`.
+   */
+  tripStopOffset(tripIndex: TripRouteIndex): number {
+    return tripIndex * this.nbStops;
+  }
+
+  /**
+   * Hot-path variant of {@link arrivalAt} that accepts a precomputed base offset.
+   *
+   * @param stopIndex - The index of the stop in the route.
+   * @param offset    - Precomputed value from {@link tripStopOffset}.
+   * @returns The arrival time at the specified stop.
+   */
+  arrivalAtOffset(stopIndex: StopRouteIndex, offset: number): Time {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.stopTimes[(offset + stopIndex) * 2]!;
+  }
+
+  /**
+   * Hot-path variant of {@link dropOffTypeAt} that accepts a precomputed base offset.
+   *
+   * @param stopIndex - The index of the stop in the route.
+   * @param offset    - Precomputed value from {@link tripStopOffset}.
+   * @returns The drop-off type at the specified stop.
+   */
+  dropOffTypeAtOffset(
+    stopIndex: StopRouteIndex,
+    offset: number,
+  ): RawPickUpDropOffType {
+    const globalIndex = offset + stopIndex;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const byte = this.pickupDropOffTypes[globalIndex >> 1]!;
+    // Bit layout per byte (two pairs): [pickup_1(2)][dropOff_1(2)][pickup_0(2)][dropOff_0(2)]
+    // First pair  → drop-off in lower 2 bits; second pair → drop-off in bits 4-5.
+    return (
+      globalIndex & 1 ? (byte >> 4) & 0x03 : byte & 0x03
+    ) as RawPickUpDropOffType;
+  }
+
+  /**
    * Retrieves the departure time at a specific stop for a given trip.
    *
    * @param stopIndex - The index of the stop in the route.
