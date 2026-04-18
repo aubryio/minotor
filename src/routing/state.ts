@@ -131,6 +131,32 @@ export class RoutingState {
   }
 
   /**
+   * Iterates over every stop that has been reached, yielding its stop ID,
+   * earliest arrival time, and the number of legs taken to reach it.
+   *
+   * Unreached stops (those still at UNREACHED_TIME) are skipped entirely.
+   *
+   * @example
+   * ```ts
+   * for (const { stop, arrival, legNumber } of routingState.arrivals()) {
+   *   console.log(`Stop ${stop}: arrived at ${arrival} after ${legNumber} leg(s)`);
+   * }
+   * ```
+   */
+  *arrivals(): Generator<{ stop: StopId; arrival: Time; legNumber: number }> {
+    for (let stop = 0; stop < this.earliestArrivalTimes.length; stop++) {
+      const time = this.earliestArrivalTimes[stop]!;
+      if (time < UNREACHED_TIME) {
+        yield {
+          stop,
+          arrival: time,
+          legNumber: this.earliestArrivalLegs[stop]!,
+        };
+      }
+    }
+  }
+
+  /**
    * Returns the earliest arrival at a stop as an {@link Arrival} object,
    * or undefined if the stop has not been reached.
    */
