@@ -169,6 +169,13 @@ export class Timetable {
   }
 
   /**
+   * Returns the total number of stops in the timetable.
+   */
+  nbStops(): number {
+    return this.stopsAdjacency.length;
+  }
+
+  /**
    * Retrieves the route associated with the given route ID.
    *
    * @param routeId - The ID of the route to be retrieved.
