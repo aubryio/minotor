@@ -276,24 +276,27 @@ export class Timetable {
     transportModes: Set<RouteType> = ALL_TRANSPORT_MODES,
   ): Map<Route, StopRouteIndex> {
     const reachableRoutes = new Map<Route, StopRouteIndex>();
-    const fromStopsArray = Array.from(fromStops);
-    for (let i = 0; i < fromStopsArray.length; i++) {
-      const originStop = fromStopsArray[i]!;
-      const validRoutes = this.routesPassingThrough(originStop).filter(
-        (route) => {
-          const serviceRoute = this.getServiceRouteInfo(route);
-          return transportModes.has(serviceRoute.type);
-        },
-      );
-      for (let j = 0; j < validRoutes.length; j++) {
-        const route = validRoutes[j]!;
-        const originStopIndices = route.stopRouteIndices(originStop);
-        const originStopIndex = originStopIndices[0]!;
+    // Skip the per-route mode check entirely when all modes are allowed,
+    // which is the common case.
+    const filterByMode = transportModes !== ALL_TRANSPORT_MODES;
 
+    for (const originStop of fromStops) {
+      const stopData = this.stopsAdjacency[originStop];
+      if (!stopData) continue;
+
+      for (let i = 0; i < stopData.routes.length; i++) {
+        const route = this.routesAdjacency[stopData.routes[i]!];
+        if (!route) continue;
+
+        if (filterByMode) {
+          const serviceRoute = this.serviceRoutes[route.serviceRoute()];
+          if (!serviceRoute || !transportModes.has(serviceRoute.type)) continue;
+        }
+
+        const originStopIndex = route.stopRouteIndices(originStop)[0]!;
         const existingHopOnStopIndex = reachableRoutes.get(route);
         if (existingHopOnStopIndex !== undefined) {
           if (originStopIndex < existingHopOnStopIndex) {
-            // if the current stop is before the existing hop on stop, replace it
             reachableRoutes.set(route, originStopIndex);
           }
         } else {
@@ -325,12 +328,17 @@ export class Timetable {
     if (!guaranteedTransfers) {
       return false;
     }
-    return guaranteedTransfers.some(
-      (transfer) =>
+    for (let i = 0; i < guaranteedTransfers.length; i++) {
+      const transfer = guaranteedTransfers[i]!;
+      if (
         transfer.stopIndex === toTripStop.stopIndex &&
         transfer.routeId === toTripStop.routeId &&
-        transfer.tripIndex === toTripStop.tripIndex,
-    );
+        transfer.tripIndex === toTripStop.tripIndex
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
