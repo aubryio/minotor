@@ -22,7 +22,7 @@ import {
   TransferEdge,
   UNREACHED_TIME,
   VehicleEdge,
-} from './routingState.js';
+} from './state.js';
 
 export type {
   Arrival,
@@ -30,8 +30,8 @@ export type {
   RoutingEdge,
   TransferEdge,
   VehicleEdge,
-} from './routingState.js';
-export { RoutingState, UNREACHED_TIME } from './routingState.js';
+} from './state.js';
+export { RoutingState, UNREACHED_TIME } from './state.js';
 
 type TripContinuation = TripStop & {
   previousEdge: VehicleEdge;

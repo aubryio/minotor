@@ -64,13 +64,13 @@ export class RoutingState {
 
   /**
    * Round number (leg count) in which each stop was first reached, indexed by stop ID.
-   * Zero-initialised by the typed array; updated exclusively through updateArrival().
+   * Zero-initialized by the typed array; updated exclusively through updateArrival().
    * Not readonly so that fromTestData() can replace the arrays directly.
    */
   private earliestArrivalLegs: Uint8Array;
 
   /**
-   * Initialises the routing state for a fresh query.
+   * Initializes the routing state for a fresh query.
    *
    * All stops start as unreached. Each origin is immediately recorded at the
    * departure time with leg number 0, and a corresponding OriginNode is placed
@@ -91,7 +91,7 @@ export class RoutingState {
     this.destinations = destinations;
 
     const earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
-    const earliestArrivalLegs = new Uint8Array(nbStops); // zero-initialised = leg 0
+    const earliestArrivalLegs = new Uint8Array(nbStops); // zero-initialized = leg 0
     const graph0 = new Array<RoutingEdge | undefined>(nbStops);
 
     for (const stop of origins) {

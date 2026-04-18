@@ -290,7 +290,11 @@ export class Result {
 
     for (const equivalentStop of equivalentStops) {
       let arrivalTime;
-      if (maxTransfers === undefined) {
+      if (
+        maxTransfers === undefined ||
+        this.routingState.getArrival(equivalentStop.id)?.legNumber ===
+          maxTransfers + 1
+      ) {
         arrivalTime = this.routingState.getArrival(equivalentStop.id);
       } else {
         // We have no guarantee that the stop was visited in the last round,
