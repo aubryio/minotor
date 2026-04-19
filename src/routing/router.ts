@@ -121,8 +121,13 @@ export class Router {
       .map((s) => s.id);
 
     // Widen to stops reachable by an initial walk so we don't miss trips that
-    // depart from a nearby stop within the window.
-    const boardingStops = this.collectBoardingStops(originStops);
+    // depart from a nearby stop within the window.  Walk times are preserved
+    // so that collectDepartureTimes can shift each stop's search window and
+    // convert back to origin departure times correctly.
+    const boardingStops = this.collectBoardingStops(
+      originStops,
+      query.options.minTransferTime,
+    );
 
     // All actual trip departure times in [earliest, latest], latest-first.
     // Iterating over real trip times (not every minute) keeps the outer loop
@@ -312,10 +317,6 @@ export class Router {
       if (markedStops.size === 0) break;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
 
   /**
    * Finds trip continuations for the given marked stops and edges at the current round.
@@ -729,35 +730,43 @@ export class Router {
   }
 
   /**
-   * Collects all actual trip departure times from the given stops within the
-   * window `[from, to]` (inclusive), sorted **latest-first**.
+   * Collects all actual trip **origin departure times** within `[from, to]`
+   * (inclusive), sorted **latest-first**.
    *
-   * Enumerating real trip times (rather than every minute) keeps the Range
-   * RAPTOR outer loop tight: at most one RAPTOR run per distinct departure.
-   * The binary search in `Route.findEarliestTrip` makes each stop/route pair
-   * O(log trips + trips_in_window).
+   * For each boarding stop with walk time `w`, a trip departing that stop at
+   * `dep` is reachable from the origin at `dep − w`.  The search window for
+   * that stop is therefore shifted to `[from + w, to + w]`, and each
+   * candidate is stored as `dep − w` (the origin departure time).
    *
-   * @param boardingStops Stops to collect departure times from.
-   * @param from Earliest departure time (inclusive).
-   * @param to Latest departure time (inclusive).
+   * This ensures the outer Range RAPTOR loop runs exactly once per distinct
+   * origin departure time, with no over- or under-counting of walk legs.
+   *
+   * @param boardingStops Origin stops paired with their walk time from the origin.
+   * @param from Earliest origin departure time (inclusive).
+   * @param to Latest origin departure time (inclusive).
    */
   private collectDepartureTimes(
-    boardingStops: StopId[],
+    boardingStops: Array<{ stopId: StopId; walkTime: Duration }>,
     from: Time,
     to: Time,
   ): Time[] {
     const times = new Set<Time>();
-    for (const stopId of boardingStops) {
+    for (const { stopId, walkTime } of boardingStops) {
+      // Trips from this stop must depart in [from + walkTime, to + walkTime]
+      // so that the corresponding origin departure (dep - walkTime) falls in
+      // [from, to].
+      const searchFrom = from + walkTime;
+      const searchTo = to + walkTime;
       for (const route of this.timetable.routesPassingThrough(stopId)) {
         for (const stopIndex of route.stopRouteIndices(stopId)) {
-          let tripIndex = route.findEarliestTrip(stopIndex, from);
+          let tripIndex = route.findEarliestTrip(stopIndex, searchFrom);
           if (tripIndex === undefined) continue;
           const nbTrips = route.getNbTrips();
           while (tripIndex < nbTrips) {
             const dep = route.departureFrom(stopIndex, tripIndex);
-            if (dep > to) break;
+            if (dep > searchTo) break;
             if (route.pickUpTypeFrom(stopIndex, tripIndex) !== NOT_AVAILABLE) {
-              times.add(dep);
+              times.add(dep - walkTime);
             }
             tripIndex++;
           }
@@ -769,25 +778,43 @@ export class Router {
   }
 
   /**
-   * Returns the union of `origins` and all stops reachable from them by a
-   * single walking transfer (non-IN_SEAT).
+   * Returns every stop that can be boarded at the start of a journey:
+   * the origin stops themselves (walk time 0) plus every stop reachable from
+   * them by a single walking transfer (non-IN_SEAT), paired with the walk time.
    *
-   * Including walking-reachable stops in the departure-time enumeration
-   * ensures we do not miss trips that depart from a stop adjacent to the
-   * origin but not from the origin stop itself.
+   * Walk times drive the window shift in {@link collectDepartureTimes}: a trip
+   * at a walking-reachable stop is only useful if its departure minus the walk
+   * time falls inside the query window.
    *
-   * @param origins Origin stop IDs.
+   * When a stop is reachable via multiple origins, the shortest walk time is
+   * kept so that the widest set of trips is considered.
+   *
+   * @param origins Origin stop IDs (walk time = 0).
+   * @param fallbackMinTransferTime Transfer time used when a walking transfer
+   *   has no explicit `minTransferTime` in the timetable data.
    */
-  private collectBoardingStops(origins: StopId[]): StopId[] {
-    const stops = new Set<StopId>(origins);
+  private collectBoardingStops(
+    origins: StopId[],
+    fallbackMinTransferTime: Duration,
+  ): Array<{ stopId: StopId; walkTime: Duration }> {
+    const stops = new Map<StopId, Duration>();
     for (const origin of origins) {
+      if (!stops.has(origin)) stops.set(origin, DURATION_ZERO);
       for (const transfer of this.timetable.getTransfers(origin)) {
         if (transfer.type !== 'IN_SEAT') {
-          stops.add(transfer.destination);
+          const walkTime = transfer.minTransferTime ?? fallbackMinTransferTime;
+          const existing = stops.get(transfer.destination);
+          // Keep the shortest walk to maximise the set of reachable trips.
+          if (existing === undefined || walkTime < existing) {
+            stops.set(transfer.destination, walkTime);
+          }
         }
       }
     }
-    return Array.from(stops);
+    return Array.from(stops.entries()).map(([stopId, walkTime]) => ({
+      stopId,
+      walkTime,
+    }));
   }
 
   /**
