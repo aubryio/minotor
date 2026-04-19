@@ -14,7 +14,9 @@ import {
   TIME_ORIGIN,
 } from '../timetable/time.js';
 import { Timetable, TripStop } from '../timetable/timetable.js';
-import { Query, QueryOptions } from './query.js';
+import { Query, QueryOptions, RangeQuery } from './query.js';
+import { ParetoRun, RangeResult } from './rangeResult.js';
+import { RangeRaptorSharedState } from './rangeState.js';
 import { Result } from './result.js';
 import {
   RoutingEdge,
@@ -24,6 +26,8 @@ import {
   VehicleEdge,
 } from './state.js';
 
+export type { ParetoRun } from './rangeResult.js';
+export { RangeResult } from './rangeResult.js';
 export type {
   Arrival,
   OriginNode,
@@ -40,10 +44,16 @@ type TripContinuation = TripStop & {
 type Round = number;
 
 /**
- * A public transportation router implementing the RAPTOR algorithm.
- * For more information on the RAPTOR algorithm,
- * refer to its detailed explanation in the research paper:
- * https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
+ * A public transportation router implementing the RAPTOR and Range RAPTOR
+ * algorithms.
+ *
+ * - `route(query)` — standard RAPTOR: finds the earliest-arrival journey for
+ *   a single departure time.
+ * - `rangeRoute(query)` — Range RAPTOR: finds all Pareto-optimal journeys
+ *   within a departure-time window, sharing round-specific labels across
+ *   iterations to avoid redundant work.
+ *
+ * @see https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
  */
 export class Router {
   private readonly timetable: Timetable;
@@ -54,49 +64,210 @@ export class Router {
     this.stopsIndex = stopsIndex;
   }
 
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
   /**
-   * The main Raptor algorithm implementation.
+   * Standard RAPTOR: finds the earliest-arrival journey from `query.from` to
+   * `query.to` for the given departure time.
    *
-   * @param query The query containing the main parameters for the routing.
-   * @returns A result object containing data structures allowing to reconstruct routes and .
+   * @param query The routing query.
+   * @returns A {@link Result} that can reconstruct the best route and arrival times.
    */
   route(query: Query): Result {
     const routingState = this.initRoutingState(query);
+    this.runRaptor(query, routingState);
+    return new Result(query, routingState, this.stopsIndex, this.timetable);
+  }
+
+  /**
+   * Range RAPTOR: finds all Pareto-optimal journeys within the departure-time
+   * window `[query.departureTime, query.lastDepartureTime]`.
+   *
+   * Requires a {@link RangeQuery} — a {@link Query} whose `lastDepartureTime`
+   * is guaranteed to be set.  Build one with the query builder and narrow it
+   * via {@link isRangeQuery} or a one-time `as RangeQuery` cast:
+   *
+   * ```ts
+   * const q = new Query.Builder()
+   *   .from(stop).to(dest)
+   *   .departureTime(earliest)
+   *   .lastDepartureTime(latest)
+   *   .build() as RangeQuery;
+   *
+   * const result = router.rangeRoute(q);
+   * result.paretoOptimalRoutes();
+   * ```
+   *
+   * Iterations run from the **latest** departure to the **earliest**, sharing
+   * round-specific arrival-time labels (`τk(p)`) across iterations.  Each
+   * label τk(p) carries the best known arrival at stop `p` using at most `k`
+   * transit legs from any departure time tried so far, providing tight pruning
+   * for subsequent (earlier) iterations without reinitialising the state.
+   *
+   * A journey is Pareto-optimal iff no journey departing no earlier arrives no
+   * later.  Runs are ordered latest-departure-first in the returned result.
+   *
+   * @param query A {@link RangeQuery} with both `departureTime` and `lastDepartureTime` set.
+   * @returns A {@link RangeResult} exposing the full Pareto frontier.
+   */
+  rangeRoute(query: RangeQuery): RangeResult {
+    const { departureTime: earliest, lastDepartureTime: latest } = query;
+
+    // Origin stops (equivalents of query.from).
+    const originStops = this.stopsIndex
+      .equivalentStops(query.from)
+      .map((s) => s.id);
+
+    // Widen to stops reachable by an initial walk so we don't miss trips that
+    // depart from a nearby stop within the window.
+    const boardingStops = this.collectBoardingStops(originStops);
+
+    // All actual trip departure times in [earliest, latest], latest-first.
+    // Iterating over real trip times (not every minute) keeps the outer loop
+    // tight: at most one RAPTOR run per distinct departure time.
+    const departureTimes = this.collectDepartureTimes(
+      boardingStops,
+      earliest,
+      latest,
+    );
+    if (departureTimes.length === 0) return new RangeResult([], query);
+
+    const maxRounds = query.options.maxTransfers + 1;
+
+    // Shared τk(p) labels — the core of Range RAPTOR.
+    // Never reset between iterations; only improved (lowered) in place.
+    const shared = new RangeRaptorSharedState(
+      maxRounds,
+      this.timetable.nbStops(),
+    );
+
+    const paretoRuns: ParetoRun[] = [];
+    // Tracks the best destination arrival that justified adding a run to the
+    // Pareto front.  A new run is Pareto-optimal iff it strictly beats this.
+    let paretoDestBest: Time = UNREACHED_TIME;
+
+    for (const depTime of departureTimes) {
+      // Per-run query: same options, different departure time.
+      const runQuery = new Query.Builder()
+        .from(query.from)
+        .to(query.to)
+        .departureTime(depTime)
+        .maxTransfers(query.options.maxTransfers)
+        .minTransferTime(query.options.minTransferTime)
+        .transportModes(query.options.transportModes)
+        .build();
+
+      // Fresh edge graph for journey reconstruction.
+      // The shared labels provide cross-run pruning; this graph records which
+      // specific trips and transfers were used in *this* run.
+      const routingState = this.initRoutingState(runQuery);
+
+      // Seed the shared round-0 labels with this run's departure time.
+      // Since we iterate latest→earliest, depTime is ≤ any previously seen
+      // departure, so tryImprove always succeeds (or is a harmless no-op for
+      // a repeated time).
+      for (const origin of routingState.origins) {
+        shared.tryImprove(0, origin, depTime);
+        // Edge case: origin is also a destination (from = to).
+        if (routingState.isDestination(origin)) {
+          shared.improveDestinationBest(depTime);
+        }
+      }
+
+      this.runRaptor(runQuery, routingState, shared);
+
+      // A run is Pareto-optimal iff it found a strictly better destination
+      // arrival than any run with a later departure time.
+      const runDestBest = this.earliestArrivalAtAnyStop(routingState);
+      if (runDestBest < paretoDestBest) {
+        paretoDestBest = runDestBest;
+        paretoRuns.push({
+          departureTime: depTime,
+          result: new Result(
+            runQuery,
+            routingState,
+            this.stopsIndex,
+            this.timetable,
+          ),
+        });
+      }
+    }
+
+    return new RangeResult(paretoRuns, query);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Core algorithm
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Executes the RAPTOR algorithm for a single departure time.
+   *
+   * When `shared` is provided (Range RAPTOR mode), the improvement guards in
+   * all scan methods use `shared.get(round, stop)` — the round-specific label
+   * that carries over from previous departure-time iterations — instead of the
+   * local global minimum `τ*(p)`.  This is the key correctness requirement
+   * from the Range RAPTOR paper: using `τ*(p)` would incorrectly prevent a
+   * round from setting its own label, breaking the boarding logic for later
+   * rounds.
+   *
+   * @param query        The routing query for this run.
+   * @param routingState Fresh per-run state (edge graph for reconstruction).
+   * @param shared       Optional shared state for Range RAPTOR mode.
+   */
+  private runRaptor(
+    query: Query,
+    routingState: RoutingState,
+    shared?: RangeRaptorSharedState,
+  ): void {
     const markedStops = new Set<StopId>(routingState.origins);
-    // Initial transfer consideration for origins
-    const newlyMarkedStops = this.considerTransfers(
+
+    // Initial walk transfers from origins (round 0).
+    const newlyMarkedAfterWalk = this.considerTransfers(
       query,
       0,
       markedStops,
       routingState,
+      shared,
     );
-    for (const newStop of newlyMarkedStops) {
-      markedStops.add(newStop);
+    for (const stop of newlyMarkedAfterWalk) {
+      markedStops.add(stop);
     }
+
     for (let round = 1; round <= query.options.maxTransfers + 1; round++) {
+      // Range RAPTOR: propagate the best labels from round k-1 into round k
+      // before scanning routes.  This ensures the improvement guard for round
+      // k accounts for stops reachable with fewer legs from any earlier run.
+      shared?.initRound(round);
+
       const edgesAtCurrentRound: (RoutingEdge | undefined)[] = new Array<
         RoutingEdge | undefined
       >(routingState.nbStops);
       routingState.graph.push(edgesAtCurrentRound);
+
       const reachableRoutes = this.timetable.findReachableRoutes(
         markedStops,
         query.options.transportModes,
       );
       markedStops.clear();
-      // for each route that can be reached with at least round - 1 trips
+
       for (const [route, hopOnStopIndex] of reachableRoutes) {
-        const newlyMarkedStops = this.scanRoute(
+        const newlyMarked = this.scanRoute(
           route,
           hopOnStopIndex,
           round,
           routingState,
           query.options,
+          shared,
         );
-        for (const newStop of newlyMarkedStops) {
-          markedStops.add(newStop);
+        for (const stop of newlyMarked) {
+          markedStops.add(stop);
         }
       }
-      // process in-seat trip continuations
+
+      // Process in-seat trip continuations.
       let continuations = this.findTripContinuations(
         markedStops,
         edgesAtCurrentRound,
@@ -106,39 +277,45 @@ export class Router {
         stopsFromContinuations.clear();
         for (const continuation of continuations) {
           const route = this.timetable.getRoute(continuation.routeId)!;
-          const routeScanResults = this.scanRouteContinuation(
+          const results = this.scanRouteContinuation(
             route,
             continuation.stopIndex,
             round,
             routingState,
             continuation,
+            shared,
           );
-          for (const newStop of routeScanResults) {
-            stopsFromContinuations.add(newStop);
+          for (const stop of results) {
+            stopsFromContinuations.add(stop);
           }
         }
-        for (const newStop of stopsFromContinuations) {
-          markedStops.add(newStop);
+        for (const stop of stopsFromContinuations) {
+          markedStops.add(stop);
         }
         continuations = this.findTripContinuations(
           stopsFromContinuations,
           edgesAtCurrentRound,
         );
       }
-      const newlyMarkedStops = this.considerTransfers(
+
+      const newlyMarkedAfterTransfers = this.considerTransfers(
         query,
         round,
         markedStops,
         routingState,
+        shared,
       );
-      for (const newStop of newlyMarkedStops) {
-        markedStops.add(newStop);
+      for (const stop of newlyMarkedAfterTransfers) {
+        markedStops.add(stop);
       }
 
       if (markedStops.size === 0) break;
     }
-    return new Result(query, routingState, this.stopsIndex, this.timetable);
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   /**
    * Finds trip continuations for the given marked stops and edges at the current round.
@@ -212,6 +389,7 @@ export class Router {
    * @param round The current RAPTOR round
    * @param routingState Current routing state
    * @param tripContinuation The in-seat continuation descriptor
+   * @param shared Optional shared state for Range RAPTOR mode
    */
   private scanRouteContinuation(
     route: Route,
@@ -219,11 +397,12 @@ export class Router {
     round: Round,
     routingState: RoutingState,
     tripContinuation: TripContinuation,
+    shared?: RangeRaptorSharedState,
   ): Set<StopId> {
     const newlyMarkedStops = new Set<StopId>();
     const edgesAtCurrentRound = routingState.graph[round]!;
     const earliestArrivalAtAnyDestination =
-      this.earliestArrivalAtAnyStop(routingState);
+      shared?.destinationBest ?? this.earliestArrivalAtAnyStop(routingState);
 
     const nbStops = route.getNbStops();
     const routeId = route.id;
@@ -245,11 +424,18 @@ export class Router {
         currentStopIndex,
         tripStopOffset,
       );
-      const earliestArrivalAtCurrentStop =
+
+      // In Range RAPTOR mode: compare against the round-specific shared label
+      // τk(p), not the global minimum τ*(p).  Using τ*(p) would incorrectly
+      // prevent this round from recording its own label (needed for round k+1
+      // boarding) when a different round already has a better time.
+      const improvementBound =
+        shared?.get(round, currentStop) ??
         routingState.arrivalTime(currentStop);
+
       if (
         dropOffType !== NOT_AVAILABLE &&
-        arrivalTime < earliestArrivalAtCurrentStop &&
+        arrivalTime < improvementBound &&
         arrivalTime < earliestArrivalAtAnyDestination
       ) {
         edgesAtCurrentRound[currentStop] = {
@@ -262,6 +448,13 @@ export class Router {
         };
         routingState.updateArrival(currentStop, arrivalTime, round);
         newlyMarkedStops.add(currentStop);
+
+        if (shared) {
+          shared.tryImprove(round, currentStop, arrivalTime);
+          if (routingState.isDestination(currentStop)) {
+            shared.improveDestinationBest(arrivalTime);
+          }
+        }
       }
     }
     return newlyMarkedStops;
@@ -280,6 +473,7 @@ export class Router {
    * @param round The current RAPTOR round
    * @param routingState Current routing state
    * @param options Query options (minTransferTime, etc.)
+   * @param shared Optional shared state for Range RAPTOR mode
    */
   private scanRoute(
     route: Route,
@@ -287,12 +481,17 @@ export class Router {
     round: Round,
     routingState: RoutingState,
     options: QueryOptions,
+    shared?: RangeRaptorSharedState,
   ): Set<StopId> {
     const newlyMarkedStops = new Set<StopId>();
     const edgesAtCurrentRound = routingState.graph[round]!;
     const edgesAtPreviousRound = routingState.graph[round - 1]!;
+
+    // Destination pruning: skip arrivals that cannot beat the best known
+    // destination time.  In Range RAPTOR mode this uses the cross-run shared
+    // bound (tighter); in standard mode it uses the current-run local minimum.
     const earliestArrivalAtAnyDestination =
-      this.earliestArrivalAtAnyStop(routingState);
+      shared?.destinationBest ?? this.earliestArrivalAtAnyStop(routingState);
 
     const nbStops = route.getNbStops();
     const routeId = route.id;
@@ -319,11 +518,17 @@ export class Router {
           currentStopIndex,
           activeTripStopOffset,
         );
-        const earliestArrivalAtCurrentStop =
+
+        // Improvement guard: use the round-specific shared label in Range RAPTOR
+        // mode (never τ*(p) = min over all rounds), or the local global minimum
+        // in standard RAPTOR mode.
+        const improvementBound =
+          shared?.get(round, currentStop) ??
           routingState.arrivalTime(currentStop);
+
         if (
           dropOffType !== NOT_AVAILABLE &&
-          arrivalTime < earliestArrivalAtCurrentStop &&
+          arrivalTime < improvementBound &&
           arrivalTime < earliestArrivalAtAnyDestination
         ) {
           edgesAtCurrentRound[currentStop] = {
@@ -335,10 +540,22 @@ export class Router {
           };
           routingState.updateArrival(currentStop, arrivalTime, round);
           newlyMarkedStops.add(currentStop);
+
+          if (shared) {
+            shared.tryImprove(round, currentStop, arrivalTime);
+            if (routingState.isDestination(currentStop)) {
+              shared.improveDestinationBest(arrivalTime);
+            }
+          }
         }
       }
 
       // Check whether we can board an earlier (or first) trip at this stop.
+      // The boarding check always uses the *current run's* previous-round edge,
+      // never the shared label.  This is intentional: any boarding opportunity
+      // that only exists via a shared label (from a previous iteration's
+      // arrival at this stop) would lead to a journey dominated by that earlier
+      // iteration, so skipping it is both correct and efficient.
       const previousEdge = edgesAtPreviousRound[currentStop];
       const earliestArrivalOnPreviousRound = previousEdge?.arrival;
       if (
@@ -441,13 +658,16 @@ export class Router {
    *
    * @param query The routing query containing transfer options and constraints
    * @param round The current round number in the RAPTOR algorithm
+   * @param markedStops The set of currently marked stops
    * @param routingState The current routing state containing arrival times and marked stops
+   * @param shared Optional shared state for Range RAPTOR mode
    */
   private considerTransfers(
     query: Query,
     round: number,
     markedStops: Set<StopId>,
     routingState: RoutingState,
+    shared?: RangeRaptorSharedState,
   ): Set<StopId> {
     const { options } = query;
     const arrivalsAtCurrentRound = routingState.graph[round]!;
@@ -469,8 +689,15 @@ export class Router {
           transferTime = options.minTransferTime;
         }
         const arrivalAfterTransfer = currentArrival.arrival + transferTime;
-        const originalArrival = routingState.arrivalTime(transfer.destination);
-        if (arrivalAfterTransfer < originalArrival) {
+
+        // In Range RAPTOR mode, compare against the round-specific shared label
+        // for this stop and round.  In standard mode, compare against the
+        // current-run global minimum.
+        const improvementBound =
+          shared?.get(round, transfer.destination) ??
+          routingState.arrivalTime(transfer.destination);
+
+        if (arrivalAfterTransfer < improvementBound) {
           arrivalsAtCurrentRound[transfer.destination] = {
             arrival: arrivalAfterTransfer,
             from: stop,
@@ -484,10 +711,83 @@ export class Router {
             round,
           );
           newlyMarkedStops.add(transfer.destination);
+
+          if (shared) {
+            shared.tryImprove(
+              round,
+              transfer.destination,
+              arrivalAfterTransfer,
+            );
+            if (routingState.isDestination(transfer.destination)) {
+              shared.improveDestinationBest(arrivalAfterTransfer);
+            }
+          }
         }
       }
     }
     return newlyMarkedStops;
+  }
+
+  /**
+   * Collects all actual trip departure times from the given stops within the
+   * window `[from, to]` (inclusive), sorted **latest-first**.
+   *
+   * Enumerating real trip times (rather than every minute) keeps the Range
+   * RAPTOR outer loop tight: at most one RAPTOR run per distinct departure.
+   * The binary search in `Route.findEarliestTrip` makes each stop/route pair
+   * O(log trips + trips_in_window).
+   *
+   * @param boardingStops Stops to collect departure times from.
+   * @param from Earliest departure time (inclusive).
+   * @param to Latest departure time (inclusive).
+   */
+  private collectDepartureTimes(
+    boardingStops: StopId[],
+    from: Time,
+    to: Time,
+  ): Time[] {
+    const times = new Set<Time>();
+    for (const stopId of boardingStops) {
+      for (const route of this.timetable.routesPassingThrough(stopId)) {
+        for (const stopIndex of route.stopRouteIndices(stopId)) {
+          let tripIndex = route.findEarliestTrip(stopIndex, from);
+          if (tripIndex === undefined) continue;
+          const nbTrips = route.getNbTrips();
+          while (tripIndex < nbTrips) {
+            const dep = route.departureFrom(stopIndex, tripIndex);
+            if (dep > to) break;
+            if (route.pickUpTypeFrom(stopIndex, tripIndex) !== NOT_AVAILABLE) {
+              times.add(dep);
+            }
+            tripIndex++;
+          }
+        }
+      }
+    }
+    // Sort descending so the outer loop processes latest departures first.
+    return Array.from(times).sort((a, b) => b - a);
+  }
+
+  /**
+   * Returns the union of `origins` and all stops reachable from them by a
+   * single walking transfer (non-IN_SEAT).
+   *
+   * Including walking-reachable stops in the departure-time enumeration
+   * ensures we do not miss trips that depart from a stop adjacent to the
+   * origin but not from the origin stop itself.
+   *
+   * @param origins Origin stop IDs.
+   */
+  private collectBoardingStops(origins: StopId[]): StopId[] {
+    const stops = new Set<StopId>(origins);
+    for (const origin of origins) {
+      for (const transfer of this.timetable.getTransfers(origin)) {
+        if (transfer.type !== 'IN_SEAT') {
+          stops.add(transfer.destination);
+        }
+      }
+    }
+    return Array.from(stops);
   }
 
   /**

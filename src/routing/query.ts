@@ -8,11 +8,17 @@ export type QueryOptions = {
   transportModes: Set<RouteType>;
 };
 
+/**
+ * A routing query for standard RAPTOR.
+ *
+ * Finds the earliest-arrival journey from `from` to `to` for a single
+ * departure time.  Use {@link RangeQuery} (and `router.rangeRoute()`) when
+ * you want all Pareto-optimal journeys within a departure-time window.
+ */
 export class Query {
   from: StopId;
   to: Set<StopId>;
   departureTime: Time;
-  lastDepartureTime?: Time;
   options: QueryOptions;
 
   constructor(builder: typeof Query.Builder.prototype) {
@@ -45,7 +51,8 @@ export class Query {
     }
 
     /**
-     * Sets the destination stops(s), routing will stop when all the provided stops are reached.
+     * Sets the destination stop(s).
+     * Routing stops as soon as all provided stops have been reached.
      */
     to(to: StopId | Set<StopId>): this {
       this.toValue = to instanceof Set ? to : new Set([to]);
@@ -53,9 +60,8 @@ export class Query {
     }
 
     /**
-     * Sets the departure time for the query as minutes since midnight.
-     * Note that the router will favor routes that depart shortly after the provided departure time,
-     * even if a later route might arrive at the same time.
+     * Sets the departure time in minutes from midnight.
+     * The router favours trips departing shortly after this time.
      */
     departureTime(departureTime: Time): this {
       this.departureTimeValue = departureTime;
@@ -71,8 +77,8 @@ export class Query {
     }
 
     /**
-     * Sets the minimum transfer time (in minutes)
-     * to use when no transfer time is provided in the data.
+     * Sets the fallback minimum transfer time (in minutes) used when the
+     * timetable data does not specify one for a particular transfer.
      */
     minTransferTime(minTransferTime: Duration): this {
       this.optionsValue.minTransferTime = minTransferTime;
@@ -80,7 +86,7 @@ export class Query {
     }
 
     /**
-     * Sets the transport modes to consider.
+     * Restricts routing to the given transport modes.
      */
     transportModes(transportModes: Set<RouteType>): this {
       this.optionsValue.transportModes = transportModes;
@@ -89,6 +95,67 @@ export class Query {
 
     build(): Query {
       return new Query(this);
+    }
+  };
+}
+
+/**
+ * A routing query for Range RAPTOR.
+ *
+ * Extends {@link Query} with a required `lastDepartureTime` that defines the
+ * upper bound of the departure-time window.  `router.rangeRoute()` returns
+ * all Pareto-optimal journeys departing in
+ * `[departureTime, lastDepartureTime]`.
+ *
+ * Build one with {@link RangeQuery.Builder}, which inherits every method from
+ * {@link Query.Builder} and adds `lastDepartureTime()`:
+ *
+ * ```ts
+ * const q = new RangeQuery.Builder()
+ *   .from(stop)
+ *   .to(dest)
+ *   .departureTime(earliest)
+ *   .lastDepartureTime(latest)
+ *   .maxTransfers(3)
+ *   .build();
+ *
+ * const result = router.rangeRoute(q);
+ * result.paretoOptimalRoutes();
+ * ```
+ */
+export class RangeQuery extends Query {
+  /** Upper bound of the departure-time window (minutes from midnight). */
+  readonly lastDepartureTime: Time;
+
+  constructor(builder: typeof RangeQuery.Builder.prototype) {
+    super(builder);
+    this.lastDepartureTime = builder.lastDepartureTimeValue;
+  }
+
+  /**
+   * Builder for {@link RangeQuery}.
+   *
+   * Inherits all methods from {@link Query.Builder} — `from()`, `to()`,
+   * `departureTime()`, `maxTransfers()`, `minTransferTime()`,
+   * `transportModes()` — and adds `lastDepartureTime()`.  The `build()`
+   * method is overridden to return a {@link RangeQuery}.
+   */
+  static Builder = class extends Query.Builder {
+    lastDepartureTimeValue!: Time;
+
+    /**
+     * Sets the upper bound of the departure-time window.
+     *
+     * The router will find all Pareto-optimal journeys departing between
+     * `departureTime` (earliest) and `lastDepartureTime` (latest).
+     */
+    lastDepartureTime(time: Time): this {
+      this.lastDepartureTimeValue = time;
+      return this;
+    }
+
+    build(): RangeQuery {
+      return new RangeQuery(this);
     }
   };
 }

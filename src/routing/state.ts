@@ -70,6 +70,12 @@ export class RoutingState {
   private earliestArrivalLegs: Uint8Array;
 
   /**
+   * Fast O(1) membership test for destination stops.
+   * Built once at construction time from the `destinations` array.
+   */
+  private readonly destinationSet: Set<StopId>;
+
+  /**
    * Initializes the routing state for a fresh query.
    *
    * All stops start as unreached. Each origin is immediately recorded at the
@@ -89,6 +95,7 @@ export class RoutingState {
   ) {
     this.origins = origins;
     this.destinations = destinations;
+    this.destinationSet = new Set(destinations);
 
     const earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
     const earliestArrivalLegs = new Uint8Array(nbStops); // zero-initialized = leg 0
@@ -164,6 +171,14 @@ export class RoutingState {
     const time = this.earliestArrivalTimes[stop]!;
     if (time >= UNREACHED_TIME) return undefined;
     return { arrival: time, legNumber: this.earliestArrivalLegs[stop]! };
+  }
+
+  /**
+   * Returns `true` if `stop` is one of the query's destination stops.
+   * O(1) — backed by a `Set` built at construction time.
+   */
+  isDestination(stop: StopId): boolean {
+    return this.destinationSet.has(stop);
   }
 
   /**
