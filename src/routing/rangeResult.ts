@@ -31,7 +31,8 @@ export type ArrivalWithDuration = Arrival & {
  * The result of a Range RAPTOR query.
  *
  * Contains the complete Pareto-optimal set of journeys for a resolved
- * destination set.
+ * destination set, **or** the full per-departure-time routing state when no
+ * destinations were provided (full-network / isochrone mode).
  *
  * **Pareto dominance**: journey J1 dominates J2 iff
  *   `τdep(J1) ≥ τdep(J2)  AND  τarr(J1) ≤ τarr(J2)`
@@ -40,6 +41,15 @@ export type ArrivalWithDuration = Arrival & {
  * Runs are ordered **latest-departure-first**: each successive run departs
  * strictly earlier *and* arrives strictly earlier than the previous one,
  * forming the classic staircase Pareto frontier.
+ *
+ * **Full-network mode** (empty `destinations`): when no destinations are
+ * supplied to the range query every departure slot in the window becomes its
+ * own run, because destination-based Pareto pruning cannot be applied.
+ * In this mode the destination-specific helpers ({@link getRoutes},
+ * {@link bestRoute}, {@link latestDepartureRoute}, {@link fastestRoute})
+ * return empty results; use {@link allEarliestArrivals},
+ * {@link allShortestDurations}, {@link earliestArrivalAt}, or
+ * {@link shortestDurationTo} instead.
  *
  * Destination handling is delegated to {@link Result}, which expands
  * equivalent stops when reconstructing routes or looking up arrivals.
@@ -70,6 +80,10 @@ export class RangeResult {
    *
    * Each route in the list departs strictly earlier *and* arrives strictly
    * earlier than its predecessor.
+   *
+   * Returns an empty array when no destinations were provided (full-network
+   * mode). Use {@link allEarliestArrivals} or {@link allShortestDurations}
+   * to query individual stops in that case.
    */
   getRoutes(): Route[] {
     const routes: Route[] = [];
@@ -89,6 +103,8 @@ export class RangeResult {
    * at a transit stop.
    *
    * Defaults to this result's own destination stop(s) when `to` is omitted.
+   * Always pass an explicit `to` stop when operating in full-network mode
+   * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
    * @returns The reconstructed {@link Route} with the earliest arrival,
@@ -124,6 +140,8 @@ export class RangeResult {
    * {@link fastestRoute}.
    *
    * Defaults to this result's own destination stop(s) when `to` is omitted.
+   * Always pass an explicit `to` stop when operating in full-network mode
+   * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
    * @returns The reconstructed {@link Route} with the latest departure,
@@ -148,6 +166,8 @@ export class RangeResult {
    * spent traveling.
    *
    * Defaults to this result's own destination stop(s) when `to` is omitted.
+   * Always pass an explicit `to` stop when operating in full-network mode
+   * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
    * @returns The reconstructed fastest {@link Route}, or `undefined` if the

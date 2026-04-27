@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { Timetable } from '../../router.js';
-import { Stop } from '../../stops/stops.js';
+import { Stop, StopId } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
@@ -268,6 +268,91 @@ describe('RangeResult', () => {
       assert.strictEqual(empty.shortestDurationTo(DEST), undefined);
       assert.deepStrictEqual(empty.allShortestDurations(), new Map());
       assert.deepStrictEqual(empty.allEarliestArrivals(), new Map());
+    });
+  });
+
+  describe('no destinations (full-network / isochrone mode)', () => {
+    // Same routing data as runA/runB but Result is built with empty destinations,
+    // reflecting how RangeRouter constructs results in full-network mode.
+    const emptyDests = new Set<StopId>();
+
+    const runAFull: ParetoRun = {
+      departureTime: timeFromHM(9, 0),
+      result: new Result(
+        emptyDests,
+        RoutingState.fromTestData({
+          nbStops: 2,
+          origins: [0],
+          destinations: [],
+          arrivals: [
+            [0, timeFromHM(9, 0), 0],
+            [DEST, timeFromHM(9, 30), 1],
+          ],
+          graph: [
+            [[0, { stopId: 0, arrival: timeFromHM(9, 0) }]],
+            [[DEST, edgeA]],
+          ],
+        }),
+        stopsIndex,
+        timetable,
+      ),
+    };
+
+    const runBFull: ParetoRun = {
+      departureTime: timeFromHM(8, 30),
+      result: new Result(
+        emptyDests,
+        RoutingState.fromTestData({
+          nbStops: 2,
+          origins: [0],
+          destinations: [],
+          arrivals: [
+            [0, timeFromHM(8, 30), 0],
+            [DEST, timeFromHM(9, 10), 1],
+          ],
+          graph: [
+            [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
+            [[DEST, edgeB]],
+          ],
+        }),
+        stopsIndex,
+        timetable,
+      ),
+    };
+
+    const fullNetworkResult = new RangeResult([runAFull, runBFull], emptyDests);
+
+    it('destinations is empty', () => {
+      assert.strictEqual(fullNetworkResult.destinations.size, 0);
+    });
+
+    it('getRoutes returns an empty array', () => {
+      // Result was built with empty destinations, so bestRoute() on each inner
+      // Result finds no target and getRoutes() collapses to [].
+      assert.deepStrictEqual(fullNetworkResult.getRoutes(), []);
+    });
+
+    it('bestRoute without an explicit stop returns undefined', () => {
+      assert.strictEqual(fullNetworkResult.bestRoute(), undefined);
+    });
+
+    it('bestRoute with an explicit stop returns the correct route', () => {
+      const route = fullNetworkResult.bestRoute(DEST);
+      assert(route);
+      // Best route to DEST is via runB (earlier arrival at 09:10).
+      assert.strictEqual(route.arrivalTime(), timeFromHM(9, 10));
+    });
+
+    it('allEarliestArrivals covers all reachable stops', () => {
+      const arrivals = fullNetworkResult.allEarliestArrivals();
+      // DEST earliest arrival is 09:10 (from runB).
+      assert.strictEqual(arrivals.get(DEST)?.arrival, timeFromHM(9, 10));
+    });
+
+    it('allShortestDurations covers all reachable stops', () => {
+      const durations = fullNetworkResult.allShortestDurations();
+      // runA: 30 min, runB: 40 min → shortest duration to DEST is 30 min.
+      assert.strictEqual(durations.get(DEST)?.duration, 30);
     });
   });
 });
