@@ -45,6 +45,8 @@ export class RangeRouter {
       .flatMap((destination) => this.stopsIndex.equivalentStops(destination))
       .map((destination) => destination.id);
 
+    const noDestinations = destinations.length === 0;
+
     const accessLegs = this.accessFinder.collectAccessPaths(
       query.from,
       query.options.minTransferTime,
@@ -99,15 +101,19 @@ export class RangeRouter {
         },
         rangeState,
       );
-      for (const dest of destinations) {
-        const t = routingState.arrivalTime(dest);
-        if (t < (paretoDestBest.get(dest) ?? UNREACHED_TIME))
-          paretoDestBest.set(dest, t);
+      if (!noDestinations) {
+        for (const dest of destinations) {
+          const t = routingState.arrivalTime(dest);
+          if (t < (paretoDestBest.get(dest) ?? UNREACHED_TIME))
+            paretoDestBest.set(dest, t);
+        }
       }
     }
 
     for (const { depTime, legs } of departureSlots) {
-      if (trivialDestCovered.size === destinations.length) break;
+      if (!noDestinations && trivialDestCovered.size === destinations.length) {
+        break;
+      }
 
       if (routingState === null) {
         routingState = new RoutingState(
@@ -129,23 +135,25 @@ export class RangeRouter {
         rangeState,
       );
 
-      let isParetoOptimal = false;
-      for (const dest of destinations) {
-        const arrival = routingState.arrivalTime(dest);
-        if (arrival >= (paretoDestBest.get(dest) ?? UNREACHED_TIME)) {
-          continue;
-        }
+      let isParetoOptimal = noDestinations;
+      if (!noDestinations) {
+        for (const dest of destinations) {
+          const arrival = routingState.arrivalTime(dest);
+          if (arrival >= (paretoDestBest.get(dest) ?? UNREACHED_TIME)) {
+            continue;
+          }
 
-        if (trivialDests.has(dest) && trivialDestCovered.has(dest)) {
+          if (trivialDests.has(dest) && trivialDestCovered.has(dest)) {
+            paretoDestBest.set(dest, arrival);
+            continue;
+          }
+
           paretoDestBest.set(dest, arrival);
-          continue;
+          if (trivialDests.has(dest)) {
+            trivialDestCovered.add(dest);
+          }
+          isParetoOptimal = true;
         }
-
-        paretoDestBest.set(dest, arrival);
-        if (trivialDests.has(dest)) {
-          trivialDestCovered.add(dest);
-        }
-        isParetoOptimal = true;
       }
 
       if (isParetoOptimal) {

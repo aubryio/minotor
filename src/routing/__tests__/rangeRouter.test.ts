@@ -12,6 +12,7 @@ import {
 } from '../../timetable/timetable.js';
 import { AccessFinder } from '../access.js';
 import { RangeQuery } from '../query.js';
+import { RangeResult } from '../rangeResult.js';
 import { RangeRouter } from '../rangeRouter.js';
 import { Raptor } from '../raptor.js';
 
@@ -467,6 +468,134 @@ describe('RangeRouter', () => {
       const [run] = result;
       assert(run);
       assert.strictEqual(run.departureTime, timeFromHM(8, 30));
+    });
+  });
+
+  describe('with no destinations (full-network / isochrone mode)', () => {
+    // Two-stop network, two trips:
+    //   trip 0: stop 0 departs 08:00 → stop 1 arrives 08:30  (30-min journey)
+    //   trip 1: stop 0 departs 08:30 → stop 1 arrives 09:00  (30-min journey)
+    // The query window covers both departure slots; no destination is specified.
+    let result: RangeResult;
+
+    beforeEach(() => {
+      const stopsAdjacency: StopAdjacency[] = [
+        { routes: [0] },
+        { routes: [0] },
+      ];
+
+      const routesAdjacency = [
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 0),
+                },
+                {
+                  id: 1,
+                  arrivalTime: timeFromHM(8, 30),
+                  departureTime: timeFromHM(8, 30),
+                },
+              ],
+            },
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: timeFromHM(8, 30),
+                  departureTime: timeFromHM(8, 30),
+                },
+                {
+                  id: 1,
+                  arrivalTime: timeFromHM(9, 0),
+                  departureTime: timeFromHM(9, 0),
+                },
+              ],
+            },
+          ],
+        }),
+      ];
+
+      const serviceRoutes: ServiceRoute[] = [
+        { type: 'BUS', name: 'Line 1', routes: [0] },
+      ];
+
+      const timetable = new Timetable(
+        stopsAdjacency,
+        routesAdjacency,
+        serviceRoutes,
+      );
+
+      const stops: Stop[] = [
+        {
+          id: 0,
+          sourceStopId: 'origin',
+          name: 'Origin',
+          lat: 0,
+          lon: 0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+        {
+          id: 1,
+          sourceStopId: 'dest',
+          name: 'Destination',
+          lat: 0,
+          lon: 0,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ];
+
+      const stopsIndex = new StopsIndex(stops);
+      const accessFinder = new AccessFinder(timetable, stopsIndex);
+      const raptor = new Raptor(timetable);
+      const router = new RangeRouter(
+        timetable,
+        stopsIndex,
+        accessFinder,
+        raptor,
+      );
+
+      // Omitting .to() leaves toValue as its default empty Set.
+      const query = new RangeQuery.Builder()
+        .from(0)
+        .departureTime(timeFromHM(8, 0))
+        .lastDepartureTime(timeFromHM(8, 30))
+        .build();
+
+      result = router.rangeRoute(query);
+    });
+
+    it('returns a run for every departure slot in the window', () => {
+      // Without destinations the trivialDestCovered guard (0 === 0) previously
+      // aborted the loop before any run was processed; now both slots are kept.
+      assert.strictEqual(result.size, 2);
+    });
+
+    it('allEarliestArrivals covers all reachable stops', () => {
+      const arrivals = result.allEarliestArrivals();
+      // Stop 1 is first reached by trip 0 (depart 08:00, arrive 08:30).
+      assert.strictEqual(arrivals.get(1)?.arrival, timeFromHM(8, 30));
+    });
+
+    it('allShortestDurations covers all reachable stops', () => {
+      const durations = result.allShortestDurations();
+      // Both trips take 30 min; shortest duration to stop 1 is 30 min.
+      assert.strictEqual(durations.get(1)?.duration, 30);
+    });
+
+    it('bestRoute without an explicit stop returns undefined', () => {
+      assert.strictEqual(result.bestRoute(), undefined);
+    });
+
+    it('getRoutes returns an empty array', () => {
+      assert.deepStrictEqual(result.getRoutes(), []);
     });
   });
 });
