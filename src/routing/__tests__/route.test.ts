@@ -103,4 +103,32 @@ describe('Route', () => {
     const route = new Route([transferLeg]);
     assert.throws(() => route.arrivalTime(), /No vehicle leg found in route/);
   });
+
+  describe('toString', () => {
+    it('includes leg numbers, stop names, and travel details for each leg', () => {
+      const route = new Route([vehicleLeg, transferLeg, secondVehicleLeg]);
+      const str = route.toString();
+      assert(str.includes('Leg 1:'));
+      assert(str.includes('Leg 2:'));
+      assert(str.includes('Leg 3:'));
+      assert(str.includes('Stop A'));
+      assert(str.includes('Stop D'));
+      assert(str.includes('BUS Route 1'));
+      assert(str.includes('RAIL Route 2'));
+      assert(str.includes('Transfer: RECOMMENDED'));
+    });
+
+    it('includes platform info when present', () => {
+      const stopWithPlatform: Stop = {
+        ...stopA,
+        platform: '3A',
+      };
+      const legWithPlatform: VehicleLeg = {
+        ...vehicleLeg,
+        from: stopWithPlatform,
+      };
+      const route = new Route([legWithPlatform]);
+      assert(route.toString().includes('Pl. 3A'));
+    });
+  });
 });

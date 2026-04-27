@@ -10,10 +10,10 @@ Unlike most transit planners out there, **minotor** can store all the transit da
 This is particularly useful for highly dynamic applications or complex visualizations for research purposes where the user needs to query the data in real-time.
 Privacy-conscious applications where the user does not want to share their location data with a server can also benefit from this model.
 
-The transit router and the stops index of **minotor** can run in the browser, on react-native or in a Node.js environment.
-Transit data (GTFS) parsing runs on Node.js, and the resulting data is serialized as a protobuf binary that can be loaded from the router.
+The transit router and the stops index of **minotor** can run in the browser, on React Native or in a Node.js environment.
+Transit data (GTFS) parsing runs on Node.js, and the resulting data is serialized as a protobuf binary that can be loaded by the router.
 
-Minotor routing algorithm is mostly based on RAPTOR. See [Round-Based Public Transit Routing, D. Delling et al. 2012](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf).
+Minotor's routing algorithm is mostly based on RAPTOR. See [Round-Based Public Transit Routing, D. Delling et al. 2012](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf).
 
 ## Examples
 
@@ -34,15 +34,16 @@ A more complete isochrone map showcase can be found on [isochrone.ch](https://is
 ## Features
 
 - GTFS feed parsing (standard and extended)
-- Geographic and textual stops search
-- Transit routing from origin(s) stop(s) to destination(s) stop(s) at a given time
-- Computation for arrival times at all stops given a destination and start time
+- Geographic and textual stop search
+- **Point queries** — earliest-arrival journey from an origin to a destination at a given time
+- **Range queries** — all Pareto-optimal journeys within a departure-time window
+- Isochrone computation — earliest arrival times / fastest routes to every reachable stop
 
 ### Tested GTFS feeds
 
-| Feed                                                                                       | Parsing time | Timetable Size for a Day (Compressed) |
+| Feed                                                                                       | Parsing time | Timetable size for a day (compressed) |
 | ------------------------------------------------------------------------------------------ | ------------ | ------------------------------------- |
-| [Swiss GTFS feed](https://data.opentransportdata.swiss/en/dataset/timetable-2026-gtfs2020) | ~2 minutes   | 20 MB (5MB)                           |
+| [Swiss GTFS feed](https://data.opentransportdata.swiss/en/dataset/timetable-2026-gtfs2020) | ~2 minutes   | 20 MB (5 MB)                          |
 
 ## Get started
 
@@ -50,11 +51,11 @@ A more complete isochrone map showcase can be found on [isochrone.ch](https://is
 
 `npm i minotor`
 
-### Typescript API Usage example
+### TypeScript API
 
-#### GTFS Feed parsing (Node.js only)
+#### GTFS feed parsing (Node.js only)
 
-```
+```ts
 import { GtfsParser, extendedGtfsProfile } from 'minotor/parser';
 
 const parser = new GtfsParser('gtfs-feed.zip', extendedGtfsProfile);
@@ -62,87 +63,125 @@ const timetable = await parser.parseTimetable(new Date());
 const stopsIndex = await parser.parseStops();
 ```
 
-Note that times are only represented at the minute level so they can fit on 16 bits.
+Times are represented at the minute level (16-bit integers). Parsing can take a few minutes for large feeds.
 
-This operation can take a few minutes for large GTFS feeds.
+#### Stop search (browser or Node.js)
 
-#### Stop Search (Browser or Node.js)
+```ts
+// Text search (supports partial names and accents)
+const results = stopsIndex.findStopsByName('Fribourg');
 
+// Lookup by source ID from the GTFS feed
+const platform = stopsIndex.findStopBySourceStopId('8504100:0:2');
+
+// Nearest stops within 500 m
+const nearby = stopsIndex.findStopsByLocation(46.803, 7.151, 5, 0.5);
 ```
-const origins = stopsIndex.findStopsByName('Fribourg');
-const destinations = stopsIndex.findStopsByName('Moles'); // Partial name search
-```
 
-Query stops by ID:
+#### Point query (browser or Node.js)
 
-`const stopFromId = stopsIndex.findStopBySourceId('8592374:0:A');`
+Find the earliest-arrival journey departing at a specific time:
 
-Or by location:
-
-`const nearbyStops = stopsIndex.findStopsByLocation(46.80314924, 7.1510478, 5, 0.5);`
-
-#### Routing (Browser or Node.js)
-
-```
+```ts
 import { Query, Router } from 'minotor';
 
 const router = new Router(timetable, stopsIndex);
 
-const query = new Query.Builder()
-  .from('Parent8504100')
-  .to('Parent8504748')
-  .departureTime(8*60)
-  .maxTransfers(5)
-  .build();
-const result = router.route(query);
+const [origin] = stopsIndex.findStopsByName('Fribourg/Freiburg');
+const [destination] = stopsIndex.findStopsByName('Moléson-sur-Gruyères');
+
+const result = router.route(
+  new Query.Builder()
+    .from(origin.id)
+    .to(destination.id)
+    .departureTime(8 * 60 + 30) // 08:30 in minutes from midnight
+    .maxTransfers(3)
+    .build(),
+);
+
+const route = result.bestRoute(); // Route | undefined
+
+// Earliest arrival at any individual stop (useful for isochrone computation)
+const arrival = result.arrivalAt(stop.id); // { arrival: Time, legNumber: number } | undefined
 ```
 
-Get the route between origin and the closest destination (optionally provide another destination stop than the one in the query, the resulting route will be found if it's reachable before the first query destination reached).
+Query options:
 
-`const bestRoute = result.bestRoute();`
+| Option                  | Default   | Description                                                            |
+| ----------------------- | --------- | ---------------------------------------------------------------------- |
+| `maxTransfers`          | `5`       | Maximum number of transfers                                            |
+| `minTransferTime`       | `2 min`   | Fallback minimum transfer time                                         |
+| `maxInitialWaitingTime` | unlimited | Maximum wait for the first vehicle after arriving at the boarding stop |
+| `transportModes`        | all       | Restrict to a subset of GTFS route types                               |
 
-Get the arrival time to any stop (optionally provide the max number of transfers if you're interested in a lower one than the one provided in the query).
-This time will be correct for any stop reachable before the first query destination reached.
+#### Range query (browser or Node.js)
 
-`const arrivalTime = result.arrivalAt(toStop.id);`
+Find all Pareto-optimal journeys within a departure-time window — no journey in the result is dominated by another (i.e. no journey departs later _and_ arrives earlier):
 
-### CLI Usage example
+```ts
+import { RangeQuery, Router } from 'minotor';
 
-Parse GTFS data for a day and output the timetable and stops index (`minotor parse-gtfs -h` for more options):
+const rangeResult = router.rangeRoute(
+  new RangeQuery.Builder()
+    .from(origin.id)
+    .to(destination.id)
+    .departureTime(8 * 60) // window start: 08:00
+    .lastDepartureTime(10 * 60) // window end:   10:00
+    .maxTransfers(3)
+    .build(),
+);
+
+console.log(rangeResult.size); // number of Pareto-optimal journeys
+
+// Iterate runs latest-departure-first
+for (const { departureTime, result } of rangeResult) {
+  const route = result.bestRoute();
+}
+
+// Or pick a specific journey
+const earliest = rangeResult.bestRoute(); // earliest arrival
+const latest = rangeResult.latestDepartureRoute(); // latest possible departure
+const fastest = rangeResult.fastestRoute(); // shortest travel duration
+const all = rangeResult.getRoutes(); // all routes, earliest-departure-first
+
+// Earliest arrival at every reachable stop across all runs
+const arrivals = rangeResult.allEarliestArrivals(); // Map<StopId, Arrival>
+const durations = rangeResult.allShortestDurations(); // Map<StopId, DurationArrival>
+```
+
+### CLI Usage
+
+Parse GTFS data for today and save the timetable and stops index to `/tmp`:
 
 `minotor parse-gtfs gtfs_feed.zip`
 
-Note that this operation can take a few minutes for very large GTFS feeds.
-Without extra parameters it saves the timetable and stopsIndex for the current day in `/tmp` as binary protobufs.
-
-Run the REPL to query the router or the stop index (`minotor repl -h` for more options):
+Start the interactive REPL:
 
 `minotor repl`
 
-Search stops (`minotor> .find -h for more options`):
+Search stops:
 
 `minotor> .find moleson`
 
-Query routes (`minotor> .route -h for more options`):
+Query a route:
 
 `minotor> .route from fribourg to moleson at 08:00`
+
+Run `minotor parse-gtfs -h` and `minotor repl -h` for all available options.
 
 ## Development
 
 ### Requirements
 
-Make sure you have a working [node](https://nodejs.org) environment.
-
-`protoc` also needs to be available on the build system.
+A working [Node.js](https://nodejs.org) environment and `protoc`:
 
 Ubuntu: `apt install -y protobuf-compiler` |
 Fedora: `dnf install -y protobuf-compiler` |
-MacOS: `brew install protobuf`
+macOS: `brew install protobuf`
 
 ### Debugging
 
-Using the npm script `repl`, or `minotor repl` if the project is installed globally, it is possible to inspect the internals
-of the router.
+The REPL (`minotor repl`) exposes several inspection tools.
 
 #### Inspect a stop
 
@@ -154,48 +193,34 @@ of the router.
 
 #### Plot the routing graph
 
-Make sure you have `graphviz` installed.
+Requires [Graphviz](https://graphviz.org):
 
 Ubuntu: `apt install -y graphviz` |
 Fedora: `dnf install -y graphviz` |
-MacOS: `brew install graphviz`
+macOS: `brew install graphviz`
 
-`minotor> .plot from <stationId> to <stationId> at <HH:mm> [with <N> transfers] [to <graph.dot>]`
+```
+minotor> .plot from <station> to <station> at <HH:mm> [with <N> transfers] [to <graph.dot>]
+dot -Ksfdp -Tsvg graph.dot -o graph.svg
+```
 
-`dot -Ksfdp -Tsvg graph.dot -o graph.svg`
+### Scripts
 
-### Build
+| Script          | Description                                   |
+| --------------- | --------------------------------------------- |
+| `build`         | Compile to `dist/`                            |
+| `clean`         | Remove `dist/`                                |
+| `test`          | Run unit tests                                |
+| `test:coverage` | Unit tests with coverage                      |
+| `e2e`           | End-to-end tests against real Swiss GTFS data |
+| `perf`          | Performance benchmark (not in CI)             |
+| `lint`          | ESLint with auto-fix                          |
+| `format`        | Prettier with auto-fix                        |
+| `spell:check`   | Spell checker                                 |
+| `cz`            | Generate a Commitizen commit message          |
 
-- `build`: builds the project in the `dist/` directory
-- `clean`: removes the `dist/` directory
-
-### Unit Tests
-
-- `test`: runs unit tests
-- `test:coverage`: runs unit test runner with coverage reports
-
-### End-to-End Tests
-
-- `e2e`: runs end-to-end tests, using a real data from a day in the Swiss GTFS dataset
-
-### Performance Tests
-
-- `perf`: runs a basic performance test, using a real data from a day in the Swiss GTFS dataset
-
-Note that performance tests are not included in the CI pipeline and must be run manually.
-
-### Formatting & linting
-
-- `lint`: ESLint with automatic fixing
-- `format`: Prettier with automatic fixing
-- `spell:check`: Spell checker
-
-### Releasing
-
-- `cz`: generates a valid git commit message (See [Commitizen](https://github.com/commitizen/cz-cli))
-
-Releases are automatically published to npm when merging to the `main` or `beta` (pre-release) branch.
+Releases are automatically published to npm on merge to `main` (stable) or `beta` (pre-release).
 
 ## Roadmap and requests
 
-The project is under active development, use github issues for reporting bugs and requesting features. For custom development, consulting, integrations, or other special requests, feel free to contact [the author](https://aubry.io/).
+The project is under active development. Use GitHub issues for bug reports and feature requests. For custom development, consulting, integrations, or other inquiries, feel free to contact [the author](https://aubry.io/).

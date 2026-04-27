@@ -1,4 +1,4 @@
-import { Stop, StopId } from '../stops/stops.js';
+import { Stop } from '../stops/stops.js';
 import {
   Duration,
   DURATION_ZERO,
@@ -9,21 +9,6 @@ import {
 } from '../timetable/time.js';
 import { ServiceRouteInfo, TransferType } from '../timetable/timetable.js';
 
-export type JsonLeg = {
-  from: StopId;
-  to: StopId;
-} & (
-  | {
-      departure: string;
-      arrival: string;
-      route: ServiceRouteInfo;
-    }
-  | {
-      type: TransferType;
-      minTransferTime?: number;
-    }
-);
-
 export type PickUpDropOffType =
   | 'REGULAR'
   | 'NOT_AVAILABLE'
@@ -33,6 +18,10 @@ export type PickUpDropOffType =
 export type BaseLeg = {
   from: Stop;
   to: Stop;
+};
+
+export type Access = BaseLeg & {
+  duration: Duration;
 };
 
 export type Transfer = BaseLeg & {
@@ -48,7 +37,7 @@ export type VehicleLeg = BaseLeg & {
   dropOffType: PickUpDropOffType;
 };
 
-export type Leg = Transfer | VehicleLeg;
+export type Leg = Transfer | Access | VehicleLeg;
 
 /**
  * Represents a resolved route consisting of multiple legs,
@@ -68,15 +57,15 @@ export class Route {
    * @throws If no vehicle leg is found in the route.
    */
   departureTime(): Time {
-    let cumulativeTransferTime: Duration = DURATION_ZERO;
+    let cumulativeAccessTime: Duration = DURATION_ZERO;
     for (let i = 0; i < this.legs.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const leg = this.legs[i]!;
       if ('departureTime' in leg) {
-        return leg.departureTime - cumulativeTransferTime;
+        return leg.departureTime - cumulativeAccessTime;
       }
-      if ('minTransferTime' in leg && leg.minTransferTime) {
-        cumulativeTransferTime += leg.minTransferTime;
+      if ('duration' in leg && leg.duration) {
+        cumulativeAccessTime += leg.duration;
       }
     }
     throw new Error('No vehicle leg found in route');
@@ -132,6 +121,10 @@ export class Route {
           'type' in leg && !('route' in leg)
             ? `Transfer: ${leg.type}${leg.minTransferTime ? `, Minimum Transfer Time: ${durationToString(leg.minTransferTime)}` : ''}`
             : '';
+        const accessDetails =
+          'duration' in leg
+            ? `Access duration: ${durationToString(leg.duration)}`
+            : '';
         const travelDetails =
           'route' in leg && 'departureTime' in leg && 'arrivalTime' in leg
             ? `Route: ${leg.route.type} ${leg.route.name}, Departure: ${timeToString(leg.departureTime)}, Arrival: ${timeToString(leg.arrivalTime)}`
@@ -142,43 +135,12 @@ export class Route {
           `  ${fromStop}`,
           `  ${toStop}`,
           transferDetails ? `  ${transferDetails}` : '',
+          accessDetails ? `  ${accessDetails}` : '',
           travelDetails ? `  ${travelDetails}` : '',
         ]
           .filter((line) => line.trim() !== '')
           .join('\n');
       })
       .join('\n');
-  }
-
-  /**
-   * Generates a concise JSON representation of the route.
-   * This is particularly useful for generating regression tests
-   * to verify the correctness of route calculations.
-   *
-   * @returns A JSON representation of the route.
-   */
-  asJson(): JsonLeg[] {
-    const jsonLegs: JsonLeg[] = this.legs.map((leg: Leg) => {
-      if ('route' in leg) {
-        return {
-          from: leg.from.id,
-          to: leg.to.id,
-          departure: timeToString(leg.departureTime),
-          arrival: timeToString(leg.arrivalTime),
-          route: leg.route,
-        };
-      } else {
-        return {
-          from: leg.from.id,
-          to: leg.to.id,
-          type: leg.type,
-          ...(leg.minTransferTime !== undefined && {
-            minTransferTime: leg.minTransferTime,
-          }),
-        };
-      }
-    });
-
-    return jsonLegs;
   }
 }

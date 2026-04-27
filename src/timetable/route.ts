@@ -295,6 +295,18 @@ export class Route {
   }
 
   /**
+   * Hot-path variant of {@link departureFrom} that accepts a precomputed base offset.
+   *
+   * @param stopIndex - The index of the stop in the route.
+   * @param offset    - Precomputed value from {@link tripStopOffset}.
+   * @returns The departure time at the specified stop.
+   */
+  departureAtOffset(stopIndex: StopRouteIndex, offset: number): Time {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return this.stopTimes[(offset + stopIndex) * 2 + 1]!;
+  }
+
+  /**
    * Hot-path variant of {@link dropOffTypeAt} that accepts a precomputed base offset.
    *
    * @param stopIndex - The index of the stop in the route.
@@ -345,8 +357,8 @@ export class Route {
     tripIndex: TripRouteIndex,
   ): RawPickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + stopIndex;
-    const byteIndex = Math.floor(globalIndex / 2);
-    const isSecondPair = globalIndex % 2 === 1;
+    const byteIndex = globalIndex >> 1;
+    const isSecondPair = (globalIndex & 1) === 1;
 
     const byte = this.pickupDropOffTypes[byteIndex];
     if (byte === undefined) {
@@ -373,8 +385,8 @@ export class Route {
     tripIndex: TripRouteIndex,
   ): RawPickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + stopIndex;
-    const byteIndex = Math.floor(globalIndex / 2);
-    const isSecondPair = globalIndex % 2 === 1;
+    const byteIndex = globalIndex >> 1;
+    const isSecondPair = (globalIndex & 1) === 1;
 
     const byte = this.pickupDropOffTypes[byteIndex];
     if (byte === undefined) {

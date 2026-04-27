@@ -13,8 +13,9 @@ import {
   serializeTripTransfers,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/v1/timetable.js';
+import { NOT_AVAILABLE } from './route.js';
 import { Route, RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
-import { Duration } from './time.js';
+import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
 import { encode, TripStopId } from './tripStopId.js';
 
 export type TransferType =
@@ -339,6 +340,58 @@ export class Timetable {
       }
     }
     return false;
+  }
+
+  /**
+   * Finds the first trip on `route` at `stopIndex` that can be boarded, starting
+   * from `earliestTrip` and respecting pickup availability, transfer guarantees,
+   * and minimum transfer times.
+   *
+   * @param stopIndex     Stop at which boarding is attempted.
+   * @param route         The route to search.
+   * @param earliestTrip  First trip index to consider.
+   * @param after         Earliest time after which boarding is allowed.
+   * @param beforeTrip    Exclusive upper bound on the trip index (omit to search all).
+   * @param fromTripStop  The alighted trip stop when transferring from another trip;
+   *                      `undefined` when boarding from a walk or origin.
+   * @param transferTime  Minimum transfer time required between trips.
+   * @returns The index of the first boardable trip, or `undefined` if none found.
+   */
+  findFirstBoardableTrip(
+    stopIndex: StopRouteIndex,
+    route: Route,
+    earliestTrip: TripRouteIndex,
+    after: Time = TIME_ORIGIN,
+    beforeTrip?: TripRouteIndex,
+    fromTripStop?: TripStop,
+    transferTime: Duration = DURATION_ZERO,
+  ): TripRouteIndex | undefined {
+    const nbTrips = route.getNbTrips();
+
+    for (let t = earliestTrip; t < (beforeTrip ?? nbTrips); t++) {
+      const pickup = route.pickUpTypeFrom(stopIndex, t);
+      if (pickup === NOT_AVAILABLE) {
+        continue;
+      }
+      if (fromTripStop === undefined) {
+        return t;
+      }
+
+      const isGuaranteed = this.isTripTransferGuaranteed(fromTripStop, {
+        stopIndex,
+        routeId: route.id,
+        tripIndex: t,
+      });
+      if (isGuaranteed) {
+        return t;
+      }
+      const departure = route.departureFrom(stopIndex, t);
+      const requiredTime = after + transferTime;
+      if (departure >= requiredTime) {
+        return t;
+      }
+    }
+    return undefined;
   }
 
   /**
