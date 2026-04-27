@@ -229,6 +229,94 @@ describe('RangeRaptorState', () => {
     });
   });
 
+  describe('updateArrival aggregate overwrite behavior', () => {
+    it('does not overwrite the current run aggregate with a later arrival from a higher round', () => {
+      const state = new RangeRaptorState(
+        MAX_ROUNDS,
+        NB_STOPS,
+        timeFromHM(12, 0),
+      );
+      const run = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        destinations: [2],
+        arrivals: [[2, timeFromHM(8, 30), 1]],
+      });
+      state.setCurrentRun(run);
+
+      state.updateArrival(2, timeFromHM(8, 45), 2);
+
+      assert.deepStrictEqual(run.getArrival(2), {
+        arrival: timeFromHM(8, 30),
+        legNumber: 1,
+      });
+      assert.strictEqual(state.roundLabels[2]![2], timeFromHM(8, 45));
+    });
+
+    it('does not overwrite the current run aggregate with an equal-time arrival using more legs', () => {
+      const state = new RangeRaptorState(
+        MAX_ROUNDS,
+        NB_STOPS,
+        timeFromHM(12, 0),
+      );
+      const run = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        destinations: [2],
+        arrivals: [[2, timeFromHM(8, 30), 2]],
+      });
+      state.setCurrentRun(run);
+
+      state.updateArrival(2, timeFromHM(8, 30), 3);
+
+      assert.deepStrictEqual(run.getArrival(2), {
+        arrival: timeFromHM(8, 30),
+        legNumber: 2,
+      });
+      assert.strictEqual(state.roundLabels[3]![2], timeFromHM(8, 30));
+    });
+
+    it('prefers fewer legs for the current run aggregate when arrival time is equal', () => {
+      const state = new RangeRaptorState(
+        MAX_ROUNDS,
+        NB_STOPS,
+        timeFromHM(12, 0),
+      );
+      const run = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        destinations: [2],
+        arrivals: [[2, timeFromHM(8, 30), 3]],
+      });
+      state.setCurrentRun(run);
+
+      state.updateArrival(2, timeFromHM(8, 30), 2);
+
+      assert.deepStrictEqual(run.getArrival(2), {
+        arrival: timeFromHM(8, 30),
+        legNumber: 2,
+      });
+    });
+
+    it('still updates the current run aggregate when the new arrival is earlier', () => {
+      const state = new RangeRaptorState(
+        MAX_ROUNDS,
+        NB_STOPS,
+        timeFromHM(12, 0),
+      );
+      const run = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        destinations: [2],
+        arrivals: [[2, timeFromHM(8, 45), 1]],
+      });
+      state.setCurrentRun(run);
+
+      state.updateArrival(2, timeFromHM(8, 30), 3);
+
+      assert.deepStrictEqual(run.getArrival(2), {
+        arrival: timeFromHM(8, 30),
+        legNumber: 3,
+      });
+    });
+  });
+
   describe('isDestination', () => {
     it('delegates to the current run', () => {
       const state = new RangeRaptorState(

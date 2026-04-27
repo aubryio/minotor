@@ -186,12 +186,7 @@ export class RoutingState implements IRaptorState {
   initRound(_round: number): void {}
 
   /**
-   * Records a new aggregate best arrival at a stop.
-   *
-   * A stop's aggregate arrival is only updated when the new label arrives
-   * earlier, or when it arrives at the same time using fewer transit legs. This
-   * prevents higher-round Range RAPTOR labels from overwriting an equal or worse
-   * per-run best arrival in full-network / isochrone mode.
+   * Records a new earliest arrival at a stop.
    *
    * @param stop The stop that was reached.
    * @param time The arrival time in minutes from midnight.
@@ -199,19 +194,6 @@ export class RoutingState implements IRaptorState {
    */
   updateArrival(stop: StopId, time: Time, leg: number): void {
     this.reachedStops.push(stop);
-
-    const currentArrival = this.earliestArrivalTimes[stop]!;
-    const currentLeg = this.earliestArrivalLegs[stop]!;
-
-    if (
-      time > currentArrival ||
-      (time === currentArrival &&
-        currentArrival < UNREACHED_TIME &&
-        leg >= currentLeg)
-    ) {
-      return;
-    }
-
     this.earliestArrivalTimes[stop] = time;
     this.earliestArrivalLegs[stop] = leg;
     if (this.destinationSet.has(stop) && time < this._destinationBest) {

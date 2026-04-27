@@ -113,9 +113,19 @@ export class RangeRaptorState implements IRaptorState {
     return this.currentRun.isDestination(stop);
   }
 
-  /** Updates both the per-run state and the cross-run shared labels. */
+  /** Updates the per-run aggregate best when improved, and always considers the cross-run shared label. */
   updateArrival(stop: StopId, time: Time, round: number): void {
-    this.currentRun.updateArrival(stop, time, round);
+    const currentRunArrival = this.currentRun.getArrival(stop);
+    const improvesCurrentRunAggregate =
+      currentRunArrival === undefined ||
+      time < currentRunArrival.arrival ||
+      (time === currentRunArrival.arrival &&
+        round < currentRunArrival.legNumber);
+
+    if (improvesCurrentRunAggregate) {
+      this.currentRun.updateArrival(stop, time, round);
+    }
+
     if (time < this.roundLabels[round]![stop]!) {
       this.roundLabels[round]![stop] = time;
       this.changedInRound[round]!.push(stop);
