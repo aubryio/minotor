@@ -3,9 +3,9 @@ import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RawPickUpDropOffType } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import { Query } from './query.js';
-import { Leg, Route, Transfer, VehicleLeg } from './route.js';
+import { Access, Leg, Route, Transfer, VehicleLeg } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
+import { AccessEdge } from './state.js';
 
 /**
  * Details about the pickup and drop-off modalities at each stop in each trip of a route.
@@ -42,26 +42,49 @@ const toPickupDropOffType = (
 };
 
 export class Result {
-  private readonly query: Query;
+  private readonly destinations: ReadonlySet<StopId>;
   public readonly routingState: RoutingState;
   public readonly stopsIndex: StopsIndex;
   public readonly timetable: Timetable;
 
   constructor(
-    query: Query,
+    destinations: ReadonlySet<StopId>,
     routingState: RoutingState,
     stopsIndex: StopsIndex,
     timetable: Timetable,
   ) {
-    this.query = query;
+    this.destinations = destinations;
     this.routingState = routingState;
     this.stopsIndex = stopsIndex;
     this.timetable = timetable;
   }
 
   /**
+   * Expands a target stop or stop set to all equivalent concrete stop IDs.
+   *
+   * When `to` is omitted, defaults to the resolved destinations stored on this
+   * result.
+   *
+   * Equivalent stops are expanded here so destination handling has a single
+   * source of truth shared by route reconstruction and arrival lookups.
+   */
+  private expandDestinations(to?: StopId | Set<StopId>): Set<StopId> {
+    const targets: Iterable<StopId> =
+      to instanceof Set ? to : to !== undefined ? [to] : this.destinations;
+
+    const expanded = new Set<StopId>();
+    for (const target of targets) {
+      for (const equivalentStop of this.stopsIndex.equivalentStops(target)) {
+        expanded.add(equivalentStop.id);
+      }
+    }
+    return expanded;
+  }
+
+  /**
    * Reconstructs the best route to a stop by SourceStopId.
-   * (to any stop reachable in less time / transfers than the destination(s) of the query)
+   * (to any stop reachable in less time / transfers than this result's
+   * destination set)
    *
    * @param to The destination stop by SourceStopId.
    * @returns a route to the destination stop if it exists.
@@ -83,33 +106,30 @@ export class Result {
 
   /**
    * Reconstructs the best route to a stop.
-   * (to any stop reachable in less time / transfers than the destination(s) of the query)
+   * (to any stop reachable in less time / transfers than this result's
+   * destination set)
    *
-   * @param to The destination stop. Defaults to the destination of the original query.
+   * @param to The destination stop. Defaults to this result's resolved
+   *   destinations.
    * @returns a route to the destination stop if it exists.
    */
   bestRoute(to?: StopId | Set<StopId>): Route | undefined {
-    const destinationIterable: Iterable<StopId> =
-      to instanceof Set ? to : to ? [to] : this.query.to;
+    const destinationStops = this.expandDestinations(to);
 
     // Find the fastest-reached destination across all equivalent stops.
     let fastestDestination: StopId | undefined = undefined;
     let fastestArrivalTime: Time | undefined = undefined;
     let fastestLegNumber: number | undefined = undefined;
-    for (const sourceDestination of destinationIterable) {
-      const equivalentStops =
-        this.stopsIndex.equivalentStops(sourceDestination);
-      for (const destination of equivalentStops) {
-        const arrivalData = this.routingState.getArrival(destination.id);
-        if (
-          arrivalData !== undefined &&
-          (fastestArrivalTime === undefined ||
-            arrivalData.arrival < fastestArrivalTime)
-        ) {
-          fastestDestination = destination.id;
-          fastestArrivalTime = arrivalData.arrival;
-          fastestLegNumber = arrivalData.legNumber;
-        }
+    for (const destination of destinationStops) {
+      const arrivalData = this.routingState.getArrival(destination);
+      if (
+        arrivalData !== undefined &&
+        (fastestArrivalTime === undefined ||
+          arrivalData.arrival < fastestArrivalTime)
+      ) {
+        fastestDestination = destination;
+        fastestArrivalTime = arrivalData.arrival;
+        fastestLegNumber = arrivalData.legNumber;
       }
     }
     if (fastestDestination === undefined || fastestLegNumber === undefined) {
@@ -121,9 +141,11 @@ export class Result {
     let currentStop = fastestDestination;
     let round = fastestLegNumber;
     let previousVehicleEdge: VehicleEdge | undefined;
-    while (round > 0) {
+
+    while (round >= 0) {
       const edge = this.routingState.graph[round]?.[currentStop];
       if (!edge) {
+        if (round === 0) break;
         throw new Error(
           `No edge arriving at stop ${currentStop} at round ${round}`,
         );
@@ -174,6 +196,9 @@ export class Result {
         previousVehicleEdge = boardingEdge;
       } else if ('type' in edge) {
         leg = this.buildTransferLeg(edge);
+        previousVehicleEdge = undefined;
+      } else if ('duration' in edge) {
+        leg = this.buildAccessLeg(edge);
         previousVehicleEdge = undefined;
       } else {
         break;
@@ -251,6 +276,22 @@ export class Result {
   }
 
   /**
+   * Builds a transfer leg from a transfer edge.
+   *
+   * @param edge Transfer edge representing a walking connection between stops
+   * @returns A transfer leg with from/to stops and transfer details
+   */
+  private buildAccessLeg(edge: AccessEdge): Access {
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      from: this.stopsIndex.findStopById(edge.from)!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      to: this.stopsIndex.findStopById(edge.to)!,
+      duration: edge.duration,
+    };
+  }
+
+  /**
    * Builds a guaranteed transfer leg between two consecutive vehicle legs.
    *
    * @param fromEdge The vehicle edge we're alighting from
@@ -278,7 +319,8 @@ export class Result {
   }
 
   /**
-   * Returns the arrival time at any stop reachable in less time / transfers than the destination(s) of the query)
+   * Returns the arrival time at any stop reachable in less time / transfers
+   * than this result's destination set.
    *
    * @param stop The target stop for which to return the arrival time.
    * @param maxTransfers The optional maximum number of transfers allowed.

@@ -3,6 +3,8 @@ import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
 import { TransferType, TripStop } from '../timetable/timetable.js';
+import { AccessPoint } from './access.js';
+import type { IRaptorState } from './raptor.js';
 
 /**
  * Sentinel value used in the internal arrival-time array to mark stops not yet reached.
@@ -10,14 +12,20 @@ import { TransferType, TripStop } from '../timetable/timetable.js';
  */
 export const UNREACHED_TIME: Time = 0xffff;
 
-/** An origin stop reached at the query departure time, before any transit leg. */
-export type OriginNode = { arrival: Time };
+export type OriginNode = { stopId: StopId; arrival: Time };
+
+export type AccessEdge = {
+  arrival: Time;
+  from: StopId;
+  to: StopId;
+  duration: Duration;
+};
 
 /** A boarded transit trip that carries the passenger from one stop to another. */
 export type VehicleEdge = TripStop & {
   arrival: Time;
   hopOffStopIndex: StopRouteIndex;
-  /** Set when this edge continues directly from another trip (in-seat transfer). */
+  /** modeling in-seat transfer */
   continuationOf?: VehicleEdge;
 };
 
@@ -30,7 +38,7 @@ export type TransferEdge = {
   minTransferTime?: Duration;
 };
 
-export type RoutingEdge = OriginNode | VehicleEdge | TransferEdge;
+export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
 
 /** The earliest arrival at a stop together with how many legs were needed to reach it. */
 export type Arrival = {
@@ -41,9 +49,9 @@ export type Arrival = {
 /**
  * Encapsulates all mutable state for a single RAPTOR routing query.
  */
-export class RoutingState {
+export class RoutingState implements IRaptorState {
   /** Origin stop IDs for this query. */
-  readonly origins: StopId[];
+  origins: StopId[];
 
   /** Destination stop IDs for this query. */
   readonly destinations: StopId[];
@@ -70,38 +78,78 @@ export class RoutingState {
   private earliestArrivalLegs: Uint8Array;
 
   /**
-   * Initializes the routing state for a fresh query.
-   *
-   * All stops start as unreached. Each origin is immediately recorded at the
-   * departure time with leg number 0, and a corresponding OriginNode is placed
-   * in round 0 of the graph.
-   *
-   * @param origins      Stop IDs to depart from (may be several equivalent stops).
-   * @param destinations Stop IDs that count as the target of the query.
-   * @param departureTime Earliest departure time in minutes from midnight.
-   * @param nbStops      Total number of stops in the timetable (sets array sizes).
+   * Fast O(1) membership test for destination stops.
+   * Built once at construction time from the `destinations` array.
    */
+  private readonly destinationSet: Set<StopId>;
+
+  /**
+   * Cached best arrival time at any destination stop, kept up-to-date by
+   * {@link updateArrival} so that destination pruning is always O(1).
+   */
+  private _destinationBest: Time = UNREACHED_TIME;
+
+  /**
+   * Every stop that has received an arrival improvement during the current run,
+   * in the order the improvements occurred.  Used by {@link resetFor} to clear
+   * only the touched entries instead of scanning the entire array.
+   */
+  private readonly reachedStops: StopId[] = [];
+
   constructor(
-    origins: StopId[],
-    destinations: StopId[],
     departureTime: Time,
+    destinations: StopId[],
+    accessPaths: AccessPoint[],
     nbStops: number,
+    maxRounds: number = 0,
   ) {
-    this.origins = origins;
     this.destinations = destinations;
-
-    const earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
-    const earliestArrivalLegs = new Uint8Array(nbStops); // zero-initialized = leg 0
-    const graph0 = new Array<RoutingEdge | undefined>(nbStops);
-
-    for (const stop of origins) {
-      earliestArrivalTimes[stop] = departureTime;
-      graph0[stop] = { arrival: departureTime };
+    this.destinationSet = new Set(destinations);
+    this.earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
+    this.earliestArrivalLegs = new Uint8Array(nbStops);
+    this.origins = []; // overwritten by seedAccessPaths below
+    this.graph = [new Array<RoutingEdge | undefined>(nbStops)];
+    for (let r = 1; r <= maxRounds; r++) {
+      this.graph.push(new Array<RoutingEdge | undefined>(nbStops));
     }
+    this.seedAccessPaths(departureTime, accessPaths);
+  }
 
-    this.earliestArrivalTimes = earliestArrivalTimes;
-    this.earliestArrivalLegs = earliestArrivalLegs;
-    this.graph = [graph0];
+  /**
+   * Seeds round-0 arrivals and {@link origins} from a set of access paths.
+   * Called by the constructor and by {@link resetFor}.
+   * Assumes {@link earliestArrivalTimes} and {@link graph}[0] are already
+   * allocated and in their "cleared" state (all entries at UNREACHED_TIME /
+   * undefined) before this method runs.
+   */
+  private seedAccessPaths(depTime: Time, accessPaths: AccessPoint[]): void {
+    const seededOrigins = new Set<StopId>();
+    for (const access of accessPaths) {
+      const arrival = depTime + access.duration;
+      const edge: OriginNode | AccessEdge =
+        access.duration === 0
+          ? { stopId: access.fromStopId, arrival: depTime }
+          : {
+              arrival,
+              from: access.fromStopId,
+              to: access.toStopId,
+              duration: access.duration,
+            };
+      const stop = access.toStopId;
+      if (arrival < this.earliestArrivalTimes[stop]!) {
+        this.earliestArrivalTimes[stop] = arrival;
+        this.graph[0]![stop] = edge;
+      }
+      seededOrigins.add(stop);
+    }
+    for (const stop of seededOrigins) {
+      this.reachedStops.push(stop);
+    }
+    this.origins = Array.from(seededOrigins);
+    for (let i = 0; i < this.destinations.length; i++) {
+      const t = this.earliestArrivalTimes[this.destinations[i]!]!;
+      if (t < this._destinationBest) this._destinationBest = t;
+    }
   }
 
   /** Total number of stops in the timetable */
@@ -118,16 +166,65 @@ export class RoutingState {
   }
 
   /**
-   * Records a new earliest arrival at a stop.
+   * Earliest arrival at any destination stop; {@link UNREACHED_TIME} if none
+   * has been reached yet. Updated automatically by {@link updateArrival}. O(1).
+   */
+  get destinationBest(): Time {
+    return this._destinationBest;
+  }
 
+  /**
+   * In standard RAPTOR the improvement bound is simply the per-run earliest
+   * arrival; the `round` argument is ignored.
+   */
+  improvementBound(_round: number, stop: StopId): Time {
+    return this.arrivalTime(stop);
+  }
+
+  /** No-op in standard RAPTOR — there are no shared cross-run labels to propagate. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  initRound(_round: number): void {}
+
+  /**
+   * Records a new earliest arrival at a stop.
    *
    * @param stop The stop that was reached.
    * @param time The arrival time in minutes from midnight.
    * @param leg  The round number (number of transit legs taken so far).
    */
   updateArrival(stop: StopId, time: Time, leg: number): void {
+    this.reachedStops.push(stop);
     this.earliestArrivalTimes[stop] = time;
     this.earliestArrivalLegs[stop] = leg;
+    if (this.destinationSet.has(stop) && time < this._destinationBest) {
+      this._destinationBest = time;
+    }
+  }
+
+  /**
+   * Resets this state for a new departure-time iteration **without
+   * reallocating** the underlying arrays.
+   *
+   * Only the stops recorded in {@link reachedStops} are touched — all other
+   * entries are already at their initial bound values.
+   *
+   * After this call the state is equivalent to a freshly constructed
+   * {@link RoutingState} for the given `depTime` and `accessPaths`.
+   *
+   * @param depTime     New origin departure time.
+   * @param accessPaths Access legs for this departure-time slot.
+   */
+  resetFor(depTime: Time, accessPaths: AccessPoint[]): void {
+    for (const stop of this.reachedStops) {
+      this.earliestArrivalTimes[stop] = UNREACHED_TIME;
+      this.earliestArrivalLegs[stop] = 0;
+      for (let r = 0; r < this.graph.length; r++) {
+        this.graph[r]![stop] = undefined;
+      }
+    }
+    this.reachedStops.length = 0;
+    this._destinationBest = UNREACHED_TIME;
+    this.seedAccessPaths(depTime, accessPaths);
   }
 
   /**
@@ -157,6 +254,16 @@ export class RoutingState {
   }
 
   /**
+   * Finds the earliest arrival time at any stop from a given set of destinations.
+   *
+   * @param routingState The routing state containing arrival times and destinations.
+   * @returns The earliest arrival time among the provided destinations.
+   */
+  earliestArrivalAtAnyDestination(): Time {
+    return this._destinationBest;
+  }
+
+  /**
    * Returns the earliest arrival at a stop as an {@link Arrival} object,
    * or undefined if the stop has not been reached.
    */
@@ -164,6 +271,14 @@ export class RoutingState {
     const time = this.earliestArrivalTimes[stop]!;
     if (time >= UNREACHED_TIME) return undefined;
     return { arrival: time, legNumber: this.earliestArrivalLegs[stop]! };
+  }
+
+  /**
+   * Returns `true` if `stop` is one of the query's destination stops.
+   * O(1) — backed by a `Set` built at construction time.
+   */
+  isDestination(stop: StopId): boolean {
+    return this.destinationSet.has(stop);
   }
 
   /**
@@ -196,7 +311,16 @@ export class RoutingState {
     arrivals?: [stop: StopId, time: Time, leg: number][];
     graph?: [stop: StopId, edge: RoutingEdge][][];
   }): RoutingState {
-    const state = new RoutingState(origins, destinations, 0, nbStops);
+    const state = new RoutingState(
+      0,
+      destinations,
+      origins.map((stop) => ({
+        fromStopId: stop,
+        toStopId: stop,
+        duration: 0,
+      })),
+      nbStops,
+    );
 
     // Replace the arrival arrays with freshly built ones so the constructor's
     // origin-seeding doesn't bleed into the test state.
@@ -208,6 +332,15 @@ export class RoutingState {
     }
     state.earliestArrivalTimes = earliestArrivalTimes;
     state.earliestArrivalLegs = earliestArrivalLegs;
+
+    // Recompute _destinationBest from the test data since we bypassed updateArrival.
+    // fromTestData is a static method of RoutingState, so private access is allowed.
+    state._destinationBest = UNREACHED_TIME;
+    for (const dest of destinations) {
+      const t = earliestArrivalTimes[dest];
+      if (t !== undefined && t < state._destinationBest)
+        state._destinationBest = t;
+    }
 
     // Convert the sparse per-round representation to dense arrays and replace
     // the graph in-place.

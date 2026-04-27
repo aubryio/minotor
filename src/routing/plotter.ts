@@ -1,7 +1,12 @@
 import { StopId } from '../stops/stops.js';
 import { durationToString, timeToString } from '../timetable/time.js';
 import { Result } from './result.js';
-import { RoutingEdge, TransferEdge, VehicleEdge } from './router.js';
+import {
+  AccessEdge,
+  RoutingEdge,
+  TransferEdge,
+  VehicleEdge,
+} from './router.js';
 
 /**
  * Configuration for DOT graph styling.
@@ -42,6 +47,13 @@ function isVehicleEdge(edge: RoutingEdge): edge is VehicleEdge {
  */
 function isTransferEdge(edge: RoutingEdge): edge is TransferEdge {
   return 'from' in edge && 'to' in edge && 'type' in edge;
+}
+
+/**
+ * Type guard to check if an edge is an AccessEdge (walking access leg).
+ */
+function isAccessEdge(edge: RoutingEdge): edge is AccessEdge {
+  return 'from' in edge && 'duration' in edge;
 }
 
 /**
@@ -162,6 +174,13 @@ export class Plotter {
     round: number,
   ): string {
     return `e_${fromStopId}_${toStopId}_${round}`;
+  }
+
+  /**
+   * Generates a unique node ID for a walking access edge oval.
+   */
+  private accessEdgeNodeId(fromStopId: StopId, toStopId: StopId): string {
+    return `access_${fromStopId}_${toStopId}`;
   }
 
   /**
@@ -327,6 +346,24 @@ export class Plotter {
   }
 
   /**
+   * Creates a walking access leg as a dashed oval connecting the query origin
+   * to the initial boarding stop.
+   */
+  private createAccessEdge(edge: AccessEdge): string[] {
+    const fromNodeId = this.stationNodeId(edge.from);
+    const toNodeId = this.stationNodeId(edge.to);
+    const color = DOT_CONFIG.colors.defaultRound;
+    const ovalId = this.accessEdgeNodeId(edge.from, edge.to);
+    const label = `Walk\\n${durationToString(edge.duration)}`;
+
+    return [
+      `  "${ovalId}" [label="${label}" shape=oval style="dashed,filled" fillcolor="white" color="${color}"];`,
+      `  "${fromNodeId}" -> "${ovalId}" [color="${color}" style="dashed"];`,
+      `  "${ovalId}" -> "${toNodeId}" [color="${color}" style="dashed"];`,
+    ];
+  }
+
+  /**
    * Creates a transfer edge with transfer information oval in the middle.
    */
   private createTransferEdge(edge: TransferEdge, round: number): string[] {
@@ -433,6 +470,11 @@ export class Plotter {
           const toStopId = this.getVehicleEdgeToStopId(edge);
           if (fromStopId) stations.add(fromStopId);
           if (toStopId) stations.add(toStopId);
+        } else if (isAccessEdge(edge)) {
+          // Ensure the query origin (edge.from) is always collected even when
+          // its own OriginNode hasn't been processed yet in this iteration.
+          stations.add(edge.from);
+          stations.add(edge.to);
         }
       }
     }
@@ -475,14 +517,19 @@ export class Plotter {
       const roundEdges = graph[round];
       if (!roundEdges) continue;
 
-      // Skip round 0 as it contains only origin nodes
-      if (round === 0) {
-        continue;
-      }
-
       for (let stopId = 0; stopId < roundEdges.length; stopId++) {
         const edge = roundEdges[stopId];
         if (edge === undefined) continue;
+
+        if (round === 0) {
+          // Round 0 holds OriginNodes (no edge to draw) and AccessEdges
+          // (walking legs from the query origin to the first boarding stop).
+          if (isAccessEdge(edge)) {
+            edges.push(...this.createAccessEdge(edge));
+          }
+          continue;
+        }
+
         if (isVehicleEdge(edge)) {
           edges.push(...this.createVehicleEdge(edge, round));
 

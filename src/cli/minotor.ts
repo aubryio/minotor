@@ -12,8 +12,11 @@ import {
 import { Router, StopsIndex, Timetable } from '../router.js';
 import {
   loadQueriesFromJson,
+  loadRangeQueriesFromJson,
   prettyPrintPerformanceResults,
   testBestRoutePerformance,
+  testRangeResultPerformance,
+  testRangeRouterPerformance,
   testRouterPerformance,
 } from './perf.js';
 import { startRepl } from './repl.js';
@@ -160,17 +163,50 @@ program
       const queries = loadQueriesFromJson(routesPath, stopsIndex);
       const iterations = parseInt(options.iterations, 10);
 
-      const routerResults = testRouterPerformance(router, queries, iterations);
-      prettyPrintPerformanceResults(routerResults, 'Router Performance');
+      const routerResults = testRouterPerformance(
+        router,
+        queries,
+        iterations,
+        stopsIndex,
+      );
+      prettyPrintPerformanceResults(
+        routerResults,
+        'Point queries — router.route()',
+      );
 
       const bestRouteResults = testBestRoutePerformance(
         router,
         queries,
         iterations,
+        stopsIndex,
       );
       prettyPrintPerformanceResults(
         bestRouteResults,
-        'bestRoute Performance (reconstruction only)',
+        'Point queries — result.bestRoute() (reconstruction only)',
+      );
+
+      const rangeQueries = loadRangeQueriesFromJson(routesPath, stopsIndex);
+
+      const rangeRouterResults = testRangeRouterPerformance(
+        router,
+        rangeQueries,
+        iterations,
+        stopsIndex,
+      );
+      prettyPrintPerformanceResults(
+        rangeRouterResults,
+        'Range queries — router.rangeRoute()',
+      );
+
+      const rangeResultResults = testRangeResultPerformance(
+        router,
+        rangeQueries,
+        iterations,
+        stopsIndex,
+      );
+      prettyPrintPerformanceResults(
+        rangeResultResults,
+        'Range queries — rangeResult.getRoutes() (reconstruction only)',
       );
     },
   );

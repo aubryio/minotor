@@ -2,7 +2,7 @@ import repl from 'node:repl';
 
 import fs from 'fs';
 
-import { Query, Router, StopsIndex, Timetable } from '../router.js';
+import { Query, RangeQuery, Router, StopsIndex, Timetable } from '../router.js';
 import type { Stop } from '../stops/stops.js';
 import {
   MUST_COORDINATE_WITH_DRIVER,
@@ -50,31 +50,52 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
     },
   });
   replServer.defineCommand('route', {
-    help: 'Find a route using .route from <stationIdOrName> to <stationIdOrName> at <HH:mm> [with <N> transfers]',
+    help: 'Find a route using .route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers]',
     action(routeQuery: string) {
       this.clearBufferedCommand();
       const parts = routeQuery.split(' ').filter(Boolean);
-      const withTransfersIndex = parts.indexOf('with');
-      const maxTransfers =
-        withTransfersIndex !== -1 && parts[withTransfersIndex + 1] !== undefined
-          ? parseInt(parts[withTransfersIndex + 1] as string)
-          : 4;
-      const atTime = parts
-        .slice(
-          withTransfersIndex === -1
-            ? parts.indexOf('at') + 1
-            : parts.indexOf('at') + 1,
-          withTransfersIndex === -1 ? parts.length : withTransfersIndex,
-        )
-        .join(' ');
+
       const fromIndex = parts.indexOf('from');
       const toIndex = parts.indexOf('to');
+      const atIndex = parts.indexOf('at');
+      const beforeIndex = parts.indexOf('before');
+      const withIndex = parts.indexOf('with');
+
+      if (fromIndex === -1 || toIndex === -1 || atIndex === -1) {
+        console.log(
+          'Usage: .route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers]',
+        );
+        this.displayPrompt();
+        return;
+      }
+
       const fromId = parts.slice(fromIndex + 1, toIndex).join(' ');
-      const toId = parts.slice(toIndex + 1, parts.indexOf('at')).join(' ');
+      const toId = parts.slice(toIndex + 1, atIndex).join(' ');
+
+      // atTime ends at 'before', 'with', or the end of the input.
+      const atTimeEnd =
+        beforeIndex !== -1
+          ? beforeIndex
+          : withIndex !== -1
+            ? withIndex
+            : parts.length;
+      const atTime = parts.slice(atIndex + 1, atTimeEnd).join(' ');
+
+      // beforeTime is only present when the 'before' keyword appears.
+      const beforeTimeEnd = withIndex !== -1 ? withIndex : parts.length;
+      const beforeTime =
+        beforeIndex !== -1
+          ? parts.slice(beforeIndex + 1, beforeTimeEnd).join(' ')
+          : undefined;
+
+      const maxTransfers =
+        withIndex !== -1 && parts[withIndex + 1] !== undefined
+          ? parseInt(parts[withIndex + 1] as string)
+          : 4;
 
       if (!fromId || !toId || !atTime) {
         console.log(
-          'Usage: .route from <stationIdOrName> to <stationIdOrName> at <HH:mm> [with <N> transfers]',
+          'Usage: .route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers]',
         );
         this.displayPrompt();
         return;
@@ -105,34 +126,68 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         return;
       }
 
-      const departureTime = timeFromString(atTime);
-
       try {
-        const query = new Query.Builder()
-          .from(fromStop.id)
-          .to(toStop.id)
-          .departureTime(departureTime)
-          .maxTransfers(maxTransfers)
-          .build();
-
+        const departureTime = timeFromString(atTime);
         const router = new Router(timetable, stopsIndex);
+        if (beforeTime !== undefined) {
+          const lastDepartureTime = timeFromString(beforeTime);
+          const query = new RangeQuery.Builder()
+            .from(fromStop.id)
+            .to(toStop.id)
+            .departureTime(departureTime)
+            .lastDepartureTime(lastDepartureTime)
+            .maxTransfers(maxTransfers)
+            .build();
 
-        const result = router.route(query);
-        const arrivalTime = result.arrivalAt(toStop.id);
-        if (arrivalTime === undefined) {
-          console.log(`Destination not reachable`);
-        } else {
-          console.log(
-            `Arriving to ${toStop.name} at ${timeToString(arrivalTime.arrival)} with ${arrivalTime.legNumber - 1} transfers from ${fromStop.name}.`,
-          );
-        }
-        const bestRoute = result.bestRoute(toStop.id);
+          const result = router.rangeRoute(query);
 
-        if (bestRoute) {
-          console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
-          console.log(bestRoute.toString());
+          if (result.size === 0) {
+            console.log(
+              `No journeys found from ${fromStop.name} to ${toStop.name} ` +
+                `between ${atTime} and ${beforeTime}.`,
+            );
+          } else {
+            console.log(
+              `Found ${result.size} Pareto-optimal journey${result.size === 1 ? '' : 's'} ` +
+                `from ${fromStop.name} to ${toStop.name} ` +
+                `(window ${atTime}–${beforeTime}):`,
+            );
+            const routes = result.getRoutes();
+            routes.forEach((route, index) => {
+              const journeyNumber = index + 1;
+              console.log(`\nJourney ${journeyNumber}:`);
+              console.log(route.toString());
+            });
+          }
         } else {
-          console.log('No route found');
+          const query = new Query.Builder()
+            .from(fromStop.id)
+            .to(toStop.id)
+            .departureTime(departureTime)
+            .maxTransfers(maxTransfers)
+            .build();
+
+          const result = router.route(query);
+          const arrivalTime = result.arrivalAt(toStop.id);
+
+          if (arrivalTime === undefined) {
+            console.log(`Destination not reachable`);
+          } else {
+            const transfers = Math.max(0, arrivalTime.legNumber - 1);
+            console.log(
+              `Arriving to ${toStop.name} at ${timeToString(arrivalTime.arrival)} ` +
+                `with ${transfers} transfer${transfers === 1 ? '' : 's'} ` +
+                `from ${fromStop.name}.`,
+            );
+          }
+
+          const bestRoute = result.bestRoute(toStop.id);
+          if (bestRoute) {
+            console.log(`Found route from ${fromStop.name} to ${toStop.name}:`);
+            console.log(bestRoute.toString());
+          } else {
+            console.log('No route found');
+          }
         }
       } catch (error) {
         console.log('Error querying route:', error);

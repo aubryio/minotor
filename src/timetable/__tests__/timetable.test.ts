@@ -9,6 +9,7 @@ import {
   StopAdjacency,
   Timetable,
   TripStop,
+  TripTransfers,
 } from '../timetable.js';
 import { encode } from '../tripStopId.js';
 
@@ -653,6 +654,378 @@ describe('Timetable', () => {
           ),
           false,
         );
+      });
+    });
+
+    describe('findFirstBoardableTrip', () => {
+      const BOARDING_STOP_INDEX = 0;
+      const FFBT_ROUTE_ID = 2;
+
+      const ffbtRoute = Route.of({
+        id: FFBT_ROUTE_ID,
+        serviceRouteId: 2,
+        trips: [
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: timeFromHMS(8, 0, 0),
+                departureTime: timeFromHMS(8, 0, 0),
+              },
+              {
+                id: 1,
+                arrivalTime: timeFromHMS(8, 30, 0),
+                departureTime: timeFromHMS(8, 30, 0),
+              },
+            ],
+          },
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: timeFromHMS(9, 0, 0),
+                departureTime: timeFromHMS(9, 0, 0),
+                pickUpType: NOT_AVAILABLE,
+              },
+              {
+                id: 1,
+                arrivalTime: timeFromHMS(9, 30, 0),
+                departureTime: timeFromHMS(9, 30, 0),
+              },
+            ],
+          },
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: timeFromHMS(10, 0, 0),
+                departureTime: timeFromHMS(10, 0, 0),
+              },
+              {
+                id: 1,
+                arrivalTime: timeFromHMS(10, 30, 0),
+                departureTime: timeFromHMS(10, 30, 0),
+              },
+            ],
+          },
+          {
+            stops: [
+              {
+                id: 0,
+                arrivalTime: timeFromHMS(11, 0, 0),
+                departureTime: timeFromHMS(11, 0, 0),
+              },
+              {
+                id: 1,
+                arrivalTime: timeFromHMS(11, 30, 0),
+                departureTime: timeFromHMS(11, 30, 0),
+              },
+            ],
+          },
+        ],
+      });
+
+      const ffbtStopsAdjacency: StopAdjacency[] = [
+        { routes: [FFBT_ROUTE_ID] },
+        { routes: [FFBT_ROUTE_ID] },
+      ];
+
+      const ffbtServiceRoutes = [
+        { type: 'BUS' as const, name: 'Route 2', routes: [FFBT_ROUTE_ID] },
+      ];
+
+      const ffbtTimetable = new Timetable(
+        ffbtStopsAdjacency,
+        [ffbtRoute],
+        ffbtServiceRoutes,
+      );
+
+      describe('without fromTripStop', () => {
+        it('returns the first trip with an available pickup', () => {
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+          );
+          assert.strictEqual(result, 0);
+        });
+
+        it('skips trips with NOT_AVAILABLE pickup', () => {
+          // Start scanning from trip 1 (NOT_AVAILABLE) → must return trip 2.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            1,
+          );
+          assert.strictEqual(result, 2);
+        });
+
+        it('starts scanning at earliestTrip', () => {
+          // Even though trip 0 is valid, scanning starts at trip 2.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            2,
+          );
+          assert.strictEqual(result, 2);
+        });
+
+        it('respects the beforeTrip exclusive upper bound', () => {
+          // beforeTrip=1 means only trip 0 is in scope.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            0,
+            1,
+          );
+          assert.strictEqual(result, 0);
+        });
+
+        it('returns undefined when the only trip in range has a NOT_AVAILABLE pickup', () => {
+          // [1, 2) contains only trip 1, which is NOT_AVAILABLE.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            1,
+            0,
+            2,
+          );
+          assert.strictEqual(result, undefined);
+        });
+
+        it('returns undefined when earliestTrip is past all trips', () => {
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            99,
+          );
+          assert.strictEqual(result, undefined);
+        });
+
+        it('returns undefined when beforeTrip equals earliestTrip (empty range)', () => {
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            2,
+            0,
+            2,
+          );
+          assert.strictEqual(result, undefined);
+        });
+      });
+
+      describe('with fromTripStop', () => {
+        const fromTripStop: TripStop = {
+          routeId: 99,
+          stopIndex: 0,
+          tripIndex: 0,
+        };
+
+        it('returns the first trip whose departure satisfies after + transferTime', () => {
+          // after=09:30, transferTime=30 → requiredTime=10:00.
+          // trip 0 (08:00) < 10:00 → skip.
+          // trip 1 (09:00) NOT_AVAILABLE → skip.
+          // trip 2 (10:00) ≥ 10:00 → returned.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(9, 30, 0),
+            undefined,
+            fromTripStop,
+            30,
+          );
+          assert.strictEqual(result, 2);
+        });
+
+        it('treats departure exactly equal to after as satisfying (transferTime=0)', () => {
+          // after=10:00, transferTime=0 → requiredTime=10:00.
+          // trip 0 (08:00) < 10:00 → skip.
+          // trip 1 (09:00) NOT_AVAILABLE → skip.
+          // trip 2 (10:00) ≥ 10:00 → returned.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(10, 0, 0),
+            undefined,
+            fromTripStop,
+            0,
+          );
+          assert.strictEqual(result, 2);
+        });
+
+        it('returns undefined when all trips depart before after + transferTime', () => {
+          // after=11:00, transferTime=30 → requiredTime=11:30.
+          // trip 3 (11:00) < 11:30 → skip. No further trips.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(11, 0, 0),
+            undefined,
+            fromTripStop,
+            30,
+          );
+          assert.strictEqual(result, undefined);
+        });
+
+        it('returns undefined when beforeTrip excludes all trips that would satisfy the requirement', () => {
+          // Only trips 0 and 1 are in scope (beforeTrip=2).
+          // after=09:00, transferTime=30 → requiredTime=09:30.
+          // trip 0 (08:00) < 09:30 → skip.
+          // trip 1 (09:00) NOT_AVAILABLE → skip.
+          // beforeTrip reached → undefined.
+          const result = ffbtTimetable.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(9, 0, 0),
+            2,
+            fromTripStop,
+            30,
+          );
+          assert.strictEqual(result, undefined);
+        });
+      });
+
+      describe('guaranteed connection', () => {
+        it('bypasses the after + transferTime departure check', () => {
+          const fromTripStop: TripStop = {
+            routeId: 99,
+            stopIndex: 0,
+            tripIndex: 0,
+          };
+          const guaranteedTransfers: TripTransfers = new Map([
+            [
+              encode(
+                fromTripStop.stopIndex,
+                fromTripStop.routeId,
+                fromTripStop.tripIndex,
+              ),
+              [
+                {
+                  stopIndex: BOARDING_STOP_INDEX,
+                  routeId: FFBT_ROUTE_ID,
+                  tripIndex: 0,
+                },
+              ],
+            ],
+          ]);
+          const timetableWithGuarantee = new Timetable(
+            ffbtStopsAdjacency,
+            [ffbtRoute],
+            ffbtServiceRoutes,
+            new Map(),
+            guaranteedTransfers,
+          );
+
+          // after=07:00, transferTime=120 → requiredTime=09:00; trip 0 (08:00) is below
+          // that threshold but the guarantee returns it immediately.
+          const result = timetableWithGuarantee.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(7, 0, 0),
+            undefined,
+            fromTripStop,
+            120,
+          );
+          assert.strictEqual(result, 0);
+        });
+
+        it('does not bypass a NOT_AVAILABLE pickup', () => {
+          const fromTripStop: TripStop = {
+            routeId: 99,
+            stopIndex: 0,
+            tripIndex: 0,
+          };
+          const guaranteedTransfers: TripTransfers = new Map([
+            [
+              encode(
+                fromTripStop.stopIndex,
+                fromTripStop.routeId,
+                fromTripStop.tripIndex,
+              ),
+              [
+                {
+                  stopIndex: BOARDING_STOP_INDEX,
+                  routeId: FFBT_ROUTE_ID,
+                  tripIndex: 1,
+                },
+              ],
+            ],
+          ]);
+          const timetableWithGuarantee = new Timetable(
+            ffbtStopsAdjacency,
+            [ffbtRoute],
+            ffbtServiceRoutes,
+            new Map(),
+            guaranteedTransfers,
+          );
+
+          // after=08:30, transferTime=60 → requiredTime=09:30.
+          // trip 0 (08:00): not guaranteed for trip 0, 08:00 < 09:30 → skip.
+          // trip 1 (09:00): NOT_AVAILABLE → skip (guarantee is irrelevant).
+          // trip 2 (10:00): no guarantee, but 10:00 ≥ 09:30 → first boardable.
+          const result = timetableWithGuarantee.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(8, 30, 0),
+            undefined,
+            fromTripStop,
+            60,
+          );
+          assert.strictEqual(result, 2);
+        });
+
+        it('applies only to its declared target trip index', () => {
+          const fromTripStop: TripStop = {
+            routeId: 99,
+            stopIndex: 0,
+            tripIndex: 0,
+          };
+          const guaranteedTransfers: TripTransfers = new Map([
+            [
+              encode(
+                fromTripStop.stopIndex,
+                fromTripStop.routeId,
+                fromTripStop.tripIndex,
+              ),
+              [
+                {
+                  stopIndex: BOARDING_STOP_INDEX,
+                  routeId: FFBT_ROUTE_ID,
+                  tripIndex: 2,
+                },
+              ],
+            ],
+          ]);
+          const timetableWithGuarantee = new Timetable(
+            ffbtStopsAdjacency,
+            [ffbtRoute],
+            ffbtServiceRoutes,
+            new Map(),
+            guaranteedTransfers,
+          );
+
+          // after=09:30, transferTime=120 → requiredTime=11:30.
+          // trip 0 (08:00): not guaranteed, 08:00 < 11:30 → skip.
+          // trip 1 (09:00): NOT_AVAILABLE → skip.
+          // trip 2 (10:00): guaranteed → returned immediately despite 10:00 < 11:30.
+          const result = timetableWithGuarantee.findFirstBoardableTrip(
+            BOARDING_STOP_INDEX,
+            ffbtRoute,
+            0,
+            timeFromHMS(9, 30, 0),
+            undefined,
+            fromTripStop,
+            120,
+          );
+          assert.strictEqual(result, 2);
+        });
       });
     });
   });

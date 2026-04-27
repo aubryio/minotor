@@ -75,7 +75,7 @@ describe('Plotter', () => {
   describe('plotDotGraph', () => {
     it('should generate valid DOT graph structure', () => {
       const result = new Result(
-        mockQuery,
+        mockQuery.to,
         RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
@@ -92,12 +92,12 @@ describe('Plotter', () => {
 
     it('should include station nodes', () => {
       const result = new Result(
-        mockQuery,
+        mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [0],
-          graph: [[[0, { arrival: timeFromHMS(8, 0, 0) }]]],
+          graph: [[[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]]],
         }),
         mockStopsIndex,
         mockTimetable,
@@ -113,7 +113,7 @@ describe('Plotter', () => {
 
     it('should handle empty graph gracefully', () => {
       const result = new Result(
-        mockQuery,
+        mockQuery.to,
         RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
@@ -141,12 +141,12 @@ describe('Plotter', () => {
       const specialStopsIndex = new StopsIndex([stop1, stop2, specialStop]);
 
       const result = new Result(
-        mockQuery,
+        mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [2],
           destinations: [2],
-          graph: [[[2, { arrival: timeFromHMS(8, 0, 0) }]]],
+          graph: [[[2, { stopId: 2, arrival: timeFromHMS(8, 0, 0) }]]],
         }),
         specialStopsIndex,
         mockTimetable,
@@ -166,13 +166,13 @@ describe('Plotter', () => {
 
     it('should use correct colors', () => {
       const result = new Result(
-        mockQuery,
+        mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [1],
           graph: [
-            [[0, { arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
+            [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [
               [
                 1,

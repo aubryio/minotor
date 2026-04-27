@@ -17,9 +17,12 @@
     "Dolderbahn",
     "dolmuş",
     "dropoff",
+    "dests",
     "Dymchurch",
+    "empts",
     "Engadin",
     "Eurostar",
+    "ffbt",
     "fontname",
     "Francey",
     "funi",
@@ -58,6 +61,7 @@
     "nodesep",
     "Olten",
     "penwidth",
+    "platz",
     "protoc",
     "rankdir",
     "ranksep",
@@ -76,7 +80,9 @@
     "Tilleul",
     "Tpng",
     "Tsvg",
-    "Wokingham"
+    "Wokingham",
+    "τdep",
+    "τarr"
   ],
   "flagWords": [],
   "ignorePaths": [
