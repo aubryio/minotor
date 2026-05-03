@@ -33,7 +33,7 @@ export type VehicleEdge = TripStop & {
 export type TransferEdge = {
   arrival: Time;
   from: StopId;
-  to: StopId;
+  to: StopId; // TODO remove
   type: TransferType;
   minTransferTime?: Duration;
 };
@@ -61,7 +61,16 @@ export class RoutingState implements IRaptorState {
    * Indexed as graph[round][stopId]. Entries are undefined for stops not
    * reached in that particular round.
    */
+  // TODO do not expose
   readonly graph: (RoutingEdge | undefined)[][];
+  // TODO Can use typed arrays to represent the graph
+  // Uint32 [(alightStopId -> ? =index/to), boardingStopId (stopIndex,from),
+  // RouteId/TransferId, TripId (if not transfer), (previous_round, previous_stop
+  // -> allows to reconstruct transfers incl. continuous]
+  // TODO should try to reuse them in range raptor and use only one init
+
+  // TODO take out arrival times from Graph
+  // private arrivalTimes: Uint16Array[];
 
   /**
    * Earliest arrival time at each stop (minutes from midnight), indexed by stop ID.
@@ -90,6 +99,18 @@ export class RoutingState implements IRaptorState {
   private _destinationBest: Time = UNREACHED_TIME;
 
   /**
+   * Maximum arrival time allowed for this run. Defaults to UNREACHED_TIME when
+   * the query has no maxDuration limit.
+   */
+  maxArrivalTime: Time = UNREACHED_TIME;
+
+  /**
+   * Query-level maximum duration, retained so resetFor() can recompute the
+   * absolute max arrival time for each departure-time iteration.
+   */
+  private readonly maxDuration?: Duration;
+
+  /**
    * Every stop that has received an arrival improvement during the current run,
    * in the order the improvements occurred.  Used by {@link resetFor} to clear
    * only the touched entries instead of scanning the entire array.
@@ -102,8 +123,12 @@ export class RoutingState implements IRaptorState {
     accessPaths: AccessPoint[],
     nbStops: number,
     maxRounds: number = 0,
+    maxDuration?: Duration,
   ) {
     this.destinations = destinations;
+    this.maxDuration = maxDuration;
+    this.maxArrivalTime =
+      maxDuration === undefined ? UNREACHED_TIME : departureTime + maxDuration;
     this.destinationSet = new Set(destinations);
     this.earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
     this.earliestArrivalLegs = new Uint8Array(nbStops);
@@ -126,6 +151,7 @@ export class RoutingState implements IRaptorState {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
       const arrival = depTime + access.duration;
+      if (arrival > this.maxArrivalTime) continue;
       const edge: OriginNode | AccessEdge =
         access.duration === 0
           ? { stopId: access.fromStopId, arrival: depTime }
@@ -224,6 +250,10 @@ export class RoutingState implements IRaptorState {
     }
     this.reachedStops.length = 0;
     this._destinationBest = UNREACHED_TIME;
+    this.maxArrivalTime =
+      this.maxDuration === undefined
+        ? UNREACHED_TIME
+        : depTime + this.maxDuration;
     this.seedAccessPaths(depTime, accessPaths);
   }
 

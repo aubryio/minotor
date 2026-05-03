@@ -148,6 +148,28 @@ describe('PlainRouter', () => {
       // Route 0 arrives at stop3 at 08:35
       assert.strictEqual(timeToStop3?.arrival, timeFromHM(8, 35));
     });
+
+    it('should not return journeys arriving after maxDuration', () => {
+      const tooShort = new Query.Builder()
+        .from(0)
+        .to(2)
+        .departureTime(timeFromHM(8, 0))
+        .maxDuration(34)
+        .build();
+
+      assert.strictEqual(router.route(tooShort).bestRoute(), undefined);
+
+      const justEnough = new Query.Builder()
+        .from(0)
+        .to(2)
+        .departureTime(timeFromHM(8, 0))
+        .maxDuration(35)
+        .build();
+
+      const route = router.route(justEnough).bestRoute();
+      assert(route);
+      assert.strictEqual(route.arrivalTime(), timeFromHM(8, 35));
+    });
   });
 
   describe('with a route change', () => {

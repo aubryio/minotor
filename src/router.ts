@@ -1,4 +1,5 @@
 import { Plotter } from './routing/plotter.js';
+import type { QueryOptions, RangeQueryOptions } from './routing/query.js';
 import { Query, RangeQuery } from './routing/query.js';
 import { Result } from './routing/result.js';
 import type { Leg, Transfer, VehicleLeg } from './routing/route.js';
@@ -40,6 +41,8 @@ export type {
   Leg,
   LocationType,
   ParetoRun,
+  QueryOptions,
+  RangeQueryOptions,
   RouteType,
   ServiceRouteInfo,
   SourceStopId,

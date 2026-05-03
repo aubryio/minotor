@@ -34,6 +34,9 @@ export interface IRaptorState {
    */
   readonly destinationBest: Time;
 
+  /** Latest arrival time allowed by the current query/run. */
+  readonly maxArrivalTime: Time;
+
   /** Returns `true` if `stop` is one of the query's destination stops. */
   isDestination(stop: StopId): boolean;
 
@@ -212,6 +215,7 @@ export class Raptor {
 
       if (
         dropOffType !== NOT_AVAILABLE &&
+        arrivalTime <= state.maxArrivalTime &&
         arrivalTime < state.improvementBound(round, currentStop) &&
         arrivalTime < state.destinationBest
       ) {
@@ -282,6 +286,7 @@ export class Raptor {
 
         if (
           dropOffType !== NOT_AVAILABLE &&
+          arrivalTime <= state.maxArrivalTime &&
           arrivalTime < state.improvementBound(round, currentStop) &&
           arrivalTime < state.destinationBest
         ) {
@@ -334,17 +339,21 @@ export class Raptor {
         );
 
         if (firstBoardableTrip !== undefined) {
+          const departureTime = route.departureFrom(
+            currentStopIndex,
+            firstBoardableTrip,
+          );
           // At round 1, enforce maxInitialWaitingTime: skip boarding if the
           // traveler would have to wait longer than the allowed threshold at
           // the first boarding stop.
           const exceedsInitialWait =
             round === 1 &&
             options.maxInitialWaitingTime !== undefined &&
-            route.departureFrom(currentStopIndex, firstBoardableTrip) -
-              earliestArrivalOnPreviousRound >
+            departureTime - earliestArrivalOnPreviousRound >
               options.maxInitialWaitingTime;
+          const exceedsMaxDuration = departureTime > state.maxArrivalTime;
 
-          if (!exceedsInitialWait) {
+          if (!exceedsInitialWait && !exceedsMaxDuration) {
             activeTripIndex = firstBoardableTrip;
             activeTripBoardStopIndex = currentStopIndex;
             activeTripStopOffset = route.tripStopOffset(firstBoardableTrip);
@@ -391,6 +400,7 @@ export class Raptor {
         const arrivalAfterTransfer = currentArrival.arrival + transferTime;
 
         if (
+          arrivalAfterTransfer <= state.maxArrivalTime &&
           arrivalAfterTransfer <
             state.improvementBound(round, transfer.destination) &&
           arrivalAfterTransfer < state.destinationBest
@@ -398,7 +408,7 @@ export class Raptor {
           arrivalsAtCurrentRound[transfer.destination] = {
             arrival: arrivalAfterTransfer,
             from: stop,
-            to: transfer.destination,
+            to: transfer.destination, // TODO needed?
             minTransferTime: transferTime || undefined,
             type: transfer.type,
           } as TransferEdge;

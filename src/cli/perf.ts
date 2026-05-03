@@ -127,7 +127,8 @@ export const loadQueriesFromJson = (
         .from(fromStop.id)
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         .to(new Set(toStops.map((stop) => stop!.id)))
-        .departureTime(timeFromString(serializedQuery.departureTime));
+        .departureTime(timeFromString(serializedQuery.departureTime))
+        .maxDuration(6 * 60);
 
       if (serializedQuery.maxTransfers !== undefined) {
         queryBuilder.maxTransfers(serializedQuery.maxTransfers);
@@ -180,7 +181,8 @@ export const loadRangeQueriesFromJson = (
         .to(new Set(toStops.map((stop) => stop!.id)))
         .departureTime(timeFromString(serializedQuery.departureTime))
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        .lastDepartureTime(timeFromString(serializedQuery.lastDepartureTime!));
+        .lastDepartureTime(timeFromString(serializedQuery.lastDepartureTime!))
+        .maxDuration(6 * 60);
 
       if (serializedQuery.maxTransfers !== undefined) {
         queryBuilder.maxTransfers(serializedQuery.maxTransfers);

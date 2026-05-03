@@ -249,6 +249,148 @@ describe('Raptor', () => {
     });
   });
 
+  describe('maxDuration', () => {
+    it('filters vehicle arrivals after the maxDuration cutoff and allows the exact boundary', () => {
+      const timetable = new Timetable(
+        stopsAdjacency,
+        [route0, route1],
+        serviceRoutes,
+      );
+      const raptor = new Raptor(timetable);
+      const tooShortOptions: QueryOptions = {
+        maxTransfers: 5,
+        minTransferTime: 2,
+        transportModes: ALL_TRANSPORT_MODES,
+        maxDuration: 29,
+      };
+
+      const tooShort = new RoutingState(
+        timeFromHM(8, 0),
+        [1],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        NB_STOPS,
+        tooShortOptions.maxTransfers + 1,
+        tooShortOptions.maxDuration,
+      );
+      raptor.run(tooShortOptions, tooShort);
+      assert.strictEqual(tooShort.getArrival(1), undefined);
+
+      const justEnoughOptions: QueryOptions = {
+        maxTransfers: 5,
+        minTransferTime: 2,
+        transportModes: ALL_TRANSPORT_MODES,
+        maxDuration: 30,
+      };
+      const justEnough = new RoutingState(
+        timeFromHM(8, 0),
+        [1],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        NB_STOPS,
+        justEnoughOptions.maxTransfers + 1,
+        justEnoughOptions.maxDuration,
+      );
+      raptor.run(justEnoughOptions, justEnough);
+      assert.strictEqual(justEnough.getArrival(1)?.arrival, timeFromHM(8, 30));
+    });
+
+    it('keeps intermediate stops reachable while filtering later vehicle arrivals', () => {
+      const timetable = new Timetable(
+        stopsAdjacency,
+        [route0, route1],
+        serviceRoutes,
+      );
+      const options: QueryOptions = {
+        maxTransfers: 5,
+        minTransferTime: 2,
+        transportModes: ALL_TRANSPORT_MODES,
+        maxDuration: 45,
+      };
+      const state = new RoutingState(
+        timeFromHM(8, 0),
+        [2],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        NB_STOPS,
+        options.maxTransfers + 1,
+        options.maxDuration,
+      );
+      const raptor = new Raptor(timetable);
+      raptor.run(options, state);
+      assert.strictEqual(state.getArrival(1)?.arrival, timeFromHM(8, 30));
+      assert.strictEqual(state.getArrival(2), undefined);
+    });
+
+    it('filters timed walking transfers after the maxDuration cutoff', () => {
+      const timetable = new Timetable(
+        stopsAdjacencyWithTransfer,
+        [route0],
+        [serviceRoutes[0]!],
+      );
+      const raptor = new Raptor(timetable);
+      const tooShortOptions: QueryOptions = {
+        maxTransfers: 5,
+        minTransferTime: 2,
+        transportModes: ALL_TRANSPORT_MODES,
+        maxDuration: 34,
+      };
+
+      const tooShort = new RoutingState(
+        timeFromHM(8, 0),
+        [2],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        NB_STOPS,
+        tooShortOptions.maxTransfers + 1,
+        tooShortOptions.maxDuration,
+      );
+      raptor.run(tooShortOptions, tooShort);
+      assert.strictEqual(tooShort.getArrival(1)?.arrival, timeFromHM(8, 30));
+      assert.strictEqual(tooShort.getArrival(2), undefined);
+
+      const justEnoughOptions: QueryOptions = {
+        maxTransfers: 5,
+        minTransferTime: 2,
+        transportModes: ALL_TRANSPORT_MODES,
+        maxDuration: 35,
+      };
+      const justEnough = new RoutingState(
+        timeFromHM(8, 0),
+        [2],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        NB_STOPS,
+        justEnoughOptions.maxTransfers + 1,
+        justEnoughOptions.maxDuration,
+      );
+      raptor.run(justEnoughOptions, justEnough);
+      assert.strictEqual(justEnough.getArrival(2)?.arrival, timeFromHM(8, 35));
+    });
+
+    it('filters in-seat continuation arrivals after the maxDuration cutoff', () => {
+      const timetable = new Timetable(
+        stopsAdjacency,
+        [route0, route1],
+        serviceRoutes,
+        tripContinuations,
+      );
+      const options: QueryOptions = {
+        maxTransfers: 5,
+        minTransferTime: 2,
+        transportModes: ALL_TRANSPORT_MODES,
+        maxDuration: 45,
+      };
+      const state = new RoutingState(
+        timeFromHM(8, 0),
+        [2],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        NB_STOPS,
+        options.maxTransfers + 1,
+        options.maxDuration,
+      );
+      const raptor = new Raptor(timetable);
+      raptor.run(options, state);
+      assert.strictEqual(state.getArrival(1)?.arrival, timeFromHM(8, 30));
+      assert.strictEqual(state.getArrival(2), undefined);
+    });
+  });
+
   describe('early termination', () => {
     it('exits when no trips are catchable', () => {
       // Departing at 09:00 — all trips have already left (route 0 at 08:10,

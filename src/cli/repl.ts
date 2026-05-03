@@ -49,8 +49,11 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       this.displayPrompt();
     },
   });
+  const routeSyntax =
+    '.route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers] [wait max <N> minutes]';
+
   replServer.defineCommand('route', {
-    help: 'Find a route using .route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers]',
+    help: `Find a route using ${routeSyntax}`,
     action(routeQuery: string) {
       this.clearBufferedCommand();
       const parts = routeQuery.split(' ').filter(Boolean);
@@ -60,11 +63,13 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       const atIndex = parts.indexOf('at');
       const beforeIndex = parts.indexOf('before');
       const withIndex = parts.indexOf('with');
+      const waitIndex = parts.indexOf('wait');
+      const routeClauseIndexes = [beforeIndex, withIndex, waitIndex].filter(
+        (index) => index !== -1,
+      );
 
       if (fromIndex === -1 || toIndex === -1 || atIndex === -1) {
-        console.log(
-          'Usage: .route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers]',
-        );
+        console.log(`Usage: ${routeSyntax}`);
         this.displayPrompt();
         return;
       }
@@ -72,17 +77,20 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
       const fromId = parts.slice(fromIndex + 1, toIndex).join(' ');
       const toId = parts.slice(toIndex + 1, atIndex).join(' ');
 
-      // atTime ends at 'before', 'with', or the end of the input.
-      const atTimeEnd =
-        beforeIndex !== -1
-          ? beforeIndex
-          : withIndex !== -1
-            ? withIndex
-            : parts.length;
+      // atTime ends at 'before', 'with', 'wait', or the end of the input.
+      const atTimeEnd = Math.min(
+        ...routeClauseIndexes.filter((index) => index > atIndex),
+        parts.length,
+      );
       const atTime = parts.slice(atIndex + 1, atTimeEnd).join(' ');
 
       // beforeTime is only present when the 'before' keyword appears.
-      const beforeTimeEnd = withIndex !== -1 ? withIndex : parts.length;
+      const beforeTimeEnd = Math.min(
+        ...[withIndex, waitIndex].filter(
+          (index) => index !== -1 && index > beforeIndex,
+        ),
+        parts.length,
+      );
       const beforeTime =
         beforeIndex !== -1
           ? parts.slice(beforeIndex + 1, beforeTimeEnd).join(' ')
@@ -92,11 +100,23 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         withIndex !== -1 && parts[withIndex + 1] !== undefined
           ? parseInt(parts[withIndex + 1] as string)
           : 4;
+      const maxInitialWaitingTime =
+        waitIndex !== -1 &&
+        parts[waitIndex + 1] === 'max' &&
+        parts[waitIndex + 2] !== undefined
+          ? Number(parts[waitIndex + 2])
+          : undefined;
+      const waitUnit = parts[waitIndex + 3];
+      const hasInvalidWaitClause =
+        waitIndex !== -1 &&
+        (parts[waitIndex + 1] !== 'max' ||
+          maxInitialWaitingTime === undefined ||
+          !Number.isFinite(maxInitialWaitingTime) ||
+          maxInitialWaitingTime < 0 ||
+          (waitUnit !== 'minute' && waitUnit !== 'minutes'));
 
-      if (!fromId || !toId || !atTime) {
-        console.log(
-          'Usage: .route from <stop> to <stop> at <HH:mm> [before <HH:mm>] [with <N> transfers]',
-        );
+      if (!fromId || !toId || !atTime || hasInvalidWaitClause) {
+        console.log(`Usage: ${routeSyntax}`);
         this.displayPrompt();
         return;
       }
@@ -131,13 +151,16 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         const router = new Router(timetable, stopsIndex);
         if (beforeTime !== undefined) {
           const lastDepartureTime = timeFromString(beforeTime);
-          const query = new RangeQuery.Builder()
+          const queryBuilder = new RangeQuery.Builder()
             .from(fromStop.id)
             .to(toStop.id)
             .departureTime(departureTime)
             .lastDepartureTime(lastDepartureTime)
-            .maxTransfers(maxTransfers)
-            .build();
+            .maxTransfers(maxTransfers);
+          if (maxInitialWaitingTime !== undefined) {
+            queryBuilder.maxInitialWaitingTime(maxInitialWaitingTime);
+          }
+          const query = queryBuilder.build();
 
           const result = router.rangeRoute(query);
 
@@ -160,12 +183,15 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
             });
           }
         } else {
-          const query = new Query.Builder()
+          const queryBuilder = new Query.Builder()
             .from(fromStop.id)
             .to(toStop.id)
             .departureTime(departureTime)
-            .maxTransfers(maxTransfers)
-            .build();
+            .maxTransfers(maxTransfers);
+          if (maxInitialWaitingTime !== undefined) {
+            queryBuilder.maxInitialWaitingTime(maxInitialWaitingTime);
+          }
+          const query = queryBuilder.build();
 
           const result = router.route(query);
           const arrivalTime = result.arrivalAt(toStop.id);

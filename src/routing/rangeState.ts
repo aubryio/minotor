@@ -109,6 +109,10 @@ export class RangeRaptorState implements IRaptorState {
     return this._destinationBest;
   }
 
+  get maxArrivalTime(): Time {
+    return this.currentRun.maxArrivalTime;
+  }
+
   isDestination(stop: StopId): boolean {
     return this.currentRun.isDestination(stop);
   }
