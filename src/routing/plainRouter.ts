@@ -47,6 +47,7 @@ export class PlainRouter {
       accessLegs,
       this.timetable.nbStops(),
       query.options.maxTransfers + 1,
+      query.options.maxDuration,
     );
 
     this.raptor.run(query.options, routingState);

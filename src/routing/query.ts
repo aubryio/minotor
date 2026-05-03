@@ -7,6 +7,14 @@ export type QueryOptions = {
   minTransferTime: Duration;
   transportModes: Set<RouteType>;
   /**
+   * Maximum total journey duration (in minutes) from the query departure time.
+   *
+   * When set, arrivals after `departureTime + maxDuration` are skipped. The
+   * duration includes initial access, waiting time, transit legs, and transfers.
+   * Undefined means no limit.
+   */
+  maxDuration?: Duration;
+  /**
    * Maximum time (in minutes) the traveler is willing to wait at the first
    * boarding stop before the first transit vehicle departs.
    *
@@ -95,6 +103,16 @@ export class Query {
      */
     transportModes(transportModes: Set<RouteType>): this {
       this.optionsValue.transportModes = transportModes;
+      return this;
+    }
+
+    /**
+     * Sets the maximum total journey duration (in minutes) from the query
+     * departure time. The limit includes initial access, waiting time, transit
+     * legs, and transfers.
+     */
+    maxDuration(maxDuration: Duration): this {
+      this.optionsValue.maxDuration = maxDuration;
       return this;
     }
 

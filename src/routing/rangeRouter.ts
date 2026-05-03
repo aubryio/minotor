@@ -92,6 +92,7 @@ export class RangeRouter {
         accessLegs,
         this.timetable.nbStops(),
         maxRounds,
+        query.options.maxDuration,
       );
       rangeState.setCurrentRun(routingState);
       this.raptor.run(
@@ -122,6 +123,7 @@ export class RangeRouter {
           legs,
           this.timetable.nbStops(),
           maxRounds,
+          query.options.maxDuration,
         );
       } else {
         routingState.resetFor(depTime, legs);

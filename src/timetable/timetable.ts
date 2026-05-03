@@ -18,11 +18,8 @@ import { Route, RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
 import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
 import { encode, TripStopId } from './tripStopId.js';
 
-export type TransferType =
-  | 'RECOMMENDED'
-  | 'GUARANTEED'
-  | 'REQUIRES_MINIMAL_TIME'
-  | 'IN_SEAT';
+export type TransferType = // TODO use number to represent that.
+  'RECOMMENDED' | 'GUARANTEED' | 'REQUIRES_MINIMAL_TIME' | 'IN_SEAT';
 
 export type Transfer = {
   destination: StopId;

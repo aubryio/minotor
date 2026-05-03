@@ -347,6 +347,28 @@ describe('RangeRouter', () => {
       assert.strictEqual(result.size, 0);
       assert.strictEqual(result.bestRoute(), undefined);
     });
+
+    it('filters runs whose arrivals exceed maxDuration for their departure slot', () => {
+      const tooShort = new RangeQuery.Builder()
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
+        .lastDepartureTime(timeFromHM(8, 30))
+        .maxDuration(29)
+        .build();
+
+      assert.strictEqual(router.rangeRoute(tooShort).size, 0);
+
+      const justEnough = new RangeQuery.Builder()
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
+        .lastDepartureTime(timeFromHM(8, 30))
+        .maxDuration(30)
+        .build();
+
+      assert.strictEqual(router.rangeRoute(justEnough).size, 2);
+    });
   });
 
   describe('same-stop query (origin equals destination)', () => {
