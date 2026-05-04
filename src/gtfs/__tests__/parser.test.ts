@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
 
 import { timeFromHMS } from '../../timetable/time.js';
+import { RouteTypes } from '../../timetable/timetable.js';
 import { GtfsParser } from '../parser.js';
 describe('GTFS parser', () => {
   let parser: GtfsParser;
@@ -70,6 +71,6 @@ describe('GTFS parser', () => {
     const serviceRoute = timetable.getServiceRouteInfo(route);
     assert(serviceRoute);
     assert.strictEqual(serviceRoute.name, '10');
-    assert.strictEqual(serviceRoute.type, 'BUS');
+    assert.strictEqual(serviceRoute.type, RouteTypes.BUS);
   });
 });

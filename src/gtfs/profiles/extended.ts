@@ -1,4 +1,4 @@
-import { RouteType } from '../../timetable/timetable.js';
+import { RouteType, RouteTypes } from '../../timetable/timetable.js';
 import { GtfsProfile } from '../parser.js';
 import { Maybe } from '../utils.js';
 
@@ -30,7 +30,7 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 115: // Vehicle Transport Rail Service
     case 116: // Rack and Pinion Railway (Rochers de Naye, Dolderbahn)
     case 117: // Additional Rail Service
-      return 'RAIL';
+      return RouteTypes.RAIL;
 
     // Coach Service (200-299)
     case 200: // Coach Service
@@ -43,7 +43,7 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 207: // Tourist Coach Service
     case 208: // Commuter Coach Service
     case 209: // All Coach Services
-      return 'BUS';
+      return RouteTypes.BUS;
 
     // Urban Railway Service (400-499)
     case 400: // Urban Railway Service
@@ -51,10 +51,10 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 402: // Underground Service (London Underground, U-Bahn)
     case 403: // Urban Railway Service
     case 404: // All Urban Railway Services
-      return 'SUBWAY';
+      return RouteTypes.SUBWAY;
 
     case 405: // Monorail
-      return 'MONORAIL';
+      return RouteTypes.MONORAIL;
 
     // Bus Service (700-799)
     case 700: // Bus Service
@@ -74,11 +74,11 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 714: // Rail Replacement Bus Service
     case 715: // Demand and Response Bus Service
     case 716: // All Bus Services
-      return 'BUS';
+      return RouteTypes.BUS;
 
     // Trolleybus Service (800-899)
     case 800: // Trolleybus Service
-      return 'TROLLEYBUS';
+      return RouteTypes.TROLLEYBUS;
 
     // Tram Service (900-999)
     case 900: // Tram Service
@@ -88,11 +88,11 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 904: // Sightseeing Tram Service (Blackpool Seafront)
     case 905: // Shuttle Tram Service
     case 906: // All Tram Services
-      return 'TRAM';
+      return RouteTypes.TRAM;
 
     // Water Transport Service (1000-1099)
     case 1000: // Water Transport Service
-      return 'FERRY';
+      return RouteTypes.FERRY;
 
     // Air Service (1100-1199)
     case 1100: // Air Service
@@ -100,7 +100,7 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
 
     // Ferry Service (1200-1299)
     case 1200: // Ferry Service
-      return 'FERRY';
+      return RouteTypes.FERRY;
 
     // Aerial Lift Service (1300-1399)
     case 1300: // Aerial Lift Service (Telefèric de Montjuïc, Roosevelt Island Tramway)
@@ -110,11 +110,11 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
     case 1305: // Drag Lift Service
     case 1306: // Small Telecabin Service
     case 1307: // All Telecabin Services
-      return 'AERIAL_LIFT';
+      return RouteTypes.AERIAL_LIFT;
 
     case 1303: // Elevator Service (Ascenseur, Aufzug)
     case 1400: // Funicular Service (Rigiblick)
-      return 'FUNICULAR';
+      return RouteTypes.FUNICULAR;
 
     // Taxi Service (1500-1599)
     case 1500: // Taxi Service
@@ -127,14 +127,14 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
       return undefined;
 
     case 1501: // Communal Taxi Service (Marshrutka, dolmuş)
-      return 'BUS';
+      return RouteTypes.BUS;
 
     // Miscellaneous Service (1700-1799)
     case 1700: // Miscellaneous Service / Unknown mode
       return undefined;
 
     case 1702: // Horse-drawn Carriage
-      return 'BUS';
+      return RouteTypes.BUS;
 
     default:
       return undefined;

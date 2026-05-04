@@ -3,9 +3,13 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { StopId } from '../../stops/stops.js';
-import { REGULAR, Route } from '../../timetable/route.js';
+import { PickUpDropOffTypes, Route } from '../../timetable/route.js';
 import { timeFromHMS } from '../../timetable/time.js';
-import { ServiceRoute } from '../../timetable/timetable.js';
+import {
+  RouteTypes,
+  ServiceRoute,
+  TransferTypes,
+} from '../../timetable/timetable.js';
 import { GtfsRoutesMap } from '../routes.js';
 import { ServiceIds } from '../services.js';
 import { GtfsStopsMap } from '../stops.js';
@@ -44,11 +48,11 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map([
-      [0, [{ destination: 1, type: 'RECOMMENDED' }]],
+      [0, [{ destination: 1, type: TransferTypes.RECOMMENDED }]],
     ]);
 
     const serviceRoutes: ServiceRoute[] = [
-      { type: 'BUS', name: 'B1', routes: [] },
+      { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -67,7 +71,7 @@ describe('buildStopsAdjacencyStructure', () => {
           transfers: [
             {
               destination: 1,
-              type: 'RECOMMENDED',
+              type: TransferTypes.RECOMMENDED,
             },
           ],
         },
@@ -107,10 +111,10 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map([
-      [3, [{ destination: 2, type: 'RECOMMENDED' }]],
+      [3, [{ destination: 2, type: TransferTypes.RECOMMENDED }]],
     ]);
     const serviceRoutes: ServiceRoute[] = [
-      { type: 'BUS', name: 'B1', routes: [] },
+      { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -186,7 +190,7 @@ describe('buildStopsAdjacencyStructure', () => {
     ];
     const transfersMap: TransfersMap = new Map();
     const serviceRoutes: ServiceRoute[] = [
-      { type: 'BUS', name: 'B1', routes: [] },
+      { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -234,7 +238,7 @@ describe('buildStopsAdjacencyStructure', () => {
     ];
     const transfersMap: TransfersMap = new Map();
     const serviceRoutes: ServiceRoute[] = [
-      { type: 'BUS', name: 'B1', routes: [] },
+      { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -276,7 +280,7 @@ describe('buildStopsAdjacencyStructure', () => {
     ];
     const transfersMap: TransfersMap = new Map();
     const serviceRoutes: ServiceRoute[] = [
-      { type: 'BUS', name: 'B1', routes: [] },
+      { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
     const stopsAdjacency = buildStopsAdjacencyStructure(
@@ -325,8 +329,8 @@ describe('GTFS trips parser', () => {
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
     const validRouteIds: GtfsRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1' }],
-      ['routeB', { type: 'TRAM', name: 'T1' }],
+      ['routeA', { type: RouteTypes.BUS, name: 'B1' }],
+      ['routeB', { type: RouteTypes.TRAM, name: 'T1' }],
     ]);
 
     const trips = await parseTrips(
@@ -352,8 +356,8 @@ describe('GTFS trips parser', () => {
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
     const validRouteIds: GtfsRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1' }],
-      ['routeB', { type: 'TRAM', name: 'T1' }],
+      ['routeA', { type: RouteTypes.BUS, name: 'B1' }],
+      ['routeB', { type: RouteTypes.TRAM, name: 'T1' }],
     ]);
 
     const trips = await parseTrips(
@@ -373,8 +377,8 @@ describe('GTFS trips parser', () => {
 
     const validServiceIds: ServiceIds = new Set(['service1', 'service2']);
     const validRouteIds: GtfsRoutesMap = new Map([
-      ['routeA', { type: 'BUS', name: 'B1' }],
-      ['routeB', { type: 'TRAM', name: 'T1' }],
+      ['routeA', { type: RouteTypes.BUS, name: 'B1' }],
+      ['routeB', { type: RouteTypes.TRAM, name: 'T1' }],
     ]);
 
     const trips = await parseTrips(
@@ -439,7 +443,10 @@ describe('GTFS stop times parser', () => {
           timeFromHMS(8, 10, 0),
           timeFromHMS(8, 15, 0),
         ]),
-        encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
+        encodePickUpDropOffTypes(
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
+        ),
         new Uint32Array([0, 1]),
         0,
       ),
@@ -509,8 +516,18 @@ describe('GTFS stop times parser', () => {
           timeFromHMS(9, 15, 0),
         ]),
         encodePickUpDropOffTypes(
-          [REGULAR, REGULAR, REGULAR, REGULAR],
-          [REGULAR, REGULAR, REGULAR, REGULAR],
+          [
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+          ],
+          [
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+          ],
         ),
         new Uint32Array([0, 1]),
         0,
@@ -584,8 +601,18 @@ describe('GTFS stop times parser', () => {
           timeFromHMS(9, 15, 0),
         ]),
         encodePickUpDropOffTypes(
-          [REGULAR, REGULAR, REGULAR, REGULAR],
-          [REGULAR, REGULAR, REGULAR, REGULAR],
+          [
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+          ],
+          [
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+            PickUpDropOffTypes.REGULAR,
+          ],
         ),
         new Uint32Array([0, 1]),
         0,
@@ -646,14 +673,20 @@ describe('GTFS stop times parser', () => {
           timeFromHMS(8, 10, 0),
           timeFromHMS(8, 15, 0),
         ]),
-        encodePickUpDropOffTypes([REGULAR, REGULAR], [REGULAR, REGULAR]),
+        encodePickUpDropOffTypes(
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
+        ),
         new Uint32Array([0, 1]),
         0,
       ),
       new Route(
         1,
         new Uint16Array([timeFromHMS(9, 0, 0), timeFromHMS(9, 15, 0)]),
-        encodePickUpDropOffTypes([REGULAR], [REGULAR]),
+        encodePickUpDropOffTypes(
+          [PickUpDropOffTypes.REGULAR],
+          [PickUpDropOffTypes.REGULAR],
+        ),
         new Uint32Array([0]),
         0,
       ),
@@ -704,7 +737,10 @@ describe('GTFS stop times parser', () => {
       new Route(
         0,
         new Uint16Array([timeFromHMS(8, 0, 0), timeFromHMS(8, 5, 0)]),
-        encodePickUpDropOffTypes([REGULAR], [REGULAR]),
+        encodePickUpDropOffTypes(
+          [PickUpDropOffTypes.REGULAR],
+          [PickUpDropOffTypes.REGULAR],
+        ),
         new Uint32Array([0]),
         0,
       ),

@@ -6,9 +6,11 @@ import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
   ALL_TRANSPORT_MODES,
+  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
+  TransferTypes,
   TripTransfers,
 } from '../../timetable/timetable.js';
 import { encode } from '../../timetable/tripStopId.js';
@@ -73,8 +75,8 @@ const stopsAdjacency: StopAdjacency[] = [
 ];
 
 const serviceRoutes: ServiceRoute[] = [
-  { type: 'BUS', name: 'Route 0', routes: [0] },
-  { type: 'BUS', name: 'Route 1', routes: [1] },
+  { type: RouteTypes.BUS, name: 'Route 0', routes: [0] },
+  { type: RouteTypes.BUS, name: 'Route 1', routes: [1] },
 ];
 
 // ─── Extended fixture: slower direct route 0→2 ────────────────────────────────
@@ -108,9 +110,9 @@ const stopsAdjacencyWithDirectRoute: StopAdjacency[] = [
 ];
 
 const serviceRoutesWithDirectRoute: ServiceRoute[] = [
-  { type: 'BUS', name: 'Route 0', routes: [0] },
-  { type: 'BUS', name: 'Route 1', routes: [1] },
-  { type: 'BUS', name: 'Route 2', routes: [2] },
+  { type: RouteTypes.BUS, name: 'Route 0', routes: [0] },
+  { type: RouteTypes.BUS, name: 'Route 1', routes: [1] },
+  { type: RouteTypes.BUS, name: 'Route 2', routes: [2] },
 ];
 
 // ─── Extended fixture: walking transfer from stop 1 to stop 2 ─────────────────
@@ -121,7 +123,11 @@ const stopsAdjacencyWithTransfer: StopAdjacency[] = [
   {
     routes: [0],
     transfers: [
-      { destination: 2, type: 'REQUIRES_MINIMAL_TIME', minTransferTime: 5 },
+      {
+        destination: 2,
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
+        minTransferTime: 5,
+      },
     ],
   },
   { routes: [] },
@@ -131,8 +137,8 @@ const stopsAdjacencyWithTransfer: StopAdjacency[] = [
 // Route 0 is BUS, route 1 is RAIL — used to verify mode filtering.
 
 const mixedModeServiceRoutes: ServiceRoute[] = [
-  { type: 'BUS', name: 'Route 0', routes: [0] },
-  { type: 'RAIL', name: 'Route 1', routes: [1] },
+  { type: RouteTypes.BUS, name: 'Route 0', routes: [0] },
+  { type: RouteTypes.RAIL, name: 'Route 1', routes: [1] },
 ];
 
 // ─── Extended fixture: in-seat trip continuation ──────────────────────────────
@@ -468,7 +474,7 @@ describe('Raptor', () => {
       const options: QueryOptions = {
         maxTransfers: 5,
         minTransferTime: 2,
-        transportModes: new Set(['RAIL']),
+        transportModes: new Set([RouteTypes.RAIL]),
       };
       raptor.run(options, state);
       assert.strictEqual(state.getArrival(1), undefined);

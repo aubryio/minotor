@@ -6,7 +6,12 @@ import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
-import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
+import {
+  RouteTypes,
+  ServiceRoute,
+  StopAdjacency,
+  TransferTypes,
+} from '../../timetable/timetable.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
 import { RoutingState, TransferEdge, VehicleEdge } from '../router.js';
@@ -155,8 +160,8 @@ describe('Result', () => {
   ];
 
   const routes: ServiceRoute[] = [
-    { type: 'RAIL', name: 'Line 1', routes: [0] },
-    { type: 'RAIL', name: 'Line 2', routes: [1] },
+    { type: RouteTypes.RAIL, name: 'Line 1', routes: [0] },
+    { type: RouteTypes.RAIL, name: 'Line 2', routes: [1] },
   ];
 
   const mockStopsIndex = new StopsIndex([
@@ -569,7 +574,7 @@ describe('Result', () => {
         arrival: timeFromHMS(8, 35, 0),
         from: 1,
         to: 2,
-        type: 'RECOMMENDED',
+        type: TransferTypes.RECOMMENDED,
         minTransferTime: 5,
       };
       const secondVehicleEdge: VehicleEdge = {

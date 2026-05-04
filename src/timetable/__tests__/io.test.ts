@@ -11,22 +11,28 @@ import {
   serializeStopsAdjacency,
   serializeTripTransfers,
 } from '../io.js';
-import { REGULAR, Route } from '../route.js';
+import { PickUpDropOffTypes, Route } from '../route.js';
 import { timeFromHMS } from '../time.js';
-import { ServiceRoute, StopAdjacency, TripStop } from '../timetable.js';
+import {
+  RouteTypes,
+  ServiceRoute,
+  StopAdjacency,
+  TransferTypes,
+  TripStop,
+} from '../timetable.js';
 import { encode } from '../tripStopId.js';
 
 describe('Timetable IO', () => {
   const stopsAdjacency: StopAdjacency[] = [
     {
-      transfers: [{ destination: 2, type: 'RECOMMENDED' }],
+      transfers: [{ destination: 2, type: TransferTypes.RECOMMENDED }],
       routes: [0],
     },
     {
       transfers: [
         {
           destination: 1,
-          type: 'GUARANTEED',
+          type: TransferTypes.GUARANTEED,
           minTransferTime: 3,
         },
       ],
@@ -37,21 +43,21 @@ describe('Timetable IO', () => {
     new Route(
       0,
       new Uint16Array([timeFromHMS(16, 40, 0), timeFromHMS(16, 50, 0)]),
-      new Uint8Array([REGULAR, REGULAR]),
+      new Uint8Array([PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR]),
       new Uint32Array([1, 2]),
       0,
     ),
     new Route(
       1,
       new Uint16Array([timeFromHMS(15, 20, 0), timeFromHMS(15, 30, 0)]),
-      new Uint8Array([REGULAR, REGULAR]),
+      new Uint8Array([PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR]),
       new Uint32Array([2, 1]),
       1,
     ),
   ];
   const routes: ServiceRoute[] = [
-    { type: 'RAIL', name: 'Route 1', routes: [0] },
-    { type: 'RAIL', name: 'Route 2', routes: [1] },
+    { type: RouteTypes.RAIL, name: 'Route 1', routes: [0] },
+    { type: RouteTypes.RAIL, name: 'Route 2', routes: [1] },
   ];
   const stopsAdjacencyProto = [
     {
@@ -76,7 +82,10 @@ describe('Timetable IO', () => {
         new Uint16Array([timeFromHMS(16, 40, 0), timeFromHMS(16, 50, 0)])
           .buffer,
       ),
-      pickupDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
+      pickupDropOffTypes: new Uint8Array([
+        PickUpDropOffTypes.REGULAR,
+        PickUpDropOffTypes.REGULAR,
+      ]),
       stops: new Uint8Array(new Uint32Array([1, 2]).buffer),
       serviceRouteId: 0,
     },
@@ -85,7 +94,10 @@ describe('Timetable IO', () => {
         new Uint16Array([timeFromHMS(15, 20, 0), timeFromHMS(15, 30, 0)])
           .buffer,
       ),
-      pickupDropOffTypes: new Uint8Array([REGULAR, REGULAR]),
+      pickupDropOffTypes: new Uint8Array([
+        PickUpDropOffTypes.REGULAR,
+        PickUpDropOffTypes.REGULAR,
+      ]),
       stops: new Uint8Array(new Uint32Array([2, 1]).buffer),
       serviceRouteId: 1,
     },

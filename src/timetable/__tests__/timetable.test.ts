@@ -1,13 +1,15 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { NOT_AVAILABLE, Route } from '../route.js';
+import { PickUpDropOffTypes, Route } from '../route.js';
 import { timeFromHMS } from '../time.js';
 import {
   RouteType,
+  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
+  TransferTypes,
   TripStop,
   TripTransfers,
 } from '../timetable.js';
@@ -17,14 +19,14 @@ describe('Timetable', () => {
   const stopsAdjacency: StopAdjacency[] = [
     { routes: [] },
     {
-      transfers: [{ destination: 2, type: 'RECOMMENDED' }],
+      transfers: [{ destination: 2, type: TransferTypes.RECOMMENDED }],
       routes: [0, 1],
     },
     {
       transfers: [
         {
           destination: 1,
-          type: 'GUARANTEED',
+          type: TransferTypes.GUARANTEED,
           minTransferTime: 3,
         },
       ],
@@ -50,7 +52,7 @@ describe('Timetable', () => {
             id: 2,
             arrivalTime: timeFromHMS(17, 20, 0),
             departureTime: timeFromHMS(17, 30, 0),
-            pickUpType: NOT_AVAILABLE,
+            pickUpType: PickUpDropOffTypes.NOT_AVAILABLE,
           },
         ],
       },
@@ -92,8 +94,8 @@ describe('Timetable', () => {
   });
   const routesAdjacency = [route1, route2];
   const routes: ServiceRoute[] = [
-    { type: 'RAIL', name: 'Route 1', routes: [0] },
-    { type: 'RAIL', name: 'Route 2', routes: [1] },
+    { type: RouteTypes.RAIL, name: 'Route 1', routes: [0] },
+    { type: RouteTypes.RAIL, name: 'Route 2', routes: [1] },
   ];
 
   const sampleTimetable: Timetable = new Timetable(
@@ -191,7 +193,7 @@ describe('Timetable', () => {
 
       const railRoutes = sampleTimetable.findReachableRoutes(
         fromStops,
-        new Set<RouteType>(['RAIL']),
+        new Set<RouteType>([RouteTypes.RAIL]),
       );
       assert.strictEqual(railRoutes.size, 2);
       assert.deepStrictEqual(
@@ -204,14 +206,18 @@ describe('Timetable', () => {
 
       const busRoutes = sampleTimetable.findReachableRoutes(
         fromStops,
-        new Set<RouteType>(['BUS']),
+        new Set<RouteType>([RouteTypes.BUS]),
       );
       assert.strictEqual(busRoutes.size, 0);
       assert.deepStrictEqual(busRoutes, new Map());
 
       const multiModeRoutes = sampleTimetable.findReachableRoutes(
         fromStops,
-        new Set<RouteType>(['RAIL', 'BUS', 'SUBWAY']),
+        new Set<RouteType>([
+          RouteTypes.RAIL,
+          RouteTypes.BUS,
+          RouteTypes.SUBWAY,
+        ]),
       );
       assert.strictEqual(multiModeRoutes.size, 2);
     });
@@ -685,7 +691,7 @@ describe('Timetable', () => {
                 id: 0,
                 arrivalTime: timeFromHMS(9, 0, 0),
                 departureTime: timeFromHMS(9, 0, 0),
-                pickUpType: NOT_AVAILABLE,
+                pickUpType: PickUpDropOffTypes.NOT_AVAILABLE,
               },
               {
                 id: 1,
@@ -731,7 +737,7 @@ describe('Timetable', () => {
       ];
 
       const ffbtServiceRoutes = [
-        { type: 'BUS' as const, name: 'Route 2', routes: [FFBT_ROUTE_ID] },
+        { type: RouteTypes.BUS, name: 'Route 2', routes: [FFBT_ROUTE_ID] },
       ];
 
       const ffbtTimetable = new Timetable(

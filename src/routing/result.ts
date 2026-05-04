@@ -1,22 +1,32 @@
 import { Timetable } from '../router.js';
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import { RawPickUpDropOffType } from '../timetable/route.js';
+import {
+  PickUpDropOffTypeString,
+  RawPickUpDropOffType,
+  Route as TimetableRoute,
+} from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import { Access, Leg, Route, Transfer, VehicleLeg } from './route.js';
+import {
+  routeTypeToString,
+  TransferTypes,
+  transferTypeToString,
+} from '../timetable/timetable.js';
+import {
+  Access,
+  Leg,
+  Route,
+  ServiceRouteInfo,
+  Transfer,
+  VehicleLeg,
+} from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
 import { AccessEdge } from './state.js';
 
 /**
  * Details about the pickup and drop-off modalities at each stop in each trip of a route.
  */
-export type PickUpDropOffType =
-  | 'REGULAR'
-  | 'NOT_AVAILABLE'
-  | 'MUST_PHONE_AGENCY'
-  | 'MUST_COORDINATE_WITH_DRIVER';
-
-const pickUpDropOffTypeMap: PickUpDropOffType[] = [
+const pickUpDropOffTypeMap: PickUpDropOffTypeString[] = [
   'REGULAR',
   'NOT_AVAILABLE',
   'MUST_PHONE_AGENCY',
@@ -28,12 +38,12 @@ const pickUpDropOffTypeMap: PickUpDropOffType[] = [
  * into its corresponding string representation.
  *
  * @param numericalType - The numerical value representing the pick-up/drop-off type.
- * @returns The corresponding PickUpDropOffType as a string.
+ * @returns The corresponding PickUpDropOffTypeString as a string.
  * @throws An error if the numerical type is invalid.
  */
 const toPickupDropOffType = (
   rawType: RawPickUpDropOffType,
-): PickUpDropOffType => {
+): PickUpDropOffTypeString => {
   const type = pickUpDropOffTypeMap[rawType];
   if (!type) {
     throw new Error(`Invalid pickup/drop-off type ${rawType}`);
@@ -212,6 +222,14 @@ export class Result {
     return new Route(route.reverse());
   }
 
+  private buildServiceRouteInfo(route: TimetableRoute): ServiceRouteInfo {
+    const serviceRouteInfo = this.timetable.getServiceRouteInfo(route);
+    return {
+      type: routeTypeToString(serviceRouteInfo.type),
+      name: serviceRouteInfo.name,
+    };
+  }
+
   /**
    * Builds a vehicle leg from a chain of vehicle edges.
    *
@@ -243,7 +261,7 @@ export class Result {
         lastRoute.stopId(lastEdge.hopOffStopIndex),
       )!,
       // The route info comes from the first boarded route in case of continuous trips
-      route: this.timetable.getServiceRouteInfo(firstRoute),
+      route: this.buildServiceRouteInfo(firstRoute),
       departureTime: firstRoute.departureFrom(
         firstEdge.stopIndex,
         firstEdge.tripIndex,
@@ -271,7 +289,7 @@ export class Result {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       to: this.stopsIndex.findStopById(edge.to)!,
       minTransferTime: edge.minTransferTime,
-      type: edge.type,
+      type: transferTypeToString(edge.type),
     };
   }
 
@@ -314,7 +332,7 @@ export class Result {
       from: this.stopsIndex.findStopById(fromStopId)!,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       to: this.stopsIndex.findStopById(toStopId)!,
-      type: 'GUARANTEED',
+      type: transferTypeToString(TransferTypes.GUARANTEED),
     };
   }
 

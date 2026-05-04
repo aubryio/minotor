@@ -7,9 +7,11 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
+  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
+  TransferTypes,
 } from '../../timetable/timetable.js';
 import { AccessFinder, AccessPoint } from '../access.js';
 
@@ -20,8 +22,12 @@ import { AccessFinder, AccessPoint } from '../access.js';
 const stopsAdjacency: StopAdjacency[] = [
   {
     transfers: [
-      { destination: 1, type: 'REQUIRES_MINIMAL_TIME', minTransferTime: 5 },
-      { destination: 2, type: 'GUARANTEED' },
+      {
+        destination: 1,
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
+        minTransferTime: 5,
+      },
+      { destination: 2, type: TransferTypes.GUARANTEED },
     ],
     routes: [],
   },
@@ -67,7 +73,7 @@ const routesAdjacency = [
 ];
 
 const serviceRoutes: ServiceRoute[] = [
-  { type: 'BUS', name: 'Line 1', routes: [0] },
+  { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
 ];
 
 const stops: Stop[] = [
@@ -125,7 +131,9 @@ describe('AccessFinder', () => {
       // Temporarily use a timetable where the transfer has no minTransferTime.
       const adj: StopAdjacency[] = [
         {
-          transfers: [{ destination: 1, type: 'REQUIRES_MINIMAL_TIME' }],
+          transfers: [
+            { destination: 1, type: TransferTypes.REQUIRES_MINIMAL_TIME },
+          ],
           routes: [],
         },
         { routes: [0] },
@@ -157,7 +165,7 @@ describe('AccessFinder', () => {
           transfers: [
             {
               destination: 1,
-              type: 'REQUIRES_MINIMAL_TIME',
+              type: TransferTypes.REQUIRES_MINIMAL_TIME,
               minTransferTime: 8,
             },
           ],
@@ -167,7 +175,7 @@ describe('AccessFinder', () => {
           transfers: [
             {
               destination: 1,
-              type: 'REQUIRES_MINIMAL_TIME',
+              type: TransferTypes.REQUIRES_MINIMAL_TIME,
               minTransferTime: 3,
             },
           ],

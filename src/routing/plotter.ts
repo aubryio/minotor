@@ -1,5 +1,6 @@
 import { StopId } from '../stops/stops.js';
 import { durationToString, timeToString } from '../timetable/time.js';
+import { routeTypeToString } from '../timetable/timetable.js';
 import { Result } from './result.js';
 import {
   AccessEdge,
@@ -326,7 +327,7 @@ export class Plotter {
 
     const serviceRouteInfo = this.result.timetable.getServiceRouteInfo(route);
     const routeName = serviceRouteInfo.name;
-    const routeType = serviceRouteInfo.type;
+    const routeType = routeTypeToString(serviceRouteInfo.type);
 
     const departureTime = timeToString(
       route.departureFrom(edge.stopIndex, edge.tripIndex),
@@ -424,8 +425,12 @@ export class Plotter {
     const toRouteName =
       toServiceRouteInfo?.name ?? `Route ${String(toEdge.routeId)}`;
 
-    const fromRouteType = fromServiceRouteInfo?.type || 'UNKNOWN';
-    const toRouteType = toServiceRouteInfo?.type || 'UNKNOWN';
+    const fromRouteType = fromServiceRouteInfo
+      ? routeTypeToString(fromServiceRouteInfo.type)
+      : 'UNKNOWN';
+    const toRouteType = toServiceRouteInfo
+      ? routeTypeToString(toServiceRouteInfo.type)
+      : 'UNKNOWN';
 
     const fromArrivalTime = timeToString(fromEdge.arrival);
     const toDepartureTime = toRoute

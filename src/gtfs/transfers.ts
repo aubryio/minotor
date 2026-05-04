@@ -8,6 +8,7 @@ import {
   Timetable,
   Transfer,
   TransferType,
+  TransferTypes,
   TripStop,
   TripTransfers as TripTransfers,
 } from '../timetable/timetable.js';
@@ -121,7 +122,7 @@ const processGuaranteedStopTransfer = (
 
   const transfer: Transfer = {
     destination: toStop,
-    type: 'GUARANTEED',
+    type: TransferTypes.GUARANTEED,
     ...(transferEntry.min_transfer_time !== undefined && {
       minTransferTime: durationFromSeconds(transferEntry.min_transfer_time),
     }),
@@ -404,12 +405,12 @@ const parseGtfsTransferType = (
   switch (gtfsTransferType) {
     case 0:
     default:
-      return 'RECOMMENDED';
+      return TransferTypes.RECOMMENDED;
     case 1:
-      return 'GUARANTEED';
+      return TransferTypes.GUARANTEED;
     case 2:
-      return 'REQUIRES_MINIMAL_TIME';
+      return TransferTypes.REQUIRES_MINIMAL_TIME;
     case 4:
-      return 'IN_SEAT';
+      return TransferTypes.IN_SEAT;
   }
 };

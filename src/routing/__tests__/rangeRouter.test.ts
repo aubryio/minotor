@@ -6,9 +6,11 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
+  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
+  TransferTypes,
 } from '../../timetable/timetable.js';
 import { AccessFinder } from '../access.js';
 import { RangeQuery } from '../query.js';
@@ -24,7 +26,9 @@ describe('RangeRouter', () => {
       const stopsAdjacency: StopAdjacency[] = [
         {
           routes: [],
-          transfers: [{ destination: 1, type: 'REQUIRES_MINIMAL_TIME' }],
+          transfers: [
+            { destination: 1, type: TransferTypes.REQUIRES_MINIMAL_TIME },
+          ],
         },
         { routes: [0] },
         { routes: [0] },
@@ -54,7 +58,7 @@ describe('RangeRouter', () => {
       ];
 
       const serviceRoutes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
       ];
 
       const timetable = new Timetable(
@@ -174,7 +178,7 @@ describe('RangeRouter', () => {
       ];
 
       const serviceRoutes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
       ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, serviceRoutes);
@@ -276,7 +280,7 @@ describe('RangeRouter', () => {
       ];
 
       const serviceRoutes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
       ];
 
       const dominatingTimetable = new Timetable(
@@ -423,7 +427,7 @@ describe('RangeRouter', () => {
       ];
 
       const serviceRoutes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
       ];
 
       const timetable = new Timetable(
@@ -544,7 +548,7 @@ describe('RangeRouter', () => {
       ];
 
       const serviceRoutes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
       ];
 
       const timetable = new Timetable(

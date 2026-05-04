@@ -6,7 +6,12 @@ import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
-import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
+import {
+  RouteTypes,
+  ServiceRoute,
+  StopAdjacency,
+  TransferTypes,
+} from '../../timetable/timetable.js';
 import { Plotter } from '../plotter.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
@@ -58,7 +63,7 @@ describe('Plotter', () => {
 
   const routes: ServiceRoute[] = [
     {
-      type: 'RAIL',
+      type: RouteTypes.RAIL,
       name: 'IC 1',
       routes: [0],
     },
@@ -192,7 +197,7 @@ describe('Plotter', () => {
                   from: 0,
                   to: 1,
                   arrival: timeFromHMS(8, 45, 0),
-                  type: 'RECOMMENDED',
+                  type: TransferTypes.RECOMMENDED,
                   minTransferTime: 5,
                 },
               ],

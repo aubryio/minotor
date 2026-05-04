@@ -11,12 +11,19 @@ import { ServiceRouteId } from './timetable.js';
  */
 export type RouteId = number;
 
-export type RawPickUpDropOffType = 0 | 1 | 2 | 3;
+export const PickUpDropOffTypes = {
+  REGULAR: 0,
+  NOT_AVAILABLE: 1,
+  MUST_PHONE_AGENCY: 2,
+  MUST_COORDINATE_WITH_DRIVER: 3,
+} as const;
 
-export const REGULAR = 0;
-export const NOT_AVAILABLE = 1;
-export const MUST_PHONE_AGENCY = 2;
-export const MUST_COORDINATE_WITH_DRIVER = 3;
+export type PickUpDropOffType =
+  (typeof PickUpDropOffTypes)[keyof typeof PickUpDropOffTypes];
+
+export type PickUpDropOffTypeString = keyof typeof PickUpDropOffTypes;
+
+export type RawPickUpDropOffType = PickUpDropOffType;
 
 /*
  * A trip route index corresponds to the index of a given trip in a route.
@@ -182,8 +189,8 @@ export class Route {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const stop = trip.stops[stopIndex]!;
         const globalIndex = tripIndex * numStops + stopIndex;
-        const pickUp = stop.pickUpType ?? REGULAR;
-        const dropOff = stop.dropOffType ?? REGULAR;
+        const pickUp = stop.pickUpType ?? PickUpDropOffTypes.REGULAR;
+        const dropOff = stop.dropOffType ?? PickUpDropOffTypes.REGULAR;
         const byteIndex = Math.floor(globalIndex / 2);
         const isSecondPair = globalIndex % 2 === 1;
 

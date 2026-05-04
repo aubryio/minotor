@@ -33,7 +33,7 @@ export type VehicleEdge = TripStop & {
 export type TransferEdge = {
   arrival: Time;
   from: StopId;
-  to: StopId; // TODO remove
+  to: StopId;
   type: TransferType;
   minTransferTime?: Duration;
 };

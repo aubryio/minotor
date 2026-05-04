@@ -6,9 +6,11 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
+  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
+  TransferTypes,
   TripTransfers,
 } from '../../timetable/timetable.js';
 import { encode } from '../../timetable/tripStopId.js';
@@ -63,7 +65,7 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
@@ -246,12 +248,12 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
         {
-          type: 'RAIL',
+          type: RouteTypes.RAIL,
           name: 'Line 2',
           routes: [1],
         },
@@ -360,7 +362,7 @@ describe('PlainRouter', () => {
           transfers: [
             {
               destination: 4,
-              type: 'REQUIRES_MINIMAL_TIME',
+              type: TransferTypes.REQUIRES_MINIMAL_TIME,
               minTransferTime: durationFromSeconds(300), // 5 minutes walking
             },
           ],
@@ -429,12 +431,12 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
         {
-          type: 'RAIL',
+          type: RouteTypes.RAIL,
           name: 'Line 2',
           routes: [1],
         },
@@ -633,17 +635,17 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
         {
-          type: 'RAIL',
+          type: RouteTypes.RAIL,
           name: 'Line 2',
           routes: [1],
         },
         {
-          type: 'FERRY',
+          type: RouteTypes.FERRY,
           name: 'Line 3',
           routes: [2],
         },
@@ -795,12 +797,12 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 2',
           routes: [1],
         },
@@ -959,12 +961,12 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 2',
           routes: [1],
         },
@@ -1123,12 +1125,12 @@ describe('PlainRouter', () => {
 
       const routes: ServiceRoute[] = [
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 1',
           routes: [0],
         },
         {
-          type: 'BUS',
+          type: RouteTypes.BUS,
           name: 'Line 2',
           routes: [1],
         },
@@ -1281,9 +1283,9 @@ describe('PlainRouter', () => {
       ];
 
       const routes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
-        { type: 'BUS', name: 'Line 2', routes: [1] },
-        { type: 'BUS', name: 'Line 3', routes: [2] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 2', routes: [1] },
+        { type: RouteTypes.BUS, name: 'Line 3', routes: [2] },
       ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
@@ -1440,8 +1442,8 @@ describe('PlainRouter', () => {
       ];
 
       const routes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Bus Line', routes: [0] },
-        { type: 'RAIL', name: 'Rail Line', routes: [1] },
+        { type: RouteTypes.BUS, name: 'Bus Line', routes: [0] },
+        { type: RouteTypes.RAIL, name: 'Rail Line', routes: [1] },
       ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
@@ -1491,7 +1493,7 @@ describe('PlainRouter', () => {
         .from(0)
         .to(1)
         .departureTime(timeFromHM(8, 0))
-        .transportModes(new Set(['BUS'] as const))
+        .transportModes(new Set([RouteTypes.BUS] as const))
         .build();
 
       const result: Result = router.route(query);
@@ -1505,7 +1507,7 @@ describe('PlainRouter', () => {
         .from(0)
         .to(1)
         .departureTime(timeFromHM(8, 0))
-        .transportModes(new Set(['FERRY'] as const)) // Neither route is a ferry
+        .transportModes(new Set([RouteTypes.FERRY] as const)) // Neither route is a ferry
         .build();
 
       const result: Result = router.route(query);
@@ -1567,7 +1569,7 @@ describe('PlainRouter', () => {
       ];
 
       const routes: ServiceRoute[] = [
-        { type: 'BUS', name: 'Line 1', routes: [0] },
+        { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
       ];
 
       timetable = new Timetable(stopsAdjacency, routesAdjacency, routes);

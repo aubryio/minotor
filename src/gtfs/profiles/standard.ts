@@ -1,28 +1,29 @@
+import { RouteTypes } from '../../timetable/timetable.js';
 import { GtfsProfile } from '../parser.js';
 
 export const standardGtfsProfile: GtfsProfile = {
   routeTypeParser: (routeType: number) => {
     switch (routeType) {
       case 0:
-        return 'TRAM';
+        return RouteTypes.TRAM;
       case 1:
-        return 'SUBWAY';
+        return RouteTypes.SUBWAY;
       case 2:
-        return 'RAIL';
+        return RouteTypes.RAIL;
       case 3:
-        return 'BUS';
+        return RouteTypes.BUS;
       case 4:
-        return 'FERRY';
+        return RouteTypes.FERRY;
       case 5:
-        return 'CABLE_TRAM';
+        return RouteTypes.CABLE_TRAM;
       case 6:
-        return 'AERIAL_LIFT';
+        return RouteTypes.AERIAL_LIFT;
       case 7:
-        return 'FUNICULAR';
+        return RouteTypes.FUNICULAR;
       case 11:
-        return 'TROLLEYBUS';
+        return RouteTypes.TROLLEYBUS;
       case 12:
-        return 'MONORAIL';
+        return RouteTypes.MONORAIL;
       default:
         return undefined;
     }

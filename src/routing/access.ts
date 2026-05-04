@@ -1,8 +1,8 @@
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import { NOT_AVAILABLE } from '../timetable/route.js';
+import { PickUpDropOffTypes } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
-import { Timetable } from '../timetable/timetable.js';
+import { Timetable, TransferTypes } from '../timetable/timetable.js';
 
 /**
  * An access path from the query origin to an initial boarding stop.
@@ -58,7 +58,7 @@ export class AccessFinder {
         });
       }
       for (const transfer of this.timetable.getTransfers(origin)) {
-        if (transfer.type === 'REQUIRES_MINIMAL_TIME') {
+        if (transfer.type === TransferTypes.REQUIRES_MINIMAL_TIME) {
           const duration = transfer.minTransferTime ?? fallbackMinTransferTime;
           const existingAccess = accessPaths.get(transfer.destination);
           // Keep the shortest walk to maximize the set of reachable trips.
@@ -117,7 +117,10 @@ export class AccessFinder {
           while (tripIndex < nbTrips) {
             const dep = route.departureFrom(stopIndex, tripIndex);
             if (dep > searchTo) break;
-            if (route.pickUpTypeFrom(stopIndex, tripIndex) !== NOT_AVAILABLE) {
+            if (
+              route.pickUpTypeFrom(stopIndex, tripIndex) !==
+              PickUpDropOffTypes.NOT_AVAILABLE
+            ) {
               const t = dep - path.duration;
               let paths = slotMap.get(t);
               if (paths === undefined) {

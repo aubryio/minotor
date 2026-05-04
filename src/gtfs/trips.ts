@@ -2,15 +2,8 @@ import log from 'loglevel';
 
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { SerializedRoute } from '../timetable/io.js';
-import {
-  MUST_COORDINATE_WITH_DRIVER,
-  MUST_PHONE_AGENCY,
-  NOT_AVAILABLE,
-  REGULAR,
-  Route,
-  RouteId,
-  TripRouteIndex,
-} from '../timetable/route.js';
+import type { RouteId, TripRouteIndex } from '../timetable/route.js';
+import { PickUpDropOffTypes, Route } from '../timetable/route.js';
 import {
   ServiceRoute,
   ServiceRouteId,
@@ -470,14 +463,14 @@ const parsePickupDropOffType = (
 ): SerializedPickUpDropOffType => {
   switch (gtfsType) {
     default:
-      return REGULAR;
+      return PickUpDropOffTypes.REGULAR;
     case '0':
-      return REGULAR;
+      return PickUpDropOffTypes.REGULAR;
     case '1':
-      return NOT_AVAILABLE;
+      return PickUpDropOffTypes.NOT_AVAILABLE;
     case '2':
-      return MUST_PHONE_AGENCY;
+      return PickUpDropOffTypes.MUST_PHONE_AGENCY;
     case '3':
-      return MUST_COORDINATE_WITH_DRIVER;
+      return PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER;
   }
 };

@@ -6,7 +6,11 @@ import { Stop, StopId } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
-import { ServiceRoute, StopAdjacency } from '../../timetable/timetable.js';
+import {
+  RouteTypes,
+  ServiceRoute,
+  StopAdjacency,
+} from '../../timetable/timetable.js';
 import { ParetoRun, RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
 import { RoutingState, VehicleEdge } from '../router.js';
@@ -74,7 +78,7 @@ const routesAdjacency = [
   }),
 ];
 const serviceRoutes: ServiceRoute[] = [
-  { type: 'BUS', name: 'Line 1', routes: [0] },
+  { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
 ];
 const timetable = new Timetable(stopsAdjacency, routesAdjacency, serviceRoutes);
 

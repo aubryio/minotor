@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import {
-  NOT_AVAILABLE,
+  PickUpDropOffTypes,
   Route,
   StopRouteIndex,
   TripRouteIndex,
 } from '../timetable/route.js';
 import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
-import { Timetable, TripStop } from '../timetable/timetable.js';
+import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
 import { QueryOptions } from './query.js';
 import { RoutingEdge, TransferEdge, VehicleEdge } from './state.js';
 
@@ -214,7 +214,7 @@ export class Raptor {
       );
 
       if (
-        dropOffType !== NOT_AVAILABLE &&
+        dropOffType !== PickUpDropOffTypes.NOT_AVAILABLE &&
         arrivalTime <= state.maxArrivalTime &&
         arrivalTime < state.improvementBound(round, currentStop) &&
         arrivalTime < state.destinationBest
@@ -285,7 +285,7 @@ export class Raptor {
         );
 
         if (
-          dropOffType !== NOT_AVAILABLE &&
+          dropOffType !== PickUpDropOffTypes.NOT_AVAILABLE &&
           arrivalTime <= state.maxArrivalTime &&
           arrivalTime < state.improvementBound(round, currentStop) &&
           arrivalTime < state.destinationBest
@@ -392,7 +392,7 @@ export class Raptor {
         let transferTime: Duration;
         if (transfer.minTransferTime) {
           transferTime = transfer.minTransferTime;
-        } else if (transfer.type === 'IN_SEAT') {
+        } else if (transfer.type === TransferTypes.IN_SEAT) {
           transferTime = DURATION_ZERO;
         } else {
           transferTime = options.minTransferTime;

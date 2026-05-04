@@ -2,7 +2,12 @@ import { Plotter } from './routing/plotter.js';
 import type { QueryOptions, RangeQueryOptions } from './routing/query.js';
 import { Query, RangeQuery } from './routing/query.js';
 import { Result } from './routing/result.js';
-import type { Leg, Transfer, VehicleLeg } from './routing/route.js';
+import type {
+  Leg,
+  ServiceRouteInfo,
+  Transfer,
+  VehicleLeg,
+} from './routing/route.js';
 import { Route } from './routing/route.js';
 import type {
   Arrival,
@@ -13,11 +18,11 @@ import { RangeResult, Router } from './routing/router.js';
 import type { LocationType, SourceStopId, StopId } from './stops/stops.js';
 import type { Stop } from './stops/stops.js';
 import { StopsIndex } from './stops/stopsIndex.js';
+import type { PickUpDropOffTypeString } from './timetable/route.js';
 import type { Duration, Time } from './timetable/time.js';
 import type {
-  RouteType,
-  ServiceRouteInfo,
-  TransferType,
+  RouteTypeString,
+  TransferTypeString,
 } from './timetable/timetable.js';
 import { Timetable } from './timetable/timetable.js';
 
@@ -41,14 +46,15 @@ export type {
   Leg,
   LocationType,
   ParetoRun,
+  PickUpDropOffTypeString as PickUpDropOffType,
   QueryOptions,
   RangeQueryOptions,
-  RouteType,
+  RouteTypeString as RouteType,
   ServiceRouteInfo,
   SourceStopId,
   Stop,
   StopId,
   Transfer,
-  TransferType,
+  TransferTypeString as TransferType,
   VehicleLeg,
 };

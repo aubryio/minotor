@@ -3,8 +3,7 @@ import { describe, it } from 'node:test';
 
 import { Stop } from '../../stops/stops.js';
 import { timeFromHMS } from '../../timetable/time.js';
-import { ServiceRouteInfo, TransferType } from '../../timetable/timetable.js';
-import { Route, VehicleLeg } from '../route.js';
+import { Route, ServiceRouteInfo, Transfer, VehicleLeg } from '../route.js';
 
 describe('Route', () => {
   const stopA: Stop = {
@@ -59,10 +58,10 @@ describe('Route', () => {
     dropOffType: 'REGULAR',
   };
 
-  const transferLeg = {
+  const transferLeg: Transfer = {
     from: stopB,
     to: stopC,
-    type: 'RECOMMENDED' as TransferType,
+    type: 'RECOMMENDED',
     minTransferTime: 5,
   };
 

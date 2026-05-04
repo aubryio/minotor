@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
-import { Timetable } from '../../timetable/timetable.js';
+import { Timetable, TransferTypes } from '../../timetable/timetable.js';
 import { encode } from '../../timetable/tripStopId.js';
 import { GtfsStopsMap } from '../stops.js';
 import {
@@ -75,7 +75,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 1, // Internal ID for stop '8014440:0:1'
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: durationFromSeconds(180),
           },
         ],
@@ -85,7 +85,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 3, // Internal ID for stop '8014447'
-            type: 'RECOMMENDED',
+            type: TransferTypes.RECOMMENDED,
             minTransferTime: durationFromSeconds(240),
           },
         ],
@@ -417,7 +417,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 3,
-            type: 'GUARANTEED',
+            type: TransferTypes.GUARANTEED,
             minTransferTime: durationFromSeconds(120),
           },
         ],
@@ -626,7 +626,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 1,
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
           },
         ],
       ],
@@ -635,7 +635,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 3,
-            type: 'GUARANTEED',
+            type: TransferTypes.GUARANTEED,
             minTransferTime: durationFromSeconds(0),
           },
         ],
@@ -706,7 +706,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 1,
-            type: 'GUARANTEED',
+            type: TransferTypes.GUARANTEED,
             minTransferTime: durationFromSeconds(120),
           },
         ],
@@ -782,7 +782,7 @@ describe('GTFS transfers parser', () => {
         [
           {
             destination: 1,
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: durationFromSeconds(180),
           },
         ],

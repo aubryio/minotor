@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
+import { RouteTypes } from '../../timetable/timetable.js';
 import { parseRoutes } from '../routes.js';
 
 describe('GTFS routes parser', () => {
@@ -22,14 +23,14 @@ describe('GTFS routes parser', () => {
           [
             'routeA',
             {
-              type: 'BUS',
+              type: RouteTypes.BUS,
               name: 'B1',
             },
           ],
           [
             'routeB',
             {
-              type: 'TRAM',
+              type: RouteTypes.TRAM,
               name: 'T1',
             },
           ],
@@ -52,7 +53,7 @@ describe('GTFS routes parser', () => {
           [
             'routeA',
             {
-              type: 'BUS',
+              type: RouteTypes.BUS,
               name: 'B1',
             },
           ],

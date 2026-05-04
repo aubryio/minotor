@@ -2,13 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { encodePickUpDropOffTypes } from '../../gtfs/trips.js';
-import {
-  MUST_COORDINATE_WITH_DRIVER,
-  MUST_PHONE_AGENCY,
-  NOT_AVAILABLE,
-  REGULAR,
-  Route,
-} from '../route.js';
+import { PickUpDropOffTypes, Route } from '../route.js';
 import { TIME_ORIGIN, timeFromHMS } from '../time.js';
 
 describe('Route', () => {
@@ -33,25 +27,25 @@ describe('Route', () => {
   const pickupDropOffTypes = encodePickUpDropOffTypes(
     [
       // Trip 0
-      REGULAR,
-      NOT_AVAILABLE,
+      PickUpDropOffTypes.REGULAR,
+      PickUpDropOffTypes.NOT_AVAILABLE,
       // Trip 1
-      REGULAR,
-      REGULAR,
+      PickUpDropOffTypes.REGULAR,
+      PickUpDropOffTypes.REGULAR,
       // Trip 2
-      MUST_PHONE_AGENCY,
-      MUST_COORDINATE_WITH_DRIVER,
+      PickUpDropOffTypes.MUST_PHONE_AGENCY,
+      PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER,
     ],
     [
       // Trip 0
-      REGULAR,
-      REGULAR,
+      PickUpDropOffTypes.REGULAR,
+      PickUpDropOffTypes.REGULAR,
       // Trip 1
-      REGULAR,
-      REGULAR,
+      PickUpDropOffTypes.REGULAR,
+      PickUpDropOffTypes.REGULAR,
       // Trip 2
-      REGULAR,
-      REGULAR,
+      PickUpDropOffTypes.REGULAR,
+      PickUpDropOffTypes.REGULAR,
     ],
   );
 
@@ -159,17 +153,17 @@ describe('Route', () => {
   describe('pickUpTypeFrom', () => {
     it('should return REGULAR pickup type for trip 0 at stop index 0', () => {
       const pickUpType = route.pickUpTypeFrom(0, 0);
-      assert.strictEqual(pickUpType, REGULAR);
+      assert.strictEqual(pickUpType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should return NOT_AVAILABLE pickup type for trip 0 at stop index 1', () => {
       const pickUpType = route.pickUpTypeFrom(1, 0);
-      assert.strictEqual(pickUpType, NOT_AVAILABLE);
+      assert.strictEqual(pickUpType, PickUpDropOffTypes.NOT_AVAILABLE);
     });
 
     it('should return MUST_PHONE_AGENCY pickup type for trip 2 at stop index 0', () => {
       const pickUpType = route.pickUpTypeFrom(0, 2);
-      assert.strictEqual(pickUpType, MUST_PHONE_AGENCY);
+      assert.strictEqual(pickUpType, PickUpDropOffTypes.MUST_PHONE_AGENCY);
     });
 
     it('should throw error for invalid stop index', () => {
@@ -190,12 +184,12 @@ describe('Route', () => {
   describe('dropOffTypeAt', () => {
     it('should return REGULAR drop off type for trip 0 at stop index 0', () => {
       const dropOffType = route.dropOffTypeAt(0, 0);
-      assert.strictEqual(dropOffType, REGULAR);
+      assert.strictEqual(dropOffType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should return REGULAR drop off type for trip 1 at stop index 1', () => {
       const dropOffType = route.dropOffTypeAt(1, 1);
-      assert.strictEqual(dropOffType, REGULAR);
+      assert.strictEqual(dropOffType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should throw error for invalid stop index', () => {

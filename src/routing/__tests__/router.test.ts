@@ -6,6 +6,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
+  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
@@ -40,7 +41,7 @@ const routesAdjacency = [
   }),
 ];
 const serviceRoutes: ServiceRoute[] = [
-  { type: 'BUS', name: 'Line 1', routes: [0] },
+  { type: RouteTypes.BUS, name: 'Line 1', routes: [0] },
 ];
 const stops: Stop[] = [
   {

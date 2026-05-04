@@ -1,4 +1,5 @@
 import { Stop } from '../stops/stops.js';
+import type { PickUpDropOffTypeString } from '../timetable/route.js';
 import {
   Duration,
   DURATION_ZERO,
@@ -7,13 +8,15 @@ import {
   TIME_ORIGIN,
   timeToString,
 } from '../timetable/time.js';
-import { ServiceRouteInfo, TransferType } from '../timetable/timetable.js';
+import type {
+  RouteTypeString,
+  TransferTypeString,
+} from '../timetable/timetable.js';
 
-export type PickUpDropOffType =
-  | 'REGULAR'
-  | 'NOT_AVAILABLE'
-  | 'MUST_PHONE_AGENCY'
-  | 'MUST_COORDINATE_WITH_DRIVER';
+export type ServiceRouteInfo = {
+  type: RouteTypeString;
+  name: string;
+};
 
 export type BaseLeg = {
   from: Stop;
@@ -26,15 +29,15 @@ export type Access = BaseLeg & {
 
 export type Transfer = BaseLeg & {
   minTransferTime?: Duration;
-  type: TransferType;
+  type: TransferTypeString;
 };
 
 export type VehicleLeg = BaseLeg & {
   route: ServiceRouteInfo;
   departureTime: Time;
   arrivalTime: Time;
-  pickUpType: PickUpDropOffType;
-  dropOffType: PickUpDropOffType;
+  pickUpType: PickUpDropOffTypeString;
+  dropOffType: PickUpDropOffTypeString;
 };
 
 export type Leg = Transfer | Access | VehicleLeg;

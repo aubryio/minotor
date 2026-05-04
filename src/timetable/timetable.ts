@@ -13,13 +13,26 @@ import {
   serializeTripTransfers,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/v1/timetable.js';
-import { NOT_AVAILABLE } from './route.js';
-import { Route, RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
+import {
+  PickUpDropOffTypes,
+  Route,
+  RouteId,
+  StopRouteIndex,
+  TripRouteIndex,
+} from './route.js';
 import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
 import { encode, TripStopId } from './tripStopId.js';
 
-export type TransferType = // TODO use number to represent that.
-  'RECOMMENDED' | 'GUARANTEED' | 'REQUIRES_MINIMAL_TIME' | 'IN_SEAT';
+export const TransferTypes = {
+  RECOMMENDED: 1,
+  GUARANTEED: 2,
+  REQUIRES_MINIMAL_TIME: 3,
+  IN_SEAT: 4,
+} as const;
+
+export type TransferType = (typeof TransferTypes)[keyof typeof TransferTypes];
+
+export type TransferTypeString = keyof typeof TransferTypes;
 
 export type Transfer = {
   destination: StopId;
@@ -42,17 +55,22 @@ export type TripTransfers = Map<TripStopId, TripStop[]>;
 
 export type ServiceRouteId = number;
 
-export type RouteType =
-  | 'TRAM'
-  | 'SUBWAY'
-  | 'RAIL'
-  | 'BUS'
-  | 'FERRY'
-  | 'CABLE_TRAM'
-  | 'AERIAL_LIFT'
-  | 'FUNICULAR'
-  | 'TROLLEYBUS'
-  | 'MONORAIL';
+export const RouteTypes = {
+  TRAM: 1,
+  SUBWAY: 2,
+  RAIL: 3,
+  BUS: 4,
+  FERRY: 5,
+  CABLE_TRAM: 6,
+  AERIAL_LIFT: 7,
+  FUNICULAR: 8,
+  TROLLEYBUS: 9,
+  MONORAIL: 10,
+} as const;
+
+export type RouteType = (typeof RouteTypes)[keyof typeof RouteTypes];
+
+export type RouteTypeString = keyof typeof RouteTypes;
 
 // A service refers to a collection of trips that are displayed to riders as a single service.
 // As opposed to a route which consists of the subset of trips from a service which shares the same list of stops.
@@ -64,18 +82,9 @@ export type ServiceRoute = {
 };
 export type ServiceRouteInfo = Omit<ServiceRoute, 'routes'>;
 
-export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set([
-  'TRAM',
-  'SUBWAY',
-  'RAIL',
-  'BUS',
-  'FERRY',
-  'CABLE_TRAM',
-  'AERIAL_LIFT',
-  'FUNICULAR',
-  'TROLLEYBUS',
-  'MONORAIL',
-]);
+export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set(
+  Object.values(RouteTypes),
+);
 
 const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
 
@@ -367,7 +376,7 @@ export class Timetable {
 
     for (let t = earliestTrip; t < (beforeTrip ?? nbTrips); t++) {
       const pickup = route.pickUpTypeFrom(stopIndex, t);
-      if (pickup === NOT_AVAILABLE) {
+      if (pickup === PickUpDropOffTypes.NOT_AVAILABLE) {
         continue;
       }
       if (fromTripStop === undefined) {
@@ -413,3 +422,43 @@ export class Timetable {
     return guaranteedTripTransfers;
   }
 }
+
+export const routeTypeToString = (type: RouteType): RouteTypeString => {
+  switch (type) {
+    case RouteTypes.TRAM:
+      return 'TRAM';
+    case RouteTypes.SUBWAY:
+      return 'SUBWAY';
+    case RouteTypes.RAIL:
+      return 'RAIL';
+    case RouteTypes.BUS:
+      return 'BUS';
+    case RouteTypes.FERRY:
+      return 'FERRY';
+    case RouteTypes.CABLE_TRAM:
+      return 'CABLE_TRAM';
+    case RouteTypes.AERIAL_LIFT:
+      return 'AERIAL_LIFT';
+    case RouteTypes.FUNICULAR:
+      return 'FUNICULAR';
+    case RouteTypes.TROLLEYBUS:
+      return 'TROLLEYBUS';
+    case RouteTypes.MONORAIL:
+      return 'MONORAIL';
+  }
+};
+
+export const transferTypeToString = (
+  type: TransferType,
+): TransferTypeString => {
+  switch (type) {
+    case TransferTypes.RECOMMENDED:
+      return 'RECOMMENDED';
+    case TransferTypes.GUARANTEED:
+      return 'GUARANTEED';
+    case TransferTypes.REQUIRES_MINIMAL_TIME:
+      return 'REQUIRES_MINIMAL_TIME';
+    case TransferTypes.IN_SEAT:
+      return 'IN_SEAT';
+  }
+};
