@@ -3,7 +3,10 @@ import { describe, it } from 'node:test';
 
 import fs from 'fs';
 
-import type { ServiceRouteInfo, TransferTypeString } from '../router.js';
+import type {
+  ServiceRouteInfo,
+  TransferType as TransferTypeString,
+} from '../router.js';
 import {
   Query,
   RangeQuery,

@@ -1,7 +1,10 @@
 import log from 'loglevel';
 
-import { RouteType } from '../router.js';
-import { ServiceRoute, ServiceRouteId } from '../timetable/timetable.js';
+import {
+  RouteType,
+  ServiceRoute,
+  ServiceRouteId,
+} from '../timetable/timetable.js';
 import { GtfsProfile } from './parser.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { parseCsv } from './utils.js';
