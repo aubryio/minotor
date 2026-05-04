@@ -261,7 +261,7 @@ export class Plotter {
     isOrigin: boolean;
     isDestination: boolean;
   } {
-    const isOrigin = this.result.routingState.graph[0]?.[stopId] !== undefined;
+    const isOrigin = this.result.routingState.graph.hasEdge(0, stopId);
     const isDestination =
       this.result.routingState.destinations.includes(stopId);
     return { isOrigin, isDestination };
@@ -463,24 +463,21 @@ export class Plotter {
    */
   private collectStations(): Set<StopId> {
     const stations = new Set<StopId>();
-    const graph = this.result.routingState.graph;
-
-    for (const roundEdges of graph) {
-      for (let stopId = 0; stopId < roundEdges.length; stopId++) {
-        const edge = roundEdges[stopId];
-        if (edge === undefined) continue;
-        stations.add(stopId);
-        if (isVehicleEdge(edge)) {
-          const fromStopId = this.getVehicleEdgeFromStopId(edge);
-          const toStopId = this.getVehicleEdgeToStopId(edge);
-          if (fromStopId) stations.add(fromStopId);
-          if (toStopId) stations.add(toStopId);
-        } else if (isAccessEdge(edge)) {
-          // Ensure the query origin (edge.from) is always collected even when
-          // its own OriginNode hasn't been processed yet in this iteration.
-          stations.add(edge.from);
-          stations.add(edge.to);
-        }
+    for (const {
+      stop: stopId,
+      edge,
+    } of this.result.routingState.graph.edges()) {
+      stations.add(stopId);
+      if (isVehicleEdge(edge)) {
+        const fromStopId = this.getVehicleEdgeFromStopId(edge);
+        const toStopId = this.getVehicleEdgeToStopId(edge);
+        if (fromStopId) stations.add(fromStopId);
+        if (toStopId) stations.add(toStopId);
+      } else if (isAccessEdge(edge)) {
+        // Ensure the query origin (edge.from) is always collected even when
+        // its own OriginNode hasn't been processed yet in this iteration.
+        stations.add(edge.from);
+        stations.add(edge.to);
       }
     }
 
@@ -516,36 +513,24 @@ export class Plotter {
   private collectEdges(): string[] {
     const edges: string[] = [];
     const continuationEdges: string[] = [];
-    const graph = this.result.routingState.graph;
-
-    for (let round = 0; round < graph.length; round++) {
-      const roundEdges = graph[round];
-      if (!roundEdges) continue;
-
-      for (let stopId = 0; stopId < roundEdges.length; stopId++) {
-        const edge = roundEdges[stopId];
-        if (edge === undefined) continue;
-
-        if (round === 0) {
-          // Round 0 holds OriginNodes (no edge to draw) and AccessEdges
-          // (walking legs from the query origin to the first boarding stop).
-          if (isAccessEdge(edge)) {
-            edges.push(...this.createAccessEdge(edge));
-          }
-          continue;
+    for (const { round, edge } of this.result.routingState.graph.edges()) {
+      if (round === 0) {
+        // Round 0 holds OriginNodes (no edge to draw) and AccessEdges
+        // (walking legs from the query origin to the first boarding stop).
+        if (isAccessEdge(edge)) {
+          edges.push(...this.createAccessEdge(edge));
         }
+        continue;
+      }
 
-        if (isVehicleEdge(edge)) {
-          edges.push(...this.createVehicleEdge(edge, round));
+      if (isVehicleEdge(edge)) {
+        edges.push(...this.createVehicleEdge(edge, round));
 
-          if (edge.continuationOf) {
-            continuationEdges.push(
-              ...this.collectContinuationChain(edge, round),
-            );
-          }
-        } else if (isTransferEdge(edge)) {
-          edges.push(...this.createTransferEdge(edge, round));
+        if (edge.continuationOf) {
+          continuationEdges.push(...this.collectContinuationChain(edge, round));
         }
+      } else if (isTransferEdge(edge)) {
+        edges.push(...this.createTransferEdge(edge, round));
       }
     }
 

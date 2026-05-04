@@ -22,6 +22,7 @@ import {
 } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
 import { AccessEdge } from './state.js';
+import { EdgeKinds, NO_CELL } from './stateGraph.js';
 
 /**
  * Details about the pickup and drop-off modalities at each stop in each trip of a route.
@@ -146,38 +147,22 @@ export class Result {
       return undefined;
     }
 
-    // Reconstruct the path by walking backwards through the routing graph.
+    // Reconstruct the path by walking backwards through typed graph cells.
     const route: Leg[] = [];
-    let currentStop = fastestDestination;
-    let round = fastestLegNumber;
+    const graph = this.routingState.graph;
+    let cell = graph.cell(fastestLegNumber, fastestDestination);
     let previousVehicleEdge: VehicleEdge | undefined;
 
-    while (round >= 0) {
-      const edge = this.routingState.graph[round]?.[currentStop];
-      if (!edge) {
-        if (round === 0) break;
-        throw new Error(
-          `No edge arriving at stop ${currentStop} at round ${round}`,
-        );
-      }
+    while (cell !== NO_CELL && graph.hasCell(cell)) {
+      const kind = graph.kind[cell] ?? EdgeKinds.NONE;
       let leg: Leg;
-      if ('routeId' in edge) {
-        // Walk the continuationOf chain to find the earliest (boarding) edge.
-        let boardingEdge: VehicleEdge;
-        let vehicleLeg: VehicleLeg;
-        if (!edge.continuationOf) {
-          boardingEdge = edge;
-          vehicleLeg = this.buildVehicleLeg([edge]);
-        } else {
-          let vehicleEdge: VehicleEdge = edge;
-          const chainedEdges: VehicleEdge[] = [vehicleEdge];
-          while (vehicleEdge.continuationOf) {
-            chainedEdges.push(vehicleEdge.continuationOf);
-            vehicleEdge = vehicleEdge.continuationOf;
-          }
-          boardingEdge = vehicleEdge;
-          vehicleLeg = this.buildVehicleLeg(chainedEdges);
-        }
+      let nextCell = graph.predecessorCell(cell);
+
+      if (
+        kind === EdgeKinds.VEHICLE ||
+        kind === EdgeKinds.VEHICLE_CONTINUATION
+      ) {
+        const { boardingEdge, vehicleLeg } = this.buildVehicleLegFromCell(cell);
         leg = vehicleLeg;
 
         // Insert a guaranteed transfer leg between consecutive vehicle legs if
@@ -204,20 +189,24 @@ export class Result {
           );
         }
         previousVehicleEdge = boardingEdge;
-      } else if ('type' in edge) {
+        nextCell = graph.predecessorBeforeVehicleChain(cell);
+      } else if (kind === EdgeKinds.TRANSFER) {
+        const edge = graph.edgeAtCell(cell) as TransferEdge;
         leg = this.buildTransferLeg(edge);
         previousVehicleEdge = undefined;
-      } else if ('duration' in edge) {
+      } else if (kind === EdgeKinds.ACCESS) {
+        const edge = graph.edgeAtCell(cell) as AccessEdge;
         leg = this.buildAccessLeg(edge);
         previousVehicleEdge = undefined;
       } else {
         break;
       }
+
       route.push(leg);
-      currentStop = leg.from.id;
-      if ('routeId' in edge) {
-        round -= 1;
+      if (nextCell === NO_CELL) {
+        nextCell = this.legacyPredecessorCell(cell, leg);
       }
+      cell = nextCell;
     }
     return new Route(route.reverse());
   }
@@ -228,6 +217,39 @@ export class Result {
       type: routeTypeToString(serviceRouteInfo.type),
       name: serviceRouteInfo.name,
     };
+  }
+
+  private buildVehicleLegFromCell(cell: number): {
+    boardingEdge: VehicleEdge;
+    vehicleLeg: VehicleLeg;
+  } {
+    const edge = this.routingState.graph.vehicleEdgeAtCell(cell);
+    let boardingEdge: VehicleEdge;
+    let vehicleLeg: VehicleLeg;
+    if (!edge.continuationOf) {
+      boardingEdge = edge;
+      vehicleLeg = this.buildVehicleLeg([edge]);
+    } else {
+      let vehicleEdge: VehicleEdge = edge;
+      const chainedEdges: VehicleEdge[] = [vehicleEdge];
+      while (vehicleEdge.continuationOf) {
+        chainedEdges.push(vehicleEdge.continuationOf);
+        vehicleEdge = vehicleEdge.continuationOf;
+      }
+      boardingEdge = vehicleEdge;
+      vehicleLeg = this.buildVehicleLeg(chainedEdges);
+    }
+    return { boardingEdge, vehicleLeg };
+  }
+
+  private legacyPredecessorCell(cell: number, leg: Leg): number {
+    const graph = this.routingState.graph;
+    const kind = graph.kind[cell] ?? EdgeKinds.NONE;
+    const round = graph.roundOfCell(cell);
+    const nextRound = kind === EdgeKinds.VEHICLE ? round - 1 : round;
+    if (nextRound < 0) return NO_CELL;
+    const candidate = graph.cell(nextRound, leg.from.id);
+    return graph.hasCell(candidate) ? candidate : NO_CELL;
   }
 
   /**
@@ -359,11 +381,12 @@ export class Result {
       } else {
         // We have no guarantee that the stop was visited in the last round,
         // so we need to check all rounds if it's not found in the last one.
+        const graph = this.routingState.graph;
         for (let i = maxTransfers + 1; i >= 0; i--) {
-          const arrivalEdge = this.routingState.graph[i]?.[equivalentStop.id];
-          if (arrivalEdge !== undefined) {
+          const cell = graph.cell(i, equivalentStop.id);
+          if (graph.hasCell(cell)) {
             arrivalTime = {
-              arrival: arrivalEdge.arrival,
+              arrival: graph.arrivalAtCell(cell),
               legNumber: i,
             };
             break;

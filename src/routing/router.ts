@@ -19,6 +19,8 @@ export type {
   VehicleEdge,
 } from './state.js';
 export { RoutingState, UNREACHED_TIME } from './state.js';
+export type { EdgeKind } from './stateGraph.js';
+export { EdgeKinds, NO_CELL, TypedStateGraph } from './stateGraph.js';
 
 /**
  * A public transportation router implementing the RAPTOR and Range RAPTOR

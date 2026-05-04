@@ -9,7 +9,7 @@ import {
 import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
 import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
 import { QueryOptions } from './query.js';
-import { RoutingEdge, TransferEdge, VehicleEdge } from './state.js';
+import { EdgeKinds, NO_CELL, TypedStateGraph } from './stateGraph.js';
 
 /**
  * Common interface for all variants of RAPTOR routing.
@@ -18,8 +18,8 @@ export interface IRaptorState {
   /** Origin stop IDs for this run. */
   readonly origins: StopId[];
 
-  /** Per-round routing graph; `graph[round][stop]` is the best edge used to reach `stop`. */
-  readonly graph: (RoutingEdge | undefined)[][];
+  /** Per-round routing graph; `graph.cell(round, stop)` is the best edge used to reach `stop`. */
+  readonly graph: TypedStateGraph;
 
   /** Per-run earliest arrival at a stop. Used for boarding decisions. */
   arrivalTime(stop: StopId): Time;
@@ -55,7 +55,7 @@ export interface IRaptorState {
 }
 
 type TripContinuation = TripStop & {
-  previousEdge: VehicleEdge;
+  previousCell: number;
 };
 
 type Round = number;
@@ -79,7 +79,7 @@ export class Raptor {
     for (let round = 1; round <= options.maxTransfers + 1; round++) {
       state.initRound(round);
 
-      const edgesAtCurrentRound = state.graph[round]!;
+      const currentRoundOffset = state.graph.roundOffset(round);
       const reachableRoutes = this.timetable.findReachableRoutes(
         markedStops,
         options.transportModes,
@@ -100,7 +100,8 @@ export class Raptor {
 
       let continuations = this.findTripContinuations(
         markedStops,
-        edgesAtCurrentRound,
+        currentRoundOffset,
+        state.graph,
       );
       const stopsFromContinuations = new Set<StopId>();
       while (continuations.length > 0) {
@@ -120,7 +121,8 @@ export class Raptor {
         }
         continuations = this.findTripContinuations(
           stopsFromContinuations,
-          edgesAtCurrentRound,
+          currentRoundOffset,
+          state.graph,
         );
       }
 
@@ -138,31 +140,33 @@ export class Raptor {
   }
 
   /**
-   * Finds trip continuations for the given marked stops and edges at the current round.
+   * Finds trip continuations for the given marked stops and current-round graph cells.
    * @param markedStops The set of marked stops.
-   * @param edgesAtCurrentRound The array of edges at the current round, indexed by stop ID.
+   * @param currentRoundOffset Offset of the current round in the flattened graph.
+   * @param graph The typed state graph.
    * @returns An array of trip continuations.
    */
   private findTripContinuations(
     markedStops: Set<StopId>,
-    edgesAtCurrentRound: (RoutingEdge | undefined)[],
+    currentRoundOffset: number,
+    graph: TypedStateGraph,
   ): TripContinuation[] {
     const continuations: TripContinuation[] = [];
     for (const stopId of markedStops) {
-      const arrival = edgesAtCurrentRound[stopId];
-      if (!arrival || !('routeId' in arrival)) continue;
+      const cell = currentRoundOffset + stopId;
+      if (!graph.isVehicleCell(cell)) continue;
 
       const continuousTrips = this.timetable.getContinuousTrips(
-        arrival.hopOffStopIndex,
-        arrival.routeId,
-        arrival.tripIndex,
+        graph.u16c[cell]!,
+        graph.u32[cell]!,
+        graph.u16b[cell]!,
       );
       for (const trip of continuousTrips) {
         continuations.push({
           routeId: trip.routeId,
           stopIndex: trip.stopIndex,
           tripIndex: trip.tripIndex,
-          previousEdge: arrival,
+          previousCell: cell,
         });
       }
     }
@@ -190,13 +194,13 @@ export class Raptor {
     tripContinuation: TripContinuation,
   ): Set<StopId> {
     const newlyMarkedStops = new Set<StopId>();
-    const edgesAtCurrentRound = state.graph[round]!;
+    const graph = state.graph;
 
     const nbStops = route.getNbStops();
     const routeId = route.id;
     const tripIndex = tripContinuation.tripIndex;
     const tripStopOffset = route.tripStopOffset(tripIndex);
-    const previousEdge = tripContinuation.previousEdge;
+    const previousCell = tripContinuation.previousCell;
 
     for (
       let currentStopIndex = hopOnStopIndex;
@@ -219,14 +223,16 @@ export class Raptor {
         arrivalTime < state.improvementBound(round, currentStop) &&
         arrivalTime < state.destinationBest
       ) {
-        edgesAtCurrentRound[currentStop] = {
+        graph.setVehicleContinuation(
+          round,
+          currentStop,
+          arrivalTime,
           routeId,
-          stopIndex: hopOnStopIndex,
+          hopOnStopIndex,
           tripIndex,
-          arrival: arrivalTime,
-          hopOffStopIndex: currentStopIndex,
-          continuationOf: previousEdge,
-        };
+          currentStopIndex,
+          previousCell,
+        );
         state.updateArrival(currentStop, arrivalTime, round);
         newlyMarkedStops.add(currentStop);
       }
@@ -256,13 +262,14 @@ export class Raptor {
     options: QueryOptions,
   ): Set<StopId> {
     const newlyMarkedStops = new Set<StopId>();
-    const edgesAtCurrentRound = state.graph[round]!;
-    const edgesAtPreviousRound = state.graph[round - 1]!;
+    const graph = state.graph;
+    const previousRoundOffset = graph.roundOffset(round - 1);
 
     const nbStops = route.getNbStops();
     const routeId = route.id;
     let activeTripIndex: TripRouteIndex | undefined;
     let activeTripBoardStopIndex = hopOnStopIndex;
+    let activeTripPrevCell = NO_CELL;
     // tripStopOffset = activeTripIndex * nbStops, precomputed when the trip changes.
     let activeTripStopOffset = 0;
 
@@ -272,6 +279,7 @@ export class Raptor {
       currentStopIndex++
     ) {
       const currentStop: StopId = route.stops[currentStopIndex]!;
+      const previousCell = previousRoundOffset + currentStop;
 
       // If on a trip, check whether alighting here improves the global best.
       if (activeTripIndex !== undefined) {
@@ -290,23 +298,26 @@ export class Raptor {
           arrivalTime < state.improvementBound(round, currentStop) &&
           arrivalTime < state.destinationBest
         ) {
-          edgesAtCurrentRound[currentStop] = {
+          graph.setVehicle(
+            round,
+            currentStop,
+            arrivalTime,
             routeId,
-            stopIndex: activeTripBoardStopIndex,
-            tripIndex: activeTripIndex,
-            arrival: arrivalTime,
-            hopOffStopIndex: currentStopIndex,
-          };
+            activeTripBoardStopIndex,
+            activeTripIndex,
+            currentStopIndex,
+            activeTripPrevCell,
+          );
           state.updateArrival(currentStop, arrivalTime, round);
           newlyMarkedStops.add(currentStop);
         }
       }
 
       // Check whether we can board an earlier (or first) trip at this stop.
-      const previousEdge = edgesAtPreviousRound[currentStop];
-      const earliestArrivalOnPreviousRound = previousEdge?.arrival;
+      const previousKind = graph.kind[previousCell]!;
+      const earliestArrivalOnPreviousRound = graph.arrivalAtCell(previousCell);
       if (
-        earliestArrivalOnPreviousRound !== undefined &&
+        previousKind !== EdgeKinds.NONE &&
         (activeTripIndex === undefined ||
           earliestArrivalOnPreviousRound <=
             route.departureAtOffset(currentStopIndex, activeTripStopOffset))
@@ -320,14 +331,13 @@ export class Raptor {
           continue;
         }
 
-        const fromTripStop =
-          previousEdge && 'routeId' in previousEdge
-            ? {
-                stopIndex: previousEdge.hopOffStopIndex,
-                routeId: previousEdge.routeId,
-                tripIndex: previousEdge.tripIndex,
-              }
-            : undefined;
+        const fromTripStop = graph.isVehicleCell(previousCell)
+          ? {
+              stopIndex: graph.u16c[previousCell]!,
+              routeId: graph.u32[previousCell]!,
+              tripIndex: graph.u16b[previousCell]!,
+            }
+          : undefined;
         const firstBoardableTrip = this.timetable.findFirstBoardableTrip(
           currentStopIndex,
           route,
@@ -356,6 +366,7 @@ export class Raptor {
           if (!exceedsInitialWait && !exceedsMaxDuration) {
             activeTripIndex = firstBoardableTrip;
             activeTripBoardStopIndex = currentStopIndex;
+            activeTripPrevCell = previousCell;
             activeTripStopOffset = route.tripStopOffset(firstBoardableTrip);
           }
         }
@@ -382,11 +393,13 @@ export class Raptor {
     state: IRaptorState,
   ): Set<StopId> {
     const newlyMarkedStops = new Set<StopId>();
-    const arrivalsAtCurrentRound = state.graph[round]!;
+    const graph = state.graph;
+    const currentRoundOffset = graph.roundOffset(round);
     for (const stop of markedStops) {
-      const currentArrival = arrivalsAtCurrentRound[stop];
+      const currentCell = currentRoundOffset + stop;
       // Skip transfers if the last leg was also a transfer
-      if (!currentArrival || 'type' in currentArrival) continue;
+      if (!graph.hasCell(currentCell) || graph.isTransferCell(currentCell))
+        continue;
       const transfers = this.timetable.getTransfers(stop);
       for (const transfer of transfers) {
         let transferTime: Duration;
@@ -397,7 +410,8 @@ export class Raptor {
         } else {
           transferTime = options.minTransferTime;
         }
-        const arrivalAfterTransfer = currentArrival.arrival + transferTime;
+        const arrivalAfterTransfer =
+          graph.arrivalAtCell(currentCell) + transferTime;
 
         if (
           arrivalAfterTransfer <= state.maxArrivalTime &&
@@ -405,13 +419,15 @@ export class Raptor {
             state.improvementBound(round, transfer.destination) &&
           arrivalAfterTransfer < state.destinationBest
         ) {
-          arrivalsAtCurrentRound[transfer.destination] = {
-            arrival: arrivalAfterTransfer,
-            from: stop,
-            to: transfer.destination, // TODO needed?
-            minTransferTime: transferTime || undefined,
-            type: transfer.type,
-          } as TransferEdge;
+          graph.setTransfer(
+            round,
+            transfer.destination,
+            arrivalAfterTransfer,
+            stop,
+            transfer.type,
+            transferTime || undefined,
+            currentCell,
+          );
           state.updateArrival(
             transfer.destination,
             arrivalAfterTransfer,

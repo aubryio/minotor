@@ -2,7 +2,8 @@
 import { StopId } from '../stops/stops.js';
 import { Time } from '../timetable/time.js';
 import type { IRaptorState } from './raptor.js';
-import { RoutingEdge, RoutingState, UNREACHED_TIME } from './state.js';
+import { RoutingState, UNREACHED_TIME } from './state.js';
+import { TypedStateGraph } from './stateGraph.js';
 
 /**
  * RAPTOR state for Range RAPTOR mode, implementing {@link IRaptorState}.
@@ -73,11 +74,11 @@ export class RangeRaptorState implements IRaptorState {
     this.currentRun = routingState;
     // Propagate round-0 access arrivals into the shared labels so that
     // initRound(1) can tighten round-1 pruning bounds correctly.
-    const round0 = routingState.graph[0]!;
+    const graph = routingState.graph;
     for (const stop of routingState.origins) {
-      const edge = round0[stop];
-      if (!edge) continue;
-      this.updateArrival(stop, edge.arrival, 0);
+      const cell = graph.cell(0, stop);
+      if (!graph.hasCell(cell)) continue;
+      this.updateArrival(stop, graph.arrivalAtCell(cell), 0);
     }
   }
 
@@ -85,7 +86,7 @@ export class RangeRaptorState implements IRaptorState {
     return this.currentRun.origins;
   }
 
-  get graph(): (RoutingEdge | undefined)[][] {
+  get graph(): TypedStateGraph {
     return this.currentRun.graph;
   }
 

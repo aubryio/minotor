@@ -5,12 +5,9 @@ import { Duration, Time } from '../timetable/time.js';
 import { TransferType, TripStop } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
 import type { IRaptorState } from './raptor.js';
+import { TypedStateGraph, UNREACHED_TIME } from './stateGraph.js';
 
-/**
- * Sentinel value used in the internal arrival-time array to mark stops not yet reached.
- * 0xFFFF = 65 535 minutes ≈ 45.5 days, safely beyond any realistic transit arrival time.
- */
-export const UNREACHED_TIME: Time = 0xffff;
+export { UNREACHED_TIME } from './stateGraph.js';
 
 export type OriginNode = { stopId: StopId; arrival: Time };
 
@@ -57,20 +54,10 @@ export class RoutingState implements IRaptorState {
   readonly destinations: StopId[];
 
   /**
-   * Routing graph: the best edge used to reach each stop, per round.
-   * Indexed as graph[round][stopId]. Entries are undefined for stops not
-   * reached in that particular round.
+   * Typed routing graph: the best edge used to reach each stop, per round.
+   * Indexed internally as `round * nbStops + stopId`.
    */
-  // TODO do not expose
-  readonly graph: (RoutingEdge | undefined)[][];
-  // TODO Can use typed arrays to represent the graph
-  // Uint32 [(alightStopId -> ? =index/to), boardingStopId (stopIndex,from),
-  // RouteId/TransferId, TripId (if not transfer), (previous_round, previous_stop
-  // -> allows to reconstruct transfers incl. continuous]
-  // TODO should try to reuse them in range raptor and use only one init
-
-  // TODO take out arrival times from Graph
-  // private arrivalTimes: Uint16Array[];
+  readonly graph: TypedStateGraph;
 
   /**
    * Earliest arrival time at each stop (minutes from midnight), indexed by stop ID.
@@ -90,7 +77,7 @@ export class RoutingState implements IRaptorState {
    * Fast O(1) membership test for destination stops.
    * Built once at construction time from the `destinations` array.
    */
-  private readonly destinationSet: Set<StopId>;
+  private readonly destinationMask: Uint8Array;
 
   /**
    * Cached best arrival time at any destination stop, kept up-to-date by
@@ -129,42 +116,41 @@ export class RoutingState implements IRaptorState {
     this.maxDuration = maxDuration;
     this.maxArrivalTime =
       maxDuration === undefined ? UNREACHED_TIME : departureTime + maxDuration;
-    this.destinationSet = new Set(destinations);
+    this.destinationMask = new Uint8Array(nbStops);
+    for (const destination of destinations) {
+      this.destinationMask[destination] = 1;
+    }
     this.earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
     this.earliestArrivalLegs = new Uint8Array(nbStops);
     this.origins = []; // overwritten by seedAccessPaths below
-    this.graph = [new Array<RoutingEdge | undefined>(nbStops)];
-    for (let r = 1; r <= maxRounds; r++) {
-      this.graph.push(new Array<RoutingEdge | undefined>(nbStops));
-    }
+    this.graph = new TypedStateGraph(nbStops, maxRounds);
     this.seedAccessPaths(departureTime, accessPaths);
   }
 
   /**
    * Seeds round-0 arrivals and {@link origins} from a set of access paths.
    * Called by the constructor and by {@link resetFor}.
-   * Assumes {@link earliestArrivalTimes} and {@link graph}[0] are already
-   * allocated and in their "cleared" state (all entries at UNREACHED_TIME /
-   * undefined) before this method runs.
+   * Assumes {@link earliestArrivalTimes} and {@link graph} are already
+   * allocated and in their "cleared" state before this method runs.
    */
   private seedAccessPaths(depTime: Time, accessPaths: AccessPoint[]): void {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
       const arrival = depTime + access.duration;
       if (arrival > this.maxArrivalTime) continue;
-      const edge: OriginNode | AccessEdge =
-        access.duration === 0
-          ? { stopId: access.fromStopId, arrival: depTime }
-          : {
-              arrival,
-              from: access.fromStopId,
-              to: access.toStopId,
-              duration: access.duration,
-            };
       const stop = access.toStopId;
       if (arrival < this.earliestArrivalTimes[stop]!) {
         this.earliestArrivalTimes[stop] = arrival;
-        this.graph[0]![stop] = edge;
+        if (access.duration === 0) {
+          this.graph.setOrigin(stop, depTime, access.fromStopId);
+        } else {
+          this.graph.setAccess(
+            stop,
+            arrival,
+            access.fromStopId,
+            access.duration,
+          );
+        }
       }
       seededOrigins.add(stop);
     }
@@ -222,7 +208,7 @@ export class RoutingState implements IRaptorState {
     this.reachedStops.push(stop);
     this.earliestArrivalTimes[stop] = time;
     this.earliestArrivalLegs[stop] = leg;
-    if (this.destinationSet.has(stop) && time < this._destinationBest) {
+    if (this.destinationMask[stop] === 1 && time < this._destinationBest) {
       this._destinationBest = time;
     }
   }
@@ -244,10 +230,8 @@ export class RoutingState implements IRaptorState {
     for (const stop of this.reachedStops) {
       this.earliestArrivalTimes[stop] = UNREACHED_TIME;
       this.earliestArrivalLegs[stop] = 0;
-      for (let r = 0; r < this.graph.length; r++) {
-        this.graph[r]![stop] = undefined;
-      }
     }
+    this.graph.clearTouched();
     this.reachedStops.length = 0;
     this._destinationBest = UNREACHED_TIME;
     this.maxArrivalTime =
@@ -305,10 +289,10 @@ export class RoutingState implements IRaptorState {
 
   /**
    * Returns `true` if `stop` is one of the query's destination stops.
-   * O(1) — backed by a `Set` built at construction time.
+   * O(1) — backed by a typed-array mask built at construction time.
    */
   isDestination(stop: StopId): boolean {
-    return this.destinationSet.has(stop);
+    return this.destinationMask[stop] === 1;
   }
 
   /**
@@ -350,6 +334,7 @@ export class RoutingState implements IRaptorState {
         duration: 0,
       })),
       nbStops,
+      Math.max(0, graph.length - 1),
     );
 
     // Replace the arrival arrays with freshly built ones so the constructor's
@@ -372,16 +357,20 @@ export class RoutingState implements IRaptorState {
         state._destinationBest = t;
     }
 
-    // Convert the sparse per-round representation to dense arrays and replace
-    // the graph in-place.
-    const denseRounds = graph.map((round) => {
-      const arr = new Array<RoutingEdge | undefined>(nbStops);
-      for (const [stop, edge] of round) {
-        arr[stop] = edge;
+    // Convert the sparse per-round object representation into the typed graph.
+    state.graph.clearAll();
+    const knownVehicleCells = new WeakMap<VehicleEdge, number>();
+    for (let round = 0; round < graph.length; round++) {
+      const roundEdges = graph[round]!;
+      for (const [stop, edge] of roundEdges) {
+        state.graph.setRoutingEdgeFromObject(
+          round,
+          stop,
+          edge,
+          knownVehicleCells,
+        );
       }
-      return arr;
-    });
-    state.graph.splice(0, state.graph.length, ...denseRounds);
+    }
 
     return state;
   }
