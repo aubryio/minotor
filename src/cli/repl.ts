@@ -7,7 +7,6 @@ import type { Stop } from '../stops/stops.js';
 import type { RawPickUpDropOffType } from '../timetable/route.js';
 import { PickUpDropOffTypes, Route } from '../timetable/route.js';
 import { timeFromString, timeToString } from '../timetable/time.js';
-import { routeTypeToString } from '../timetable/timetable.js';
 import { plotGraphToDotFile } from './utils.js';
 
 export const startRepl = (stopsPath: string, timetablePath: string) => {
@@ -352,7 +351,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
         const serviceRouteInfo = timetable.getServiceRouteInfo(route);
         const routeName = serviceRouteInfo.name;
-        const routeType = routeTypeToString(serviceRouteInfo.type);
+        const routeType = serviceRouteInfo.type;
 
         console.log(`\n=== Route ${routeId} ===`);
         console.log(`Service Route: ${routeName}`);
@@ -451,7 +450,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
           routes.forEach((route, index) => {
             const serviceRouteInfo = timetable.getServiceRouteInfo(route);
             console.log(
-              `${index + 1}. Route ${route.id}: ${serviceRouteInfo.name} (${routeTypeToString(serviceRouteInfo.type)})`,
+              `${index + 1}. Route ${route.id}: ${serviceRouteInfo.name} (${serviceRouteInfo.type})`,
             );
           });
         }
