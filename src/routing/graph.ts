@@ -2,8 +2,7 @@
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex, TripRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
-import { Transfer, TransferId } from '../timetable/timetable.js';
-import type { RoutingEdge, VehicleEdge } from './state.js';
+import { TransferId, TripStop } from '../timetable/timetable.js';
 
 /**
  * Sentinel value used in arrival-time arrays to mark stops not yet reached.
@@ -44,51 +43,46 @@ export class DenseRoutingGraph {
   readonly nbStops: number;
   readonly roundCount: number;
 
-  readonly kind: Uint8Array;
-  readonly arrival: Uint16Array;
-  readonly prevCell: Uint32Array;
+  private readonly kindByCell: Uint8Array;
+  private readonly arrivalByCell: Uint16Array;
+  private readonly prevCellByCell: Uint32Array;
 
-  readonly id: Uint32Array;
-  readonly hopOnStopIndex: Uint16Array;
-  readonly tripIndex: Uint16Array;
-  readonly hopOffStopIndex: Uint16Array;
+  private readonly idByCell: Uint32Array;
+  private readonly hopOnStopIndexByCell: Uint16Array;
+  private readonly tripIndexByCell: Uint16Array;
+  private readonly hopOffStopIndexByCell: Uint16Array;
+
+  private readonly originStopByStop: Uint32Array;
+  private readonly accessFromByStop: Uint32Array;
+  private readonly accessDurationByStop: Uint16Array;
 
   private readonly touchedCells: number[] = [];
-  private readonly originStopByCell = new Map<number, StopId>();
-  private readonly accessByCell = new Map<
-    number,
-    { from: StopId; duration: Duration }
-  >();
+  private readonly touchedCellMask: Uint8Array;
 
-  /**
-   * Compatibility fallback for test fixtures that provide a continuation edge
-   * whose `continuationOf` edge is not itself present in the graph. Production
-   * routing leaves this empty and uses numeric `prevCell` links exclusively.
-   */
-  private readonly detachedContinuationByCell = new Map<number, VehicleEdge>();
-
-  constructor(
-    nbStops: number,
-    maxRound: number,
-    private readonly resolveTransfer?: (
-      transferId: TransferId,
-    ) => Transfer | undefined,
-  ) {
+  constructor(nbStops: number, maxRound: number) {
     this.nbStops = nbStops;
     this.roundCount = maxRound + 1;
     const cellCount = this.nbStops * this.roundCount;
 
-    this.kind = new Uint8Array(cellCount);
-    this.arrival = new Uint16Array(cellCount).fill(UNREACHED_TIME);
-    this.prevCell = new Uint32Array(cellCount).fill(NO_CELL);
-    this.id = new Uint32Array(cellCount).fill(NO_U32);
-    this.hopOnStopIndex = new Uint16Array(cellCount).fill(NO_U16);
-    this.tripIndex = new Uint16Array(cellCount).fill(NO_U16);
-    this.hopOffStopIndex = new Uint16Array(cellCount).fill(NO_U16);
+    this.kindByCell = new Uint8Array(cellCount);
+    this.arrivalByCell = new Uint16Array(cellCount).fill(UNREACHED_TIME);
+    this.prevCellByCell = new Uint32Array(cellCount);
+    this.idByCell = new Uint32Array(cellCount);
+    this.hopOnStopIndexByCell = new Uint16Array(cellCount);
+    this.tripIndexByCell = new Uint16Array(cellCount);
+    this.hopOffStopIndexByCell = new Uint16Array(cellCount);
+    this.originStopByStop = new Uint32Array(this.nbStops);
+    this.accessFromByStop = new Uint32Array(this.nbStops);
+    this.accessDurationByStop = new Uint16Array(this.nbStops);
+    this.touchedCellMask = new Uint8Array(cellCount);
   }
 
   get length(): number {
     return this.roundCount;
+  }
+
+  get cellCount(): number {
+    return this.kindByCell.length;
   }
 
   cell(round: number, stop: StopId): number {
@@ -109,16 +103,41 @@ export class DenseRoutingGraph {
 
   hasCell(cell: number): boolean {
     return (
-      cell >= 0 && cell < this.kind.length && this.kind[cell] !== EdgeKinds.NONE
+      cell >= 0 &&
+      cell < this.kindByCell.length &&
+      this.kindByCell[cell] !== EdgeKinds.NONE
     );
+  }
+
+  hasCellUnchecked(cell: number): boolean {
+    return this.kindByCell[cell] !== EdgeKinds.NONE;
   }
 
   hasEdge(round: number, stop: StopId): boolean {
     return this.hasCell(this.cell(round, stop));
   }
 
+  kindAtCell(cell: number): EdgeKind {
+    return (this.kindByCell[cell] ?? EdgeKinds.NONE) as EdgeKind;
+  }
+
+  kindAtCellUnchecked(cell: number): EdgeKind {
+    return this.kindByCell[cell] as EdgeKind;
+  }
+
+  kindAt(round: number, stop: StopId): EdgeKind {
+    return this.kindAtCell(this.cell(round, stop));
+  }
+
+  *occupiedCells(): Generator<number> {
+    for (let i = 0; i < this.touchedCells.length; i++) {
+      const cell = this.touchedCells[i]!;
+      if (this.kindByCell[cell] !== EdgeKinds.NONE) yield cell;
+    }
+  }
+
   arrivalAtCell(cell: number): Time {
-    return this.arrival[cell]!;
+    return this.arrivalByCell[cell]!;
   }
 
   arrivalAt(round: number, stop: StopId): Time {
@@ -126,25 +145,28 @@ export class DenseRoutingGraph {
   }
 
   predecessorCell(cell: number): number {
-    return this.prevCell[cell]!;
+    return this.prevCellByCell[cell]!;
   }
 
   isVehicleCell(cell: number): boolean {
-    return isVehicleEdgeKind(this.kind[cell]!);
+    const kind = this.kindByCell[cell]!;
+    return (
+      kind === EdgeKinds.VEHICLE || kind === EdgeKinds.VEHICLE_CONTINUATION
+    );
   }
 
   isVehicleContinuationCell(cell: number): boolean {
-    return this.kind[cell]! === EdgeKinds.VEHICLE_CONTINUATION;
+    return this.kindByCell[cell]! === EdgeKinds.VEHICLE_CONTINUATION;
   }
 
   isTransferCell(cell: number): boolean {
-    return this.kind[cell]! === EdgeKinds.TRANSFER;
+    return this.kindByCell[cell]! === EdgeKinds.TRANSFER;
   }
 
   setOrigin(stop: StopId, arrival: Time, originStop: StopId = stop): void {
     const cell = this.cell(0, stop);
     this.writeCommon(cell, EdgeKinds.ORIGIN, arrival, NO_CELL);
-    this.originStopByCell.set(cell, originStop);
+    this.originStopByStop[stop] = originStop;
   }
 
   setAccess(
@@ -155,7 +177,8 @@ export class DenseRoutingGraph {
   ): void {
     const cell = this.cell(0, toStop);
     this.writeCommon(cell, EdgeKinds.ACCESS, arrival, NO_CELL);
-    this.accessByCell.set(cell, { from: fromStop, duration });
+    this.accessFromByStop[toStop] = fromStop;
+    this.accessDurationByStop[toStop] = duration;
   }
 
   setVehicle(
@@ -213,154 +236,80 @@ export class DenseRoutingGraph {
   ): void {
     const cell = this.cell(round, toStop);
     this.writeCommon(cell, EdgeKinds.TRANSFER, arrival, prevCell);
-    this.id[cell] = transferId;
-  }
-
-  setRoutingEdgeFromObject(
-    round: number,
-    stop: StopId,
-    edge: RoutingEdge,
-    knownVehicleCells?: WeakMap<VehicleEdge, number>,
-  ): void {
-    if ('routeId' in edge) {
-      const previousCell = edge.continuationOf
-        ? (knownVehicleCells?.get(edge.continuationOf) ?? NO_CELL)
-        : NO_CELL;
-      if (edge.continuationOf) {
-        this.setVehicleContinuation(
-          round,
-          stop,
-          edge.arrival,
-          edge.routeId,
-          edge.stopIndex,
-          edge.tripIndex,
-          edge.hopOffStopIndex,
-          previousCell,
-        );
-        if (previousCell === NO_CELL) {
-          this.detachedContinuationByCell.set(
-            this.cell(round, stop),
-            edge.continuationOf,
-          );
-        }
-      } else {
-        this.setVehicle(
-          round,
-          stop,
-          edge.arrival,
-          edge.routeId,
-          edge.stopIndex,
-          edge.tripIndex,
-          edge.hopOffStopIndex,
-          NO_CELL,
-        );
-      }
-      knownVehicleCells?.set(edge, this.cell(round, stop));
-      return;
-    }
-
-    if ('type' in edge) {
-      if (edge.transferId === undefined) {
-        throw new Error('Transfer test edges must include transferId.');
-      }
-      this.setTransfer(round, stop, edge.arrival, edge.transferId, NO_CELL);
-      return;
-    }
-
-    if ('duration' in edge) {
-      this.setAccess(stop, edge.arrival, edge.from, edge.duration);
-      return;
-    }
-
-    this.setOrigin(stop, edge.arrival, edge.stopId);
+    this.idByCell[cell] = transferId;
   }
 
   clearTouched(): void {
     for (let i = 0; i < this.touchedCells.length; i++) {
       const cell = this.touchedCells[i]!;
-      this.kind[cell] = EdgeKinds.NONE;
-      this.arrival[cell] = UNREACHED_TIME;
-      this.prevCell[cell] = NO_CELL;
-      this.originStopByCell.delete(cell);
-      this.accessByCell.delete(cell);
-      this.detachedContinuationByCell.delete(cell);
+      this.kindByCell[cell] = EdgeKinds.NONE;
+      this.arrivalByCell[cell] = UNREACHED_TIME;
+      this.touchedCellMask[cell] = 0;
     }
     this.touchedCells.length = 0;
   }
 
   clearAll(): void {
-    this.kind.fill(EdgeKinds.NONE);
-    this.arrival.fill(UNREACHED_TIME);
-    this.prevCell.fill(NO_CELL);
+    this.kindByCell.fill(EdgeKinds.NONE);
+    this.arrivalByCell.fill(UNREACHED_TIME);
+    this.touchedCellMask.fill(0);
     this.touchedCells.length = 0;
-    this.originStopByCell.clear();
-    this.accessByCell.clear();
-    this.detachedContinuationByCell.clear();
   }
 
-  edgeAt(round: number, stop: StopId): RoutingEdge | undefined {
-    return this.edgeAtCell(this.cell(round, stop));
+  originStopAtCell(cell: number): StopId | undefined {
+    if (this.kindByCell[cell] !== EdgeKinds.ORIGIN) return undefined;
+    return this.originStopByStop[this.stopOfCell(cell)] as StopId;
   }
 
-  edgeAtCell(cell: number): RoutingEdge | undefined {
-    const kind = this.kind[cell] ?? EdgeKinds.NONE;
-    if (kind === EdgeKinds.NONE) return undefined;
-
-    const arrival = this.arrival[cell]!;
-    switch (kind) {
-      case EdgeKinds.ORIGIN: {
-        const originStop = this.originStopByCell.get(cell);
-        if (originStop === undefined) return undefined;
-        return { stopId: originStop, arrival };
-      }
-      case EdgeKinds.ACCESS: {
-        const access = this.accessByCell.get(cell);
-        if (access === undefined) return undefined;
-        return {
-          arrival,
-          from: access.from,
-          to: this.stopOfCell(cell),
-          duration: access.duration,
-        };
-      }
-      case EdgeKinds.VEHICLE:
-        return this.vehicleEdgeAtCell(cell);
-      case EdgeKinds.VEHICLE_CONTINUATION:
-        return this.vehicleEdgeAtCell(cell);
-      case EdgeKinds.TRANSFER: {
-        const transfer = this.transferAtCell(cell);
-        if (transfer === undefined) return undefined;
-        return {
-          arrival,
-          from: transfer.from,
-          to: transfer.destination,
-          type: transfer.type,
-          ...(transfer.minTransferTime !== undefined && {
-            minTransferTime: transfer.minTransferTime,
-          }),
-        };
-      }
-      default:
-        return undefined;
-    }
-  }
-
-  transferAtCell(cell: number): Transfer | undefined {
-    if (this.kind[cell] !== EdgeKinds.TRANSFER) return undefined;
-    const id = this.id[cell];
-    if (id === undefined || id === NO_U32) return undefined;
-    return this.resolveTransfer?.(id);
-  }
-
-  vehicleEdgeAtCell(cell: number): VehicleEdge {
-    const continuationOf = this.continuationOfCell(cell);
+  accessAtCell(cell: number): { from: StopId; duration: Duration } | undefined {
+    if (this.kindByCell[cell] !== EdgeKinds.ACCESS) return undefined;
+    const stop = this.stopOfCell(cell);
     return {
-      arrival: this.arrival[cell]!,
-      routeId: this.id[cell]!,
-      stopIndex: this.hopOnStopIndex[cell]!,
-      tripIndex: this.tripIndex[cell]!,
-      hopOffStopIndex: this.hopOffStopIndex[cell]!,
-      ...(continuationOf !== undefined && { continuationOf }),
+      from: this.accessFromByStop[stop] as StopId,
+      duration: this.accessDurationByStop[stop] as Duration,
+    };
+  }
+
+  transferIdAtCell(cell: number): TransferId | undefined {
+    if (this.kindByCell[cell] !== EdgeKinds.TRANSFER) return undefined;
+    return this.idByCell[cell] as TransferId;
+  }
+
+  vehicleRouteIdAtCell(cell: number): number {
+    return this.idByCell[cell]!;
+  }
+
+  vehicleTripIndexAtCell(cell: number): TripRouteIndex {
+    return this.tripIndexByCell[cell]!;
+  }
+
+  vehicleHopOffStopIndexAtCell(cell: number): StopRouteIndex {
+    return this.hopOffStopIndexByCell[cell]!;
+  }
+
+  vehicleTripAtCell(cell: number): TripStop | undefined {
+    if (!this.isVehicleCell(cell)) return undefined;
+    return {
+      stopIndex: this.vehicleHopOffStopIndexAtCell(cell),
+      routeId: this.vehicleRouteIdAtCell(cell),
+      tripIndex: this.vehicleTripIndexAtCell(cell),
+    };
+  }
+
+  vehiclePayloadAtCell(cell: number):
+    | {
+        routeId: number;
+        boardStopIndex: StopRouteIndex;
+        tripIndex: TripRouteIndex;
+        hopOffStopIndex: StopRouteIndex;
+      }
+    | undefined {
+    if (!this.isVehicleCell(cell)) return undefined;
+    return {
+      routeId: this.idByCell[cell]!,
+      boardStopIndex: this.hopOnStopIndexByCell[cell]!,
+      tripIndex: this.tripIndexByCell[cell]!,
+      hopOffStopIndex: this.hopOffStopIndexByCell[cell]!,
     };
   }
 
@@ -370,31 +319,14 @@ export class DenseRoutingGraph {
    */
   predecessorBeforeVehicleChain(cell: number): number {
     let firstVehicleCell = cell;
-    while (this.kind[firstVehicleCell]! === EdgeKinds.VEHICLE_CONTINUATION) {
-      const previous = this.prevCell[firstVehicleCell]!;
+    while (
+      this.kindByCell[firstVehicleCell]! === EdgeKinds.VEHICLE_CONTINUATION
+    ) {
+      const previous = this.prevCellByCell[firstVehicleCell]!;
       if (previous === NO_CELL || !this.isVehicleCell(previous)) return NO_CELL;
       firstVehicleCell = previous;
     }
-    return this.prevCell[firstVehicleCell]!;
-  }
-
-  *edges(): Generator<{
-    round: number;
-    stop: StopId;
-    cell: number;
-    edge: RoutingEdge;
-  }> {
-    for (let cell = 0; cell < this.kind.length; cell++) {
-      if (this.kind[cell]! === EdgeKinds.NONE) continue;
-      const edge = this.edgeAtCell(cell);
-      if (edge === undefined) continue;
-      yield {
-        round: this.roundOfCell(cell),
-        stop: this.stopOfCell(cell),
-        cell,
-        edge,
-      };
-    }
+    return this.prevCellByCell[firstVehicleCell]!;
   }
 
   private writeCommon(
@@ -403,13 +335,13 @@ export class DenseRoutingGraph {
     arrival: Time,
     prevCell: number,
   ): void {
-    this.kind[cell] = kind;
-    this.arrival[cell] = arrival;
-    this.prevCell[cell] = prevCell;
-    this.originStopByCell.delete(cell);
-    this.accessByCell.delete(cell);
-    this.detachedContinuationByCell.delete(cell);
-    this.touchedCells.push(cell);
+    this.kindByCell[cell] = kind;
+    this.arrivalByCell[cell] = arrival;
+    this.prevCellByCell[cell] = prevCell;
+    if (this.touchedCellMask[cell] === 0) {
+      this.touchedCellMask[cell] = 1;
+      this.touchedCells.push(cell);
+    }
   }
 
   private writeVehicle(
@@ -423,20 +355,9 @@ export class DenseRoutingGraph {
     prevCell: number,
   ): void {
     this.writeCommon(cell, kind, arrival, prevCell);
-    this.id[cell] = routeId;
-    this.hopOnStopIndex[cell] = boardStopIndex;
-    this.tripIndex[cell] = tripIndex;
-    this.hopOffStopIndex[cell] = hopOffStopIndex;
-  }
-
-  private continuationOfCell(cell: number): VehicleEdge | undefined {
-    if (this.kind[cell]! !== EdgeKinds.VEHICLE_CONTINUATION) return undefined;
-
-    const previousCell = this.prevCell[cell]!;
-    if (previousCell !== NO_CELL && this.isVehicleCell(previousCell)) {
-      return this.vehicleEdgeAtCell(previousCell);
-    }
-
-    return this.detachedContinuationByCell.get(cell);
+    this.idByCell[cell] = routeId;
+    this.hopOnStopIndexByCell[cell] = boardStopIndex;
+    this.tripIndexByCell[cell] = tripIndex;
+    this.hopOffStopIndexByCell[cell] = hopOffStopIndex;
   }
 }

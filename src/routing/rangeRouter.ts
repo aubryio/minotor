@@ -93,7 +93,6 @@ export class RangeRouter {
         this.timetable.nbStops(),
         maxRounds,
         query.options.maxDuration,
-        (transferId) => this.timetable.getTransfer(transferId),
       );
       rangeState.setCurrentRun(routingState);
       this.raptor.run(
@@ -125,7 +124,6 @@ export class RangeRouter {
           this.timetable.nbStops(),
           maxRounds,
           query.options.maxDuration,
-          (transferId) => this.timetable.getTransfer(transferId),
         );
       } else {
         routingState.resetFor(depTime, legs);

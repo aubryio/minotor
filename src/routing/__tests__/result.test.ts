@@ -543,11 +543,15 @@ describe('Result', () => {
           destinations: [3],
           arrivals: [
             [0, timeFromHMS(8, 0, 0), 0],
+            [2, timeFromHMS(9, 0, 0), 1],
             [3, timeFromHMS(9, 45, 0), 1],
           ],
           graph: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
-            [[3, continuousVehicleEdge]], // round 1
+            [
+              [2, firstVehicleEdge],
+              [3, continuousVehicleEdge],
+            ], // round 1
           ],
         }),
         mockStopsIndex,
@@ -587,11 +591,13 @@ describe('Result', () => {
         tripIndex: 0,
       };
 
-      const state = RoutingState.fromTestData({
-        nbStops: NB_STOPS,
-        origins: [0],
-        destinations: [3],
-        transfers: [
+      const timetableWithTransfer = new Timetable(
+        stopsAdjacency,
+        routesAdjacency,
+        routes,
+        undefined,
+        undefined,
+        [
           {
             from: 1,
             destination: 2,
@@ -599,6 +605,11 @@ describe('Result', () => {
             minTransferTime: 5,
           },
         ],
+      );
+      const state = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        origins: [0],
+        destinations: [3],
         arrivals: [
           [0, timeFromHMS(8, 0, 0), 0],
           [1, timeFromHMS(8, 30, 0), 1],
@@ -619,7 +630,7 @@ describe('Result', () => {
         mockQuery.to,
         state,
         mockStopsIndex,
-        mockTimetable,
+        timetableWithTransfer,
       );
       const route = result.bestRoute(3);
       assert(route);

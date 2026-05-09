@@ -59,7 +59,9 @@ export class AccessFinder {
       }
       const transferIds = this.timetable.getTransferIds(origin);
       for (let i = 0; i < transferIds.length; i++) {
-        const transfer = this.timetable.getTransfer(transferIds[i]!);
+        const transferId = transferIds[i];
+        if (transferId === undefined) continue;
+        const transfer = this.timetable.getTransfer(transferId);
         if (
           transfer !== undefined &&
           transfer.type === TransferTypes.REQUIRES_MINIMAL_TIME

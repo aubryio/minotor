@@ -458,10 +458,7 @@ export class Plotter {
    */
   private collectStations(): Set<StopId> {
     const stations = new Set<StopId>();
-    for (const {
-      stop: stopId,
-      edge,
-    } of this.result.routingState.graph.edges()) {
+    for (const { stop: stopId, edge } of this.result.edges()) {
       stations.add(stopId);
       if (isVehicleEdge(edge)) {
         const fromStopId = this.getVehicleEdgeFromStopId(edge);
@@ -508,7 +505,7 @@ export class Plotter {
   private collectEdges(): string[] {
     const edges: string[] = [];
     const continuationEdges: string[] = [];
-    for (const { round, edge } of this.result.routingState.graph.edges()) {
+    for (const { round, edge } of this.result.edges()) {
       if (round === 0) {
         // Round 0 holds OriginNodes (no edge to draw) and AccessEdges
         // (walking legs from the query origin to the first boarding stop).

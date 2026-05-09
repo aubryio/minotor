@@ -157,9 +157,9 @@ export class Raptor {
       if (!graph.isVehicleCell(cell)) continue;
 
       const continuousTrips = this.timetable.getContinuousTrips(
-        graph.hopOffStopIndex[cell]!,
-        graph.id[cell]!,
-        graph.tripIndex[cell]!,
+        graph.vehicleHopOffStopIndexAtCell(cell),
+        graph.vehicleRouteIdAtCell(cell),
+        graph.vehicleTripIndexAtCell(cell),
       );
       for (const trip of continuousTrips) {
         continuations.push({
@@ -314,7 +314,7 @@ export class Raptor {
       }
 
       // Check whether we can board an earlier (or first) trip at this stop.
-      const previousKind = graph.kind[previousCell]!;
+      const previousKind = graph.kindAtCellUnchecked(previousCell);
       const earliestArrivalOnPreviousRound = graph.arrivalAtCell(previousCell);
       if (
         previousKind !== EdgeKinds.NONE &&
@@ -331,13 +331,7 @@ export class Raptor {
           continue;
         }
 
-        const fromTripStop = graph.isVehicleCell(previousCell)
-          ? {
-              stopIndex: graph.hopOffStopIndex[previousCell]!,
-              routeId: graph.id[previousCell]!,
-              tripIndex: graph.tripIndex[previousCell]!,
-            }
-          : undefined;
+        const fromTripStop = graph.vehicleTripAtCell(previousCell);
         const firstBoardableTrip = this.timetable.findFirstBoardableTrip(
           currentStopIndex,
           route,
@@ -398,7 +392,10 @@ export class Raptor {
     for (const stop of markedStops) {
       const currentCell = currentRoundOffset + stop;
       // Skip transfers if the last leg was also a transfer
-      if (!graph.hasCell(currentCell) || graph.isTransferCell(currentCell))
+      if (
+        !graph.hasCellUnchecked(currentCell) ||
+        graph.isTransferCell(currentCell)
+      )
         continue;
       const transferIds = this.timetable.getTransferIds(stop);
       for (let i = 0; i < transferIds.length; i++) {

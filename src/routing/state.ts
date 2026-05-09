@@ -2,14 +2,9 @@
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
-import {
-  Transfer,
-  TransferId,
-  TransferType,
-  TripStop,
-} from '../timetable/timetable.js';
+import { TransferId, TransferType, TripStop } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
-import { DenseRoutingGraph, UNREACHED_TIME } from './graph.js';
+import { DenseRoutingGraph, NO_CELL, UNREACHED_TIME } from './graph.js';
 import type { IRaptorState } from './raptor.js';
 
 export { UNREACHED_TIME } from './graph.js';
@@ -42,6 +37,13 @@ export type TransferEdge = {
 };
 
 export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
+
+export type TestRoutingCell = { round: number; stop: StopId };
+
+export type TestRoutingEdge = RoutingEdge & {
+  /** Explicit predecessor cell for tests that need deterministic reconstruction. */
+  predecessor?: TestRoutingCell;
+};
 
 /** The earliest arrival at a stop together with how many legs were needed to reach it. */
 export type Arrival = {
@@ -117,7 +119,6 @@ export class RoutingState implements IRaptorState {
     nbStops: number,
     maxRounds: number = 0,
     maxDuration?: Duration,
-    resolveTransfer?: (transferId: TransferId) => Transfer | undefined,
   ) {
     this.destinations = destinations;
     this.maxDuration = maxDuration;
@@ -130,7 +131,7 @@ export class RoutingState implements IRaptorState {
     this.earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
     this.earliestArrivalLegs = new Uint8Array(nbStops);
     this.origins = []; // overwritten by seedAccessPaths below
-    this.graph = new DenseRoutingGraph(nbStops, maxRounds, resolveTransfer);
+    this.graph = new DenseRoutingGraph(nbStops, maxRounds);
     this.seedAccessPaths(departureTime, accessPaths);
   }
 
@@ -325,14 +326,12 @@ export class RoutingState implements IRaptorState {
     destinations = [],
     arrivals = [],
     graph = [],
-    transfers = [],
   }: {
     nbStops: number;
     origins?: StopId[];
     destinations?: StopId[];
     arrivals?: [stop: StopId, time: Time, leg: number][];
-    graph?: [stop: StopId, edge: RoutingEdge][][];
-    transfers?: Transfer[];
+    graph?: [stop: StopId, edge: TestRoutingEdge][][];
   }): RoutingState {
     const state = new RoutingState(
       0,
@@ -345,7 +344,6 @@ export class RoutingState implements IRaptorState {
       nbStops,
       Math.max(0, graph.length - 1),
       undefined,
-      (transferId) => transfers[transferId],
     );
 
     // Replace the arrival arrays with freshly built ones so the constructor's
@@ -374,15 +372,108 @@ export class RoutingState implements IRaptorState {
     for (let round = 0; round < graph.length; round++) {
       const roundEdges = graph[round]!;
       for (const [stop, edge] of roundEdges) {
-        state.graph.setRoutingEdgeFromObject(
-          round,
-          stop,
-          edge,
-          knownVehicleCells,
-        );
+        state.setTestRoutingEdge(round, stop, edge, knownVehicleCells);
       }
     }
 
     return state;
+  }
+
+  private setTestRoutingEdge(
+    round: number,
+    stop: StopId,
+    edge: TestRoutingEdge,
+    knownVehicleCells: WeakMap<VehicleEdge, number>,
+  ): void {
+    if ('routeId' in edge) {
+      const previousCell = edge.continuationOf
+        ? (knownVehicleCells.get(edge.continuationOf) ?? NO_CELL)
+        : (this.testPredecessorCell(edge) ??
+          this.inferTestVehiclePredecessorCell(round));
+      if (edge.continuationOf) {
+        this.graph.setVehicleContinuation(
+          round,
+          stop,
+          edge.arrival,
+          edge.routeId,
+          edge.stopIndex,
+          edge.tripIndex,
+          edge.hopOffStopIndex,
+          previousCell,
+        );
+      } else {
+        this.graph.setVehicle(
+          round,
+          stop,
+          edge.arrival,
+          edge.routeId,
+          edge.stopIndex,
+          edge.tripIndex,
+          edge.hopOffStopIndex,
+          previousCell,
+        );
+      }
+      knownVehicleCells.set(edge, this.graph.cell(round, stop));
+      return;
+    }
+
+    if ('type' in edge) {
+      if (edge.transferId === undefined) {
+        throw new Error('Transfer test edges must include transferId.');
+      }
+      const previousCell =
+        this.testPredecessorCell(edge) ??
+        this.testPredecessorForTransfer(round, edge);
+      this.graph.setTransfer(
+        round,
+        stop,
+        edge.arrival,
+        edge.transferId,
+        previousCell,
+      );
+      return;
+    }
+
+    if ('duration' in edge) {
+      this.graph.setAccess(stop, edge.arrival, edge.from, edge.duration);
+      return;
+    }
+
+    this.graph.setOrigin(stop, edge.arrival, edge.stopId);
+  }
+
+  private testPredecessorCell(edge: TestRoutingEdge): number | undefined {
+    if (edge.predecessor === undefined) return undefined;
+    return this.graph.cell(edge.predecessor.round, edge.predecessor.stop);
+  }
+
+  private inferTestVehiclePredecessorCell(round: number): number {
+    if (round <= 0) return NO_CELL;
+
+    let onlyPreviousCell = NO_CELL;
+    let previousCellCount = 0;
+    let onlyTransferCell = NO_CELL;
+    let transferCellCount = 0;
+
+    for (const cell of this.graph.occupiedCells()) {
+      if (this.graph.roundOfCell(cell) !== round - 1) continue;
+      onlyPreviousCell = cell;
+      previousCellCount++;
+      if (this.graph.isTransferCell(cell)) {
+        onlyTransferCell = cell;
+        transferCellCount++;
+      }
+    }
+
+    if (transferCellCount === 1) return onlyTransferCell;
+    return previousCellCount === 1 ? onlyPreviousCell : NO_CELL;
+  }
+
+  private testPredecessorForTransfer(
+    round: number,
+    edge: TransferEdge,
+  ): number {
+    const candidate = this.graph.cell(round, edge.from);
+    return this.graph.hasCell(candidate) ? candidate : NO_CELL;
   }
 }

@@ -174,20 +174,27 @@ describe('Plotter', () => {
     });
 
     it('should use correct colors', () => {
+      const timetableWithTransfer = new Timetable(
+        stopsAdjacency,
+        routesAdjacency,
+        routes,
+        undefined,
+        undefined,
+        [
+          {
+            from: 0,
+            destination: 1,
+            type: TransferTypes.RECOMMENDED,
+            minTransferTime: 5,
+          },
+        ],
+      );
       const result = new Result(
         mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [1],
-          transfers: [
-            {
-              from: 0,
-              destination: 1,
-              type: TransferTypes.RECOMMENDED,
-              minTransferTime: 5,
-            },
-          ],
           graph: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [
@@ -218,7 +225,7 @@ describe('Plotter', () => {
           ],
         }),
         mockStopsIndex,
-        mockTimetable,
+        timetableWithTransfer,
       );
 
       const plotter = new Plotter(result);
