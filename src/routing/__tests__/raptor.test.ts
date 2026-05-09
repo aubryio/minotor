@@ -6,6 +6,7 @@ import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
   ALL_TRANSPORT_MODES,
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -69,9 +70,9 @@ const route1 = Route.of({
 });
 
 const stopsAdjacency: StopAdjacency[] = [
-  { routes: [0] }, // stop 0: origin
-  { routes: [0, 1] }, // stop 1: transfer stop
-  { routes: [1] }, // stop 2: destination
+  createStopAdjacency([0]), // stop 0: origin
+  createStopAdjacency([0, 1]), // stop 1: transfer stop
+  createStopAdjacency([1]), // stop 2: destination
 ];
 
 const serviceRoutes: ServiceRoute[] = [
@@ -104,9 +105,9 @@ const route2 = Route.of({
 });
 
 const stopsAdjacencyWithDirectRoute: StopAdjacency[] = [
-  { routes: [0, 2] }, // stop 0
-  { routes: [0, 1] }, // stop 1
-  { routes: [1, 2] }, // stop 2
+  createStopAdjacency([0, 2]), // stop 0
+  createStopAdjacency([0, 1]), // stop 1
+  createStopAdjacency([1, 2]), // stop 2
 ];
 
 const serviceRoutesWithDirectRoute: ServiceRoute[] = [
@@ -118,19 +119,19 @@ const serviceRoutesWithDirectRoute: ServiceRoute[] = [
 // ─── Extended fixture: walking transfer from stop 1 to stop 2 ─────────────────
 // Stop 2 has no routes; can only be reached via the 5-minute walk from stop 1.
 
-const stopsAdjacencyWithTransfer: StopAdjacency[] = [
-  { routes: [0] },
+const walkingTransfers = [
   {
-    routes: [0],
-    transfers: [
-      {
-        destination: 2,
-        type: TransferTypes.REQUIRES_MINIMAL_TIME,
-        minTransferTime: 5,
-      },
-    ],
+    from: 1,
+    destination: 2,
+    type: TransferTypes.REQUIRES_MINIMAL_TIME,
+    minTransferTime: 5,
   },
-  { routes: [] },
+];
+
+const stopsAdjacencyWithTransfer: StopAdjacency[] = [
+  createStopAdjacency([0]),
+  createStopAdjacency([0], [0]),
+  createStopAdjacency([]),
 ];
 
 // ─── Extended fixture: mixed transport modes ──────────────────────────────────
@@ -330,6 +331,9 @@ describe('Raptor', () => {
         stopsAdjacencyWithTransfer,
         [route0],
         [serviceRoutes[0]!],
+        undefined,
+        undefined,
+        walkingTransfers,
       );
       const raptor = new Raptor(timetable);
       const tooShortOptions: QueryOptions = {
@@ -434,6 +438,9 @@ describe('Raptor', () => {
         stopsAdjacencyWithTransfer,
         [route0],
         [serviceRoutes[0]!],
+        undefined,
+        undefined,
+        walkingTransfers,
       );
       const state = new RoutingState(
         timeFromHM(8, 0),

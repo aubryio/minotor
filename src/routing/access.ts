@@ -57,8 +57,13 @@ export class AccessFinder {
           duration: 0,
         });
       }
-      for (const transfer of this.timetable.getTransfers(origin)) {
-        if (transfer.type === TransferTypes.REQUIRES_MINIMAL_TIME) {
+      const transferIds = this.timetable.getTransferIds(origin);
+      for (let i = 0; i < transferIds.length; i++) {
+        const transfer = this.timetable.getTransfer(transferIds[i]!);
+        if (
+          transfer !== undefined &&
+          transfer.type === TransferTypes.REQUIRES_MINIMAL_TIME
+        ) {
           const duration = transfer.minTransferTime ?? fallbackMinTransferTime;
           const existingAccess = accessPaths.get(transfer.destination);
           // Keep the shortest walk to maximize the set of reachable trips.

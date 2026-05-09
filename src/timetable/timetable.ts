@@ -6,10 +6,12 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
+  deserializeTransfers,
   deserializeTripTransfers,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
+  serializeTransfers,
   serializeTripTransfers,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/v1/timetable.js';
@@ -34,7 +36,10 @@ export type TransferType = (typeof TransferTypes)[keyof typeof TransferTypes];
 
 export type TransferTypeString = keyof typeof TransferTypes;
 
+export type TransferId = number;
+
 export type Transfer = {
+  from: StopId;
   destination: StopId;
   type: TransferType;
   minTransferTime?: Duration;
@@ -47,9 +52,17 @@ export type TripStop = {
 };
 
 export type StopAdjacency = {
-  transfers?: Transfer[];
-  routes: RouteId[];
+  routeIds: Uint32Array;
+  transferIds: Uint32Array;
 };
+
+export const createStopAdjacency = (
+  routeIds: Iterable<RouteId> = [],
+  transferIds: Iterable<TransferId> = [],
+): StopAdjacency => ({
+  routeIds: Uint32Array.from(routeIds),
+  transferIds: Uint32Array.from(transferIds),
+});
 
 export type TripTransfers = Map<TripStopId, TripStop[]>;
 
@@ -94,6 +107,7 @@ const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
 export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
+  private readonly transfers: Transfer[];
   private readonly serviceRoutes: ServiceRoute[];
   private readonly tripContinuations?: TripTransfers;
   private readonly guaranteedTripTransfers?: TripTransfers;
@@ -105,19 +119,18 @@ export class Timetable {
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
     guaranteedTripTransfers?: TripTransfers,
+    transfers: Transfer[] = [],
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
+    this.transfers = transfers;
     this.serviceRoutes = routes;
     this.tripContinuations = tripContinuations;
     this.guaranteedTripTransfers = guaranteedTripTransfers;
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
-      if (
-        stop.routes.length > 0 ||
-        (stop.transfers && stop.transfers.length > 0)
-      ) {
+      if (stop.routeIds.length > 0 || stop.transferIds.length > 0) {
         this.activeStops.add(i);
       }
     }
@@ -132,6 +145,7 @@ export class Timetable {
     const protoTimetable = {
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
+      transfers: serializeTransfers(this.transfers),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
       tripContinuations: serializeTripTransfers(
         this.tripContinuations || new Map<TripStopId, TripStop[]>(),
@@ -160,6 +174,7 @@ export class Timetable {
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
       deserializeTripTransfers(protoTimetable.tripContinuations),
       deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
+      deserializeTransfers(protoTimetable.transfers),
     );
   }
 
@@ -199,12 +214,38 @@ export class Timetable {
    * @param stopId - The ID of the stop to get transfers for.
    * @returns An array of transfer options available at the stop.
    */
-  getTransfers(stopId: StopId): Transfer[] {
+  getTransfer(transferId: TransferId): Transfer | undefined {
+    return this.transfers[transferId];
+  }
+
+  /**
+   * Retrieves all transfer IDs available at the specified stop.
+   *
+   * @param stopId - The ID of the stop to get transfer IDs for.
+   * @returns A typed array of transfer IDs available at the stop.
+   */
+  getTransferIds(stopId: StopId): Uint32Array {
     const stopAdjacency = this.stopsAdjacency[stopId];
     if (!stopAdjacency) {
       throw new Error(`Stop ID ${stopId} not found`);
     }
-    return stopAdjacency.transfers || [];
+    return stopAdjacency.transferIds;
+  }
+
+  /**
+   * Retrieves all transfer options available at the specified stop.
+   *
+   * @param stopId - The ID of the stop to get transfers for.
+   * @returns An array of transfer options available at the stop.
+   */
+  getTransfers(stopId: StopId): Transfer[] {
+    const transferIds = this.getTransferIds(stopId);
+    const transfers: Transfer[] = [];
+    for (let i = 0; i < transferIds.length; i++) {
+      const transfer = this.transfers[transferIds[i]!];
+      if (transfer !== undefined) transfers.push(transfer);
+    }
+    return transfers;
   }
 
   /**
@@ -259,8 +300,8 @@ export class Timetable {
       return [];
     }
     const routes: Route[] = [];
-    for (let i = 0; i < stopData.routes.length; i++) {
-      const routeId = stopData.routes[i]!;
+    for (let i = 0; i < stopData.routeIds.length; i++) {
+      const routeId = stopData.routeIds[i]!;
       const route = this.routesAdjacency[routeId];
       if (route) {
         routes.push(route);
@@ -291,8 +332,8 @@ export class Timetable {
       const stopData = this.stopsAdjacency[originStop];
       if (!stopData) continue;
 
-      for (let i = 0; i < stopData.routes.length; i++) {
-        const route = this.routesAdjacency[stopData.routes[i]!];
+      for (let i = 0; i < stopData.routeIds.length; i++) {
+        const route = this.routesAdjacency[stopData.routeIds[i]!];
         if (!route) continue;
 
         if (filterByMode) {

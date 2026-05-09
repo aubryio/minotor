@@ -12,6 +12,7 @@ import {
   TransferTypes,
   transferTypeToString,
 } from '../timetable/timetable.js';
+import { EdgeKinds, NO_CELL } from './graph.js';
 import {
   Access,
   Leg,
@@ -20,9 +21,8 @@ import {
   Transfer,
   VehicleLeg,
 } from './route.js';
-import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
+import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './state.js';
 import { AccessEdge } from './state.js';
-import { EdgeKinds, NO_CELL } from './stateGraph.js';
 
 /**
  * Details about the pickup and drop-off modalities at each stop in each trip of a route.

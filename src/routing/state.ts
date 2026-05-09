@@ -2,12 +2,17 @@
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
-import { TransferType, TripStop } from '../timetable/timetable.js';
+import {
+  Transfer,
+  TransferId,
+  TransferType,
+  TripStop,
+} from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
+import { DenseRoutingGraph, UNREACHED_TIME } from './graph.js';
 import type { IRaptorState } from './raptor.js';
-import { TypedStateGraph, UNREACHED_TIME } from './stateGraph.js';
 
-export { UNREACHED_TIME } from './stateGraph.js';
+export { UNREACHED_TIME } from './graph.js';
 
 export type OriginNode = { stopId: StopId; arrival: Time };
 
@@ -33,6 +38,7 @@ export type TransferEdge = {
   to: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+  transferId?: TransferId;
 };
 
 export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
@@ -57,7 +63,7 @@ export class RoutingState implements IRaptorState {
    * Typed routing graph: the best edge used to reach each stop, per round.
    * Indexed internally as `round * nbStops + stopId`.
    */
-  readonly graph: TypedStateGraph;
+  readonly graph: DenseRoutingGraph;
 
   /**
    * Earliest arrival time at each stop (minutes from midnight), indexed by stop ID.
@@ -111,6 +117,7 @@ export class RoutingState implements IRaptorState {
     nbStops: number,
     maxRounds: number = 0,
     maxDuration?: Duration,
+    resolveTransfer?: (transferId: TransferId) => Transfer | undefined,
   ) {
     this.destinations = destinations;
     this.maxDuration = maxDuration;
@@ -123,7 +130,7 @@ export class RoutingState implements IRaptorState {
     this.earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
     this.earliestArrivalLegs = new Uint8Array(nbStops);
     this.origins = []; // overwritten by seedAccessPaths below
-    this.graph = new TypedStateGraph(nbStops, maxRounds);
+    this.graph = new DenseRoutingGraph(nbStops, maxRounds, resolveTransfer);
     this.seedAccessPaths(departureTime, accessPaths);
   }
 
@@ -318,12 +325,14 @@ export class RoutingState implements IRaptorState {
     destinations = [],
     arrivals = [],
     graph = [],
+    transfers = [],
   }: {
     nbStops: number;
     origins?: StopId[];
     destinations?: StopId[];
     arrivals?: [stop: StopId, time: Time, leg: number][];
     graph?: [stop: StopId, edge: RoutingEdge][][];
+    transfers?: Transfer[];
   }): RoutingState {
     const state = new RoutingState(
       0,
@@ -335,6 +344,8 @@ export class RoutingState implements IRaptorState {
       })),
       nbStops,
       Math.max(0, graph.length - 1),
+      undefined,
+      (transferId) => transfers[transferId],
     );
 
     // Replace the arrival arrays with freshly built ones so the constructor's

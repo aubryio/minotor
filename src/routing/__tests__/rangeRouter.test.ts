@@ -6,6 +6,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -23,15 +24,13 @@ describe('RangeRouter', () => {
     let router: RangeRouter;
 
     beforeEach(() => {
+      const transfers = [
+        { from: 0, destination: 1, type: TransferTypes.REQUIRES_MINIMAL_TIME },
+      ];
       const stopsAdjacency: StopAdjacency[] = [
-        {
-          routes: [],
-          transfers: [
-            { destination: 1, type: TransferTypes.REQUIRES_MINIMAL_TIME },
-          ],
-        },
-        { routes: [0] },
-        { routes: [0] },
+        createStopAdjacency([], [0]),
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -65,6 +64,9 @@ describe('RangeRouter', () => {
         stopsAdjacency,
         routesAdjacency,
         serviceRoutes,
+        undefined,
+        undefined,
+        transfers,
       );
 
       const stops: Stop[] = [
@@ -136,8 +138,8 @@ describe('RangeRouter', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { routes: [0] },
-        { routes: [0] },
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -240,7 +242,10 @@ describe('RangeRouter', () => {
       // Rebuild with a timetable where:
       //   trip 0: departs 08:00 → arrives 09:00 (slower)
       //   trip 1: departs 08:30 → arrives 08:50 (faster; dominates trip 0)
-      const dominatingAdj: StopAdjacency[] = [{ routes: [0] }, { routes: [0] }];
+      const dominatingAdj: StopAdjacency[] = [
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
+      ];
 
       const dominatingRoutes = [
         Route.of({
@@ -385,8 +390,8 @@ describe('RangeRouter', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { routes: [0] },
-        { routes: [0] },
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -506,8 +511,8 @@ describe('RangeRouter', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        { routes: [0] },
-        { routes: [0] },
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
       ];
 
       const routesAdjacency = [

@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import { Time } from '../timetable/time.js';
+import { DenseRoutingGraph } from './graph.js';
 import type { IRaptorState } from './raptor.js';
 import { RoutingState, UNREACHED_TIME } from './state.js';
-import { TypedStateGraph } from './stateGraph.js';
 
 /**
  * RAPTOR state for Range RAPTOR mode, implementing {@link IRaptorState}.
@@ -86,7 +86,7 @@ export class RangeRaptorState implements IRaptorState {
     return this.currentRun.origins;
   }
 
-  get graph(): TypedStateGraph {
+  get graph(): DenseRoutingGraph {
     return this.currentRun.graph;
   }
 

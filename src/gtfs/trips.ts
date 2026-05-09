@@ -8,6 +8,7 @@ import {
   ServiceRoute,
   ServiceRouteId,
   StopAdjacency,
+  Transfer,
 } from '../timetable/timetable.js';
 import { FrequenciesMap } from './frequencies.js';
 import { GtfsRouteId, GtfsRoutesMap } from './routes.js';
@@ -209,22 +210,18 @@ export const buildStopsAdjacencyStructure = (
   transfersMap: TransfersMap,
   nbStops: number,
   activeStops: Set<StopId>,
-): StopAdjacency[] => {
-  const stopsAdjacency = new Array<StopAdjacency>(nbStops);
-  for (let i = 0; i < nbStops; i++) {
-    stopsAdjacency[i] = {
-      routes: [],
-    };
-  }
-  for (let index = 0; index < routes.length; index++) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const route = routes[index]!;
-    for (let j = 0; j < route.getNbStops(); j++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const stop = route.stops[j]!;
-      if (activeStops.has(stop)) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        stopsAdjacency[stop]!.routes.push(index);
+): { stopsAdjacency: StopAdjacency[]; transfers: Transfer[] } => {
+  const routeIdsByStop = Array.from({ length: nbStops }, () => [] as number[]);
+  const transferIdsByStop = Array.from(
+    { length: nbStops },
+    () => [] as number[],
+  );
+  const transfers: Transfer[] = [];
+  for (const [index, route] of routes.entries()) {
+    for (const stop of route.stops) {
+      const routeIds = routeIdsByStop[stop];
+      if (routeIds !== undefined && activeStops.has(stop)) {
+        routeIds.push(index);
       }
     }
     const serviceRoute = serviceRoutes[route.serviceRoute()];
@@ -235,23 +232,25 @@ export const buildStopsAdjacencyStructure = (
     }
     serviceRoute.routes.push(index);
   }
-  for (const [stop, transfers] of transfersMap) {
-    for (let i = 0; i < transfers.length; i++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const transfer = transfers[i]!;
+  for (const [stop, stopTransfers] of transfersMap) {
+    const transferIds = transferIdsByStop[stop];
+    if (transferIds === undefined) continue;
+    for (const transfer of stopTransfers) {
       if (activeStops.has(stop) || activeStops.has(transfer.destination)) {
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const stopAdj = stopsAdjacency[stop]!;
-        if (!stopAdj.transfers) {
-          stopAdj.transfers = [];
-        }
-        stopAdj.transfers.push(transfer);
+        const transferId = transfers.length;
+        transfers.push(transfer);
+        transferIds.push(transferId);
         activeStops.add(transfer.destination);
         activeStops.add(stop);
       }
     }
   }
-  return stopsAdjacency;
+  const stopsAdjacency = routeIdsByStop.map((routeIds, stop) => ({
+    routeIds: Uint32Array.from(routeIds),
+    transferIds: Uint32Array.from(transferIdsByStop[stop] ?? []),
+  }));
+
+  return { stopsAdjacency, transfers };
 };
 
 /**

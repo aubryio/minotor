@@ -6,6 +6,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -17,7 +18,7 @@ import { Result } from '../result.js';
 import { Router } from '../router.js';
 
 // Minimal two-stop timetable used by all tests in this file.
-const stopsAdjacency: StopAdjacency[] = [{ routes: [0] }, { routes: [0] }];
+const stopsAdjacency: StopAdjacency[] = [createStopAdjacency([0]), createStopAdjacency([0])];
 const routesAdjacency = [
   Route.of({
     id: 0,

@@ -2,12 +2,7 @@ import { StopId } from '../stops/stops.js';
 import { durationToString, timeToString } from '../timetable/time.js';
 import { routeTypeToString } from '../timetable/timetable.js';
 import { Result } from './result.js';
-import {
-  AccessEdge,
-  RoutingEdge,
-  TransferEdge,
-  VehicleEdge,
-} from './router.js';
+import { AccessEdge, RoutingEdge, TransferEdge, VehicleEdge } from './state.js';
 
 /**
  * Configuration for DOT graph styling.

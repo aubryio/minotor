@@ -173,6 +173,7 @@ export interface Route {
 }
 
 export interface Transfer {
+  origin: number;
   destination: number;
   type: TransferType;
   minTransferTime?: number | undefined;
@@ -190,8 +191,8 @@ export interface TripTransferEntry {
 }
 
 export interface StopAdjacency {
-  routes: number[];
-  transfers: Transfer[];
+  routeIds: Uint8Array;
+  transferIds: Uint8Array;
 }
 
 export interface ServiceRoute {
@@ -206,6 +207,7 @@ export interface Timetable {
   serviceRoutes: ServiceRoute[];
   tripContinuations: TripTransferEntry[];
   guaranteedTripTransfers: TripTransferEntry[];
+  transfers: Transfer[];
 }
 
 function createBaseRoute(): Route {
@@ -324,19 +326,22 @@ export const Route: MessageFns<Route> = {
 };
 
 function createBaseTransfer(): Transfer {
-  return { destination: 0, type: 0, minTransferTime: undefined };
+  return { origin: 0, destination: 0, type: 0, minTransferTime: undefined };
 }
 
 export const Transfer: MessageFns<Transfer> = {
   encode(message: Transfer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.origin !== 0) {
+      writer.uint32(8).uint32(message.origin);
+    }
     if (message.destination !== 0) {
-      writer.uint32(8).uint32(message.destination);
+      writer.uint32(16).uint32(message.destination);
     }
     if (message.type !== 0) {
-      writer.uint32(16).int32(message.type);
+      writer.uint32(24).int32(message.type);
     }
     if (message.minTransferTime !== undefined) {
-      writer.uint32(24).uint32(message.minTransferTime);
+      writer.uint32(32).uint32(message.minTransferTime);
     }
     return writer;
   },
@@ -353,7 +358,7 @@ export const Transfer: MessageFns<Transfer> = {
             break;
           }
 
-          message.destination = reader.uint32();
+          message.origin = reader.uint32();
           continue;
         }
         case 2: {
@@ -361,11 +366,19 @@ export const Transfer: MessageFns<Transfer> = {
             break;
           }
 
-          message.type = reader.int32() as any;
+          message.destination = reader.uint32();
           continue;
         }
         case 3: {
           if (tag !== 24) {
+            break;
+          }
+
+          message.type = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
             break;
           }
 
@@ -383,6 +396,7 @@ export const Transfer: MessageFns<Transfer> = {
 
   fromJSON(object: any): Transfer {
     return {
+      origin: isSet(object.origin) ? globalThis.Number(object.origin) : 0,
       destination: isSet(object.destination) ? globalThis.Number(object.destination) : 0,
       type: isSet(object.type) ? transferTypeFromJSON(object.type) : 0,
       minTransferTime: isSet(object.minTransferTime) ? globalThis.Number(object.minTransferTime) : undefined,
@@ -391,6 +405,9 @@ export const Transfer: MessageFns<Transfer> = {
 
   toJSON(message: Transfer): unknown {
     const obj: any = {};
+    if (message.origin !== 0) {
+      obj.origin = Math.round(message.origin);
+    }
     if (message.destination !== 0) {
       obj.destination = Math.round(message.destination);
     }
@@ -408,6 +425,7 @@ export const Transfer: MessageFns<Transfer> = {
   },
   fromPartial<I extends Exact<DeepPartial<Transfer>, I>>(object: I): Transfer {
     const message = createBaseTransfer();
+    message.origin = object.origin ?? 0;
     message.destination = object.destination ?? 0;
     message.type = object.type ?? 0;
     message.minTransferTime = object.minTransferTime ?? undefined;
@@ -588,18 +606,16 @@ export const TripTransferEntry: MessageFns<TripTransferEntry> = {
 };
 
 function createBaseStopAdjacency(): StopAdjacency {
-  return { routes: [], transfers: [] };
+  return { routeIds: new Uint8Array(0), transferIds: new Uint8Array(0) };
 }
 
 export const StopAdjacency: MessageFns<StopAdjacency> = {
   encode(message: StopAdjacency, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    writer.uint32(10).fork();
-    for (const v of message.routes) {
-      writer.uint32(v);
+    if (message.routeIds.length !== 0) {
+      writer.uint32(10).bytes(message.routeIds);
     }
-    writer.join();
-    for (const v of message.transfers) {
-      Transfer.encode(v!, writer.uint32(18).fork()).join();
+    if (message.transferIds.length !== 0) {
+      writer.uint32(18).bytes(message.transferIds);
     }
     return writer;
   },
@@ -612,29 +628,19 @@ export const StopAdjacency: MessageFns<StopAdjacency> = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1: {
-          if (tag === 8) {
-            message.routes.push(reader.uint32());
-
-            continue;
+          if (tag !== 10) {
+            break;
           }
 
-          if (tag === 10) {
-            const end2 = reader.uint32() + reader.pos;
-            while (reader.pos < end2) {
-              message.routes.push(reader.uint32());
-            }
-
-            continue;
-          }
-
-          break;
+          message.routeIds = reader.bytes();
+          continue;
         }
         case 2: {
           if (tag !== 18) {
             break;
           }
 
-          message.transfers.push(Transfer.decode(reader, reader.uint32()));
+          message.transferIds = reader.bytes();
           continue;
         }
       }
@@ -648,20 +654,18 @@ export const StopAdjacency: MessageFns<StopAdjacency> = {
 
   fromJSON(object: any): StopAdjacency {
     return {
-      routes: globalThis.Array.isArray(object?.routes) ? object.routes.map((e: any) => globalThis.Number(e)) : [],
-      transfers: globalThis.Array.isArray(object?.transfers)
-        ? object.transfers.map((e: any) => Transfer.fromJSON(e))
-        : [],
+      routeIds: isSet(object.routeIds) ? bytesFromBase64(object.routeIds) : new Uint8Array(0),
+      transferIds: isSet(object.transferIds) ? bytesFromBase64(object.transferIds) : new Uint8Array(0),
     };
   },
 
   toJSON(message: StopAdjacency): unknown {
     const obj: any = {};
-    if (message.routes?.length) {
-      obj.routes = message.routes.map((e) => Math.round(e));
+    if (message.routeIds.length !== 0) {
+      obj.routeIds = base64FromBytes(message.routeIds);
     }
-    if (message.transfers?.length) {
-      obj.transfers = message.transfers.map((e) => Transfer.toJSON(e));
+    if (message.transferIds.length !== 0) {
+      obj.transferIds = base64FromBytes(message.transferIds);
     }
     return obj;
   },
@@ -671,8 +675,8 @@ export const StopAdjacency: MessageFns<StopAdjacency> = {
   },
   fromPartial<I extends Exact<DeepPartial<StopAdjacency>, I>>(object: I): StopAdjacency {
     const message = createBaseStopAdjacency();
-    message.routes = object.routes?.map((e) => e) || [];
-    message.transfers = object.transfers?.map((e) => Transfer.fromPartial(e)) || [];
+    message.routeIds = object.routeIds ?? new Uint8Array(0);
+    message.transferIds = object.transferIds ?? new Uint8Array(0);
     return message;
   },
 };
@@ -788,6 +792,7 @@ function createBaseTimetable(): Timetable {
     serviceRoutes: [],
     tripContinuations: [],
     guaranteedTripTransfers: [],
+    transfers: [],
   };
 }
 
@@ -807,6 +812,9 @@ export const Timetable: MessageFns<Timetable> = {
     }
     for (const v of message.guaranteedTripTransfers) {
       TripTransferEntry.encode(v!, writer.uint32(42).fork()).join();
+    }
+    for (const v of message.transfers) {
+      Transfer.encode(v!, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -858,6 +866,14 @@ export const Timetable: MessageFns<Timetable> = {
           message.guaranteedTripTransfers.push(TripTransferEntry.decode(reader, reader.uint32()));
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.transfers.push(Transfer.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -884,6 +900,9 @@ export const Timetable: MessageFns<Timetable> = {
       guaranteedTripTransfers: globalThis.Array.isArray(object?.guaranteedTripTransfers)
         ? object.guaranteedTripTransfers.map((e: any) => TripTransferEntry.fromJSON(e))
         : [],
+      transfers: globalThis.Array.isArray(object?.transfers)
+        ? object.transfers.map((e: any) => Transfer.fromJSON(e))
+        : [],
     };
   },
 
@@ -904,6 +923,9 @@ export const Timetable: MessageFns<Timetable> = {
     if (message.guaranteedTripTransfers?.length) {
       obj.guaranteedTripTransfers = message.guaranteedTripTransfers.map((e) => TripTransferEntry.toJSON(e));
     }
+    if (message.transfers?.length) {
+      obj.transfers = message.transfers.map((e) => Transfer.toJSON(e));
+    }
     return obj;
   },
 
@@ -918,6 +940,7 @@ export const Timetable: MessageFns<Timetable> = {
     message.tripContinuations = object.tripContinuations?.map((e) => TripTransferEntry.fromPartial(e)) || [];
     message.guaranteedTripTransfers = object.guaranteedTripTransfers?.map((e) => TripTransferEntry.fromPartial(e)) ||
       [];
+    message.transfers = object.transfers?.map((e) => Transfer.fromPartial(e)) || [];
     return message;
   },
 };

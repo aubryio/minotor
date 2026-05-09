@@ -8,6 +8,8 @@ import { RangeRouter } from './rangeRouter.js';
 import { Raptor } from './raptor.js';
 import { Result } from './result.js';
 
+export type { EdgeKind } from './graph.js';
+export { DenseRoutingGraph, EdgeKinds, NO_CELL } from './graph.js';
 export type { ArrivalWithDuration, ParetoRun } from './rangeResult.js';
 export { RangeResult } from './rangeResult.js';
 export type {
@@ -19,8 +21,6 @@ export type {
   VehicleEdge,
 } from './state.js';
 export { RoutingState, UNREACHED_TIME } from './state.js';
-export type { EdgeKind } from './stateGraph.js';
-export { EdgeKinds, NO_CELL, TypedStateGraph } from './stateGraph.js';
 
 /**
  * A public transportation router implementing the RAPTOR and Range RAPTOR

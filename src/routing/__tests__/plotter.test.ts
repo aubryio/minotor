@@ -7,6 +7,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -15,7 +16,7 @@ import {
 import { Plotter } from '../plotter.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingState } from '../router.js';
+import { RoutingState } from '../state.js';
 
 const NB_STOPS = 3;
 
@@ -36,7 +37,10 @@ describe('Plotter', () => {
     locationType: 'SIMPLE_STOP_OR_PLATFORM',
   };
 
-  const stopsAdjacency: StopAdjacency[] = [{ routes: [0] }, { routes: [0] }];
+  const stopsAdjacency: StopAdjacency[] = [
+    createStopAdjacency([0]),
+    createStopAdjacency([0]),
+  ];
 
   const routesAdjacency = [
     Route.of({
@@ -176,6 +180,14 @@ describe('Plotter', () => {
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [1],
+          transfers: [
+            {
+              from: 0,
+              destination: 1,
+              type: TransferTypes.RECOMMENDED,
+              minTransferTime: 5,
+            },
+          ],
           graph: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [
@@ -199,6 +211,7 @@ describe('Plotter', () => {
                   arrival: timeFromHMS(8, 45, 0),
                   type: TransferTypes.RECOMMENDED,
                   minTransferTime: 5,
+                  transferId: 0,
                 },
               ],
             ], // round 2 – transfer

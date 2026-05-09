@@ -7,13 +7,14 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
 } from '../../timetable/timetable.js';
 import { ParetoRun, RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
-import { RoutingState, VehicleEdge } from '../router.js';
+import { RoutingState, VehicleEdge } from '../state.js';
 
 // Two-stop timetable with two trips on a single route:
 //   trip 0: stop 0 departs 09:00, stop 1 arrives 09:30
@@ -40,7 +41,7 @@ const stops: Stop[] = [
 ];
 const stopsIndex = new StopsIndex(stops);
 
-const stopsAdjacency: StopAdjacency[] = [{ routes: [0] }, { routes: [0] }];
+const stopsAdjacency: StopAdjacency[] = [createStopAdjacency([0]), createStopAdjacency([0])];
 const routesAdjacency = [
   Route.of({
     id: 0,

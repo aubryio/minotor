@@ -6,6 +6,7 @@ import { StopId } from '../../stops/stops.js';
 import { PickUpDropOffTypes, Route } from '../../timetable/route.js';
 import { timeFromHMS } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   TransferTypes,
@@ -48,14 +49,14 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map([
-      [0, [{ destination: 1, type: TransferTypes.RECOMMENDED }]],
+      [0, [{ from: 0, destination: 1, type: TransferTypes.RECOMMENDED }]],
     ]);
 
     const serviceRoutes: ServiceRoute[] = [
       { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
-    const stopsAdjacency = buildStopsAdjacencyStructure(
+    const { stopsAdjacency, transfers } = buildStopsAdjacencyStructure(
       serviceRoutes,
       routes,
       transfersMap,
@@ -66,22 +67,15 @@ describe('buildStopsAdjacencyStructure', () => {
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
         0,
-        {
-          routes: [0],
-          transfers: [
-            {
-              destination: 1,
-              type: TransferTypes.RECOMMENDED,
-            },
-          ],
-        },
+        createStopAdjacency([0], [0]),
       ],
       [
         1,
-        {
-          routes: [],
-        },
+        createStopAdjacency([]),
       ],
+    ]);
+    assert.deepEqual(transfers, [
+      { from: 0, destination: 1, type: TransferTypes.RECOMMENDED },
     ]);
     assert.deepEqual(serviceRoutes[0]?.routes, [0]);
   });
@@ -111,13 +105,13 @@ describe('buildStopsAdjacencyStructure', () => {
       }),
     ];
     const transfersMap: TransfersMap = new Map([
-      [3, [{ destination: 2, type: TransferTypes.RECOMMENDED }]],
+      [3, [{ from: 3, destination: 2, type: TransferTypes.RECOMMENDED }]],
     ]);
     const serviceRoutes: ServiceRoute[] = [
       { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
-    const stopsAdjacency = buildStopsAdjacencyStructure(
+    const { stopsAdjacency } = buildStopsAdjacencyStructure(
       serviceRoutes,
       routes,
       transfersMap,
@@ -128,27 +122,19 @@ describe('buildStopsAdjacencyStructure', () => {
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
         0,
-        {
-          routes: [0],
-        },
+        createStopAdjacency([0]),
       ],
       [
         1,
-        {
-          routes: [0],
-        },
+        createStopAdjacency([0]),
       ],
       [
         2,
-        {
-          routes: [],
-        },
+        createStopAdjacency([]),
       ],
       [
         3,
-        {
-          routes: [],
-        },
+        createStopAdjacency([]),
       ],
     ]);
     assert.deepEqual(serviceRoutes[0]?.routes, [0]);
@@ -193,7 +179,7 @@ describe('buildStopsAdjacencyStructure', () => {
       { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
-    const stopsAdjacency = buildStopsAdjacencyStructure(
+    const { stopsAdjacency } = buildStopsAdjacencyStructure(
       serviceRoutes,
       routes,
       transfersMap,
@@ -204,15 +190,11 @@ describe('buildStopsAdjacencyStructure', () => {
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
         0,
-        {
-          routes: [0],
-        },
+        createStopAdjacency([0]),
       ],
       [
         1,
-        {
-          routes: [1],
-        },
+        createStopAdjacency([1]),
       ],
     ]);
   });
@@ -241,7 +223,7 @@ describe('buildStopsAdjacencyStructure', () => {
       { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
-    const stopsAdjacency = buildStopsAdjacencyStructure(
+    const { stopsAdjacency } = buildStopsAdjacencyStructure(
       serviceRoutes,
       routes,
       transfersMap,
@@ -252,9 +234,7 @@ describe('buildStopsAdjacencyStructure', () => {
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
         0,
-        {
-          routes: [0],
-        },
+        createStopAdjacency([0]),
       ],
     ]);
   });
@@ -283,7 +263,7 @@ describe('buildStopsAdjacencyStructure', () => {
       { type: RouteTypes.BUS, name: 'B1', routes: [] },
     ];
 
-    const stopsAdjacency = buildStopsAdjacencyStructure(
+    const { stopsAdjacency } = buildStopsAdjacencyStructure(
       serviceRoutes,
       routes,
       transfersMap,
@@ -294,27 +274,19 @@ describe('buildStopsAdjacencyStructure', () => {
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
       [
         0,
-        {
-          routes: [0],
-        },
+        createStopAdjacency([0]),
       ],
       [
         1,
-        {
-          routes: [],
-        },
+        createStopAdjacency([]),
       ],
       [
         2,
-        {
-          routes: [],
-        },
+        createStopAdjacency([]),
       ],
       [
         3,
-        {
-          routes: [],
-        },
+        createStopAdjacency([]),
       ],
     ]);
   });

@@ -74,6 +74,7 @@ describe('GTFS transfers parser', () => {
         0, // Internal ID for stop '1100084'
         [
           {
+            from: 0,
             destination: 1, // Internal ID for stop '8014440:0:1'
             type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: durationFromSeconds(180),
@@ -84,6 +85,7 @@ describe('GTFS transfers parser', () => {
         2, // Internal ID for stop '1100097'
         [
           {
+            from: 2,
             destination: 3, // Internal ID for stop '8014447'
             type: TransferTypes.RECOMMENDED,
             minTransferTime: durationFromSeconds(240),
@@ -416,6 +418,7 @@ describe('GTFS transfers parser', () => {
         2,
         [
           {
+            from: 2,
             destination: 3,
             type: TransferTypes.GUARANTEED,
             minTransferTime: durationFromSeconds(120),
@@ -625,6 +628,7 @@ describe('GTFS transfers parser', () => {
         0,
         [
           {
+            from: 0,
             destination: 1,
             type: TransferTypes.REQUIRES_MINIMAL_TIME,
           },
@@ -634,6 +638,7 @@ describe('GTFS transfers parser', () => {
         2,
         [
           {
+            from: 2,
             destination: 3,
             type: TransferTypes.GUARANTEED,
             minTransferTime: durationFromSeconds(0),
@@ -705,6 +710,7 @@ describe('GTFS transfers parser', () => {
         0,
         [
           {
+            from: 0,
             destination: 1,
             type: TransferTypes.GUARANTEED,
             minTransferTime: durationFromSeconds(120),
@@ -781,6 +787,7 @@ describe('GTFS transfers parser', () => {
         0,
         [
           {
+            from: 0,
             destination: 1,
             type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: durationFromSeconds(180),

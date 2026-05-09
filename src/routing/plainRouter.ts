@@ -48,6 +48,7 @@ export class PlainRouter {
       this.timetable.nbStops(),
       query.options.maxTransfers + 1,
       query.options.maxDuration,
+      (transferId) => this.timetable.getTransfer(transferId),
     );
 
     this.raptor.run(query.options, routingState);

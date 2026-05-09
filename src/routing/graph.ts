@@ -2,7 +2,7 @@
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex, TripRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
-import { TransferType } from '../timetable/timetable.js';
+import { Transfer, TransferId } from '../timetable/timetable.js';
 import type { RoutingEdge, VehicleEdge } from './state.js';
 
 /**
@@ -40,7 +40,7 @@ export function isVehicleEdgeKind(kind: number): boolean {
  * `arrival` need to be cleared; payload arrays may keep stale values because
  * they are ignored when `kind[cell] === EdgeKinds.NONE`.
  */
-export class TypedStateGraph {
+export class DenseRoutingGraph {
   readonly nbStops: number;
   readonly roundCount: number;
 
@@ -48,18 +48,17 @@ export class TypedStateGraph {
   readonly arrival: Uint16Array;
   readonly prevCell: Uint32Array;
 
-  /** Union payload: routeId for vehicles, fromStop for access/transfers/origins. */
-  readonly u32: Uint32Array;
-  /** Union payload: board stopIndex for vehicles, duration for access/transfers. */
-  readonly u16a: Uint16Array;
-  /** Union payload: tripIndex for vehicles. */
-  readonly u16b: Uint16Array;
-  /** Union payload: hopOffStopIndex for vehicles. */
-  readonly u16c: Uint16Array;
-  /** Union payload: transfer type for transfers. */
-  readonly u8: Uint8Array;
+  readonly id: Uint32Array;
+  readonly hopOnStopIndex: Uint16Array;
+  readonly tripIndex: Uint16Array;
+  readonly hopOffStopIndex: Uint16Array;
 
   private readonly touchedCells: number[] = [];
+  private readonly originStopByCell = new Map<number, StopId>();
+  private readonly accessByCell = new Map<
+    number,
+    { from: StopId; duration: Duration }
+  >();
 
   /**
    * Compatibility fallback for test fixtures that provide a continuation edge
@@ -68,7 +67,13 @@ export class TypedStateGraph {
    */
   private readonly detachedContinuationByCell = new Map<number, VehicleEdge>();
 
-  constructor(nbStops: number, maxRound: number) {
+  constructor(
+    nbStops: number,
+    maxRound: number,
+    private readonly resolveTransfer?: (
+      transferId: TransferId,
+    ) => Transfer | undefined,
+  ) {
     this.nbStops = nbStops;
     this.roundCount = maxRound + 1;
     const cellCount = this.nbStops * this.roundCount;
@@ -76,11 +81,10 @@ export class TypedStateGraph {
     this.kind = new Uint8Array(cellCount);
     this.arrival = new Uint16Array(cellCount).fill(UNREACHED_TIME);
     this.prevCell = new Uint32Array(cellCount).fill(NO_CELL);
-    this.u32 = new Uint32Array(cellCount).fill(NO_U32);
-    this.u16a = new Uint16Array(cellCount).fill(NO_U16);
-    this.u16b = new Uint16Array(cellCount).fill(NO_U16);
-    this.u16c = new Uint16Array(cellCount).fill(NO_U16);
-    this.u8 = new Uint8Array(cellCount);
+    this.id = new Uint32Array(cellCount).fill(NO_U32);
+    this.hopOnStopIndex = new Uint16Array(cellCount).fill(NO_U16);
+    this.tripIndex = new Uint16Array(cellCount).fill(NO_U16);
+    this.hopOffStopIndex = new Uint16Array(cellCount).fill(NO_U16);
   }
 
   get length(): number {
@@ -140,7 +144,7 @@ export class TypedStateGraph {
   setOrigin(stop: StopId, arrival: Time, originStop: StopId = stop): void {
     const cell = this.cell(0, stop);
     this.writeCommon(cell, EdgeKinds.ORIGIN, arrival, NO_CELL);
-    this.u32[cell] = originStop;
+    this.originStopByCell.set(cell, originStop);
   }
 
   setAccess(
@@ -151,8 +155,7 @@ export class TypedStateGraph {
   ): void {
     const cell = this.cell(0, toStop);
     this.writeCommon(cell, EdgeKinds.ACCESS, arrival, NO_CELL);
-    this.u32[cell] = fromStop;
-    this.u16a[cell] = duration;
+    this.accessByCell.set(cell, { from: fromStop, duration });
   }
 
   setVehicle(
@@ -205,16 +208,12 @@ export class TypedStateGraph {
     round: number,
     toStop: StopId,
     arrival: Time,
-    fromStop: StopId,
-    type: TransferType,
-    minTransferTime: Duration | undefined,
+    transferId: TransferId,
     prevCell: number,
   ): void {
     const cell = this.cell(round, toStop);
     this.writeCommon(cell, EdgeKinds.TRANSFER, arrival, prevCell);
-    this.u32[cell] = fromStop;
-    this.u16a[cell] = minTransferTime ?? NO_U16;
-    this.u8[cell] = type;
+    this.id[cell] = transferId;
   }
 
   setRoutingEdgeFromObject(
@@ -261,15 +260,10 @@ export class TypedStateGraph {
     }
 
     if ('type' in edge) {
-      this.setTransfer(
-        round,
-        stop,
-        edge.arrival,
-        edge.from,
-        edge.type,
-        edge.minTransferTime,
-        NO_CELL,
-      );
+      if (edge.transferId === undefined) {
+        throw new Error('Transfer test edges must include transferId.');
+      }
+      this.setTransfer(round, stop, edge.arrival, edge.transferId, NO_CELL);
       return;
     }
 
@@ -287,6 +281,8 @@ export class TypedStateGraph {
       this.kind[cell] = EdgeKinds.NONE;
       this.arrival[cell] = UNREACHED_TIME;
       this.prevCell[cell] = NO_CELL;
+      this.originStopByCell.delete(cell);
+      this.accessByCell.delete(cell);
       this.detachedContinuationByCell.delete(cell);
     }
     this.touchedCells.length = 0;
@@ -297,6 +293,8 @@ export class TypedStateGraph {
     this.arrival.fill(UNREACHED_TIME);
     this.prevCell.fill(NO_CELL);
     this.touchedCells.length = 0;
+    this.originStopByCell.clear();
+    this.accessByCell.clear();
     this.detachedContinuationByCell.clear();
   }
 
@@ -310,27 +308,36 @@ export class TypedStateGraph {
 
     const arrival = this.arrival[cell]!;
     switch (kind) {
-      case EdgeKinds.ORIGIN:
-        return { stopId: this.u32[cell]!, arrival };
-      case EdgeKinds.ACCESS:
+      case EdgeKinds.ORIGIN: {
+        const originStop = this.originStopByCell.get(cell);
+        if (originStop === undefined) return undefined;
+        return { stopId: originStop, arrival };
+      }
+      case EdgeKinds.ACCESS: {
+        const access = this.accessByCell.get(cell);
+        if (access === undefined) return undefined;
         return {
           arrival,
-          from: this.u32[cell]!,
+          from: access.from,
           to: this.stopOfCell(cell),
-          duration: this.u16a[cell]!,
+          duration: access.duration,
         };
+      }
       case EdgeKinds.VEHICLE:
         return this.vehicleEdgeAtCell(cell);
       case EdgeKinds.VEHICLE_CONTINUATION:
         return this.vehicleEdgeAtCell(cell);
       case EdgeKinds.TRANSFER: {
-        const minTransferTime = this.u16a[cell]!;
+        const transfer = this.transferAtCell(cell);
+        if (transfer === undefined) return undefined;
         return {
           arrival,
-          from: this.u32[cell]!,
-          to: this.stopOfCell(cell),
-          type: this.u8[cell]! as TransferType,
-          ...(minTransferTime !== NO_U16 && { minTransferTime }),
+          from: transfer.from,
+          to: transfer.destination,
+          type: transfer.type,
+          ...(transfer.minTransferTime !== undefined && {
+            minTransferTime: transfer.minTransferTime,
+          }),
         };
       }
       default:
@@ -338,14 +345,21 @@ export class TypedStateGraph {
     }
   }
 
+  transferAtCell(cell: number): Transfer | undefined {
+    if (this.kind[cell] !== EdgeKinds.TRANSFER) return undefined;
+    const id = this.id[cell];
+    if (id === undefined || id === NO_U32) return undefined;
+    return this.resolveTransfer?.(id);
+  }
+
   vehicleEdgeAtCell(cell: number): VehicleEdge {
     const continuationOf = this.continuationOfCell(cell);
     return {
       arrival: this.arrival[cell]!,
-      routeId: this.u32[cell]!,
-      stopIndex: this.u16a[cell]!,
-      tripIndex: this.u16b[cell]!,
-      hopOffStopIndex: this.u16c[cell]!,
+      routeId: this.id[cell]!,
+      stopIndex: this.hopOnStopIndex[cell]!,
+      tripIndex: this.tripIndex[cell]!,
+      hopOffStopIndex: this.hopOffStopIndex[cell]!,
       ...(continuationOf !== undefined && { continuationOf }),
     };
   }
@@ -392,6 +406,8 @@ export class TypedStateGraph {
     this.kind[cell] = kind;
     this.arrival[cell] = arrival;
     this.prevCell[cell] = prevCell;
+    this.originStopByCell.delete(cell);
+    this.accessByCell.delete(cell);
     this.detachedContinuationByCell.delete(cell);
     this.touchedCells.push(cell);
   }
@@ -407,10 +423,10 @@ export class TypedStateGraph {
     prevCell: number,
   ): void {
     this.writeCommon(cell, kind, arrival, prevCell);
-    this.u32[cell] = routeId;
-    this.u16a[cell] = boardStopIndex;
-    this.u16b[cell] = tripIndex;
-    this.u16c[cell] = hopOffStopIndex;
+    this.id[cell] = routeId;
+    this.hopOnStopIndex[cell] = boardStopIndex;
+    this.tripIndex[cell] = tripIndex;
+    this.hopOffStopIndex[cell] = hopOffStopIndex;
   }
 
   private continuationOfCell(cell: number): VehicleEdge | undefined {

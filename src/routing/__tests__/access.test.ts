@@ -7,6 +7,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -19,20 +20,20 @@ import { AccessFinder, AccessPoint } from '../access.js';
 // stop 2 is a second stop served by route 0.
 // Stop 0 has a REQUIRES_MINIMAL_TIME transfer to stop 1 (5 min)
 //         and a GUARANTEED transfer to stop 2 (must be ignored).
-const stopsAdjacency: StopAdjacency[] = [
+const transfers = [
   {
-    transfers: [
-      {
-        destination: 1,
-        type: TransferTypes.REQUIRES_MINIMAL_TIME,
-        minTransferTime: 5,
-      },
-      { destination: 2, type: TransferTypes.GUARANTEED },
-    ],
-    routes: [],
+    from: 0,
+    destination: 1,
+    type: TransferTypes.REQUIRES_MINIMAL_TIME,
+    minTransferTime: 5,
   },
-  { routes: [0] },
-  { routes: [0] },
+  { from: 0, destination: 2, type: TransferTypes.GUARANTEED },
+];
+
+const stopsAdjacency: StopAdjacency[] = [
+  createStopAdjacency([], [0, 1]),
+  createStopAdjacency([0]),
+  createStopAdjacency([0]),
 ];
 
 const routesAdjacency = [
@@ -106,7 +107,14 @@ const stops: Stop[] = [
   },
 ];
 
-const timetable = new Timetable(stopsAdjacency, routesAdjacency, serviceRoutes);
+const timetable = new Timetable(
+  stopsAdjacency,
+  routesAdjacency,
+  serviceRoutes,
+  undefined,
+  undefined,
+  transfers,
+);
 const stopsIndex = new StopsIndex(stops);
 const finder = new AccessFinder(timetable, stopsIndex);
 
@@ -129,17 +137,26 @@ describe('AccessFinder', () => {
 
     it('uses the fallback transfer time when the timetable specifies none', () => {
       // Temporarily use a timetable where the transfer has no minTransferTime.
-      const adj: StopAdjacency[] = [
+      const localTransfers = [
         {
-          transfers: [
-            { destination: 1, type: TransferTypes.REQUIRES_MINIMAL_TIME },
-          ],
-          routes: [],
+          from: 0,
+          destination: 1,
+          type: TransferTypes.REQUIRES_MINIMAL_TIME,
         },
-        { routes: [0] },
-        { routes: [0] },
       ];
-      const localTimetable = new Timetable(adj, routesAdjacency, serviceRoutes);
+      const adj: StopAdjacency[] = [
+        createStopAdjacency([], [0]),
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
+      ];
+      const localTimetable = new Timetable(
+        adj,
+        routesAdjacency,
+        serviceRoutes,
+        undefined,
+        undefined,
+        localTransfers,
+      );
       const localFinder = new AccessFinder(localTimetable, stopsIndex);
       const paths = localFinder.collectAccessPaths(0, 3); // fallback = 3 min
       const walkPath = paths.find((p) => p.toStopId === 1);
@@ -157,30 +174,12 @@ describe('AccessFinder', () => {
       // Parent stop 3 with two children: stop 4 (8-min walk to stop 1)
       // and stop 5 (3-min walk to stop 1).
       const adj: StopAdjacency[] = [
-        { routes: [] },
-        { routes: [0] },
-        { routes: [0] },
-        { routes: [] },
-        {
-          transfers: [
-            {
-              destination: 1,
-              type: TransferTypes.REQUIRES_MINIMAL_TIME,
-              minTransferTime: 8,
-            },
-          ],
-          routes: [],
-        },
-        {
-          transfers: [
-            {
-              destination: 1,
-              type: TransferTypes.REQUIRES_MINIMAL_TIME,
-              minTransferTime: 3,
-            },
-          ],
-          routes: [],
-        },
+        createStopAdjacency([]),
+        createStopAdjacency([0]),
+        createStopAdjacency([0]),
+        createStopAdjacency([]),
+        createStopAdjacency([], [0]),
+        createStopAdjacency([], [1]),
       ];
       const extraStops: Stop[] = [
         ...stops,
@@ -214,7 +213,28 @@ describe('AccessFinder', () => {
           locationType: 'SIMPLE_STOP_OR_PLATFORM',
         },
       ];
-      const localTimetable = new Timetable(adj, routesAdjacency, serviceRoutes);
+      const localTransfers = [
+        {
+          from: 4,
+          destination: 1,
+          type: TransferTypes.REQUIRES_MINIMAL_TIME,
+          minTransferTime: 8,
+        },
+        {
+          from: 5,
+          destination: 1,
+          type: TransferTypes.REQUIRES_MINIMAL_TIME,
+          minTransferTime: 3,
+        },
+      ];
+      const localTimetable = new Timetable(
+        adj,
+        routesAdjacency,
+        serviceRoutes,
+        undefined,
+        undefined,
+        localTransfers,
+      );
       const localStopsIndex = new StopsIndex(extraStops);
       const localFinder = new AccessFinder(localTimetable, localStopsIndex);
 

@@ -121,6 +121,7 @@ const processGuaranteedStopTransfer = (
   }
 
   const transfer: Transfer = {
+    from: fromStop,
     destination: toStop,
     type: TransferTypes.GUARANTEED,
     ...(transferEntry.min_transfer_time !== undefined && {
@@ -165,6 +166,7 @@ const processStopToStopTransfer = (
   }
 
   const transfer: Transfer = {
+    from: fromStop,
     destination: toStop,
     type: parseGtfsTransferType(transferEntry.transfer_type),
     ...(transferEntry.min_transfer_time !== undefined && {

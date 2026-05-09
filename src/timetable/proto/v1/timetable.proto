@@ -36,9 +36,10 @@ enum TransferType {
 }
 
 message Transfer {
-  uint32 destination = 1;
-  TransferType type = 2;
-  optional uint32 min_transfer_time = 3;
+  uint32 origin = 1;
+  uint32 destination = 2;
+  TransferType type = 3;
+  optional uint32 min_transfer_time = 4;
 }
 
 message TripStop {
@@ -53,8 +54,8 @@ message TripTransferEntry {
 }
 
 message StopAdjacency {
-  repeated uint32 routes = 1;
-  repeated Transfer transfers = 2;
+  bytes route_ids = 1;
+  bytes transfer_ids = 2;
 }
 
 enum RouteType {
@@ -83,4 +84,5 @@ message Timetable {
   repeated ServiceRoute service_routes = 3;
   repeated TripTransferEntry trip_continuations = 4;
   repeated TripTransferEntry guaranteed_trip_transfers = 5;
+  repeated Transfer transfers = 6;
 }

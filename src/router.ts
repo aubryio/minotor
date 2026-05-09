@@ -1,6 +1,8 @@
 import { Plotter } from './routing/plotter.js';
 import type { QueryOptions, RangeQueryOptions } from './routing/query.js';
 import { Query, RangeQuery } from './routing/query.js';
+import type { ArrivalWithDuration, ParetoRun } from './routing/rangeResult.js';
+import { RangeResult } from './routing/rangeResult.js';
 import { Result } from './routing/result.js';
 import type {
   Leg,
@@ -9,12 +11,8 @@ import type {
   VehicleLeg,
 } from './routing/route.js';
 import { Route } from './routing/route.js';
-import type {
-  Arrival,
-  ArrivalWithDuration,
-  ParetoRun,
-} from './routing/router.js';
-import { RangeResult, Router } from './routing/router.js';
+import { Router } from './routing/router.js';
+import type { Arrival } from './routing/state.js';
 import type { LocationType, SourceStopId, StopId } from './stops/stops.js';
 import type { Stop } from './stops/stops.js';
 import { StopsIndex } from './stops/stopsIndex.js';

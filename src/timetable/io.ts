@@ -3,6 +3,7 @@ import {
   RouteType as ProtoRouteType,
   ServiceRoute as ProtoServiceRoute,
   StopAdjacency as ProtoStopAdjacency,
+  Transfer as ProtoTransfer,
   TransferType as ProtoTransferType,
   TripTransferEntry as ProtoTripTransferEntry,
 } from './proto/v1/timetable.js';
@@ -130,18 +131,21 @@ export const serializeStopsAdjacency = (
 ): ProtoStopAdjacency[] => {
   return stopsAdjacency.map((value) => {
     return {
-      transfers: value.transfers
-        ? value.transfers.map((transfer) => ({
-            destination: transfer.destination,
-            type: serializeTransferType(transfer.type),
-            ...(transfer.minTransferTime !== undefined && {
-              minTransferTime: transfer.minTransferTime,
-            }),
-          }))
-        : [],
-      routes: value.routes,
+      routeIds: uint32ArrayToBytes(value.routeIds),
+      transferIds: uint32ArrayToBytes(value.transferIds),
     };
   });
+};
+
+export const serializeTransfers = (transfers: Transfer[]): ProtoTransfer[] => {
+  return transfers.map((transfer) => ({
+    origin: transfer.from,
+    destination: transfer.destination,
+    type: serializeTransferType(transfer.type),
+    ...(transfer.minTransferTime !== undefined && {
+      minTransferTime: transfer.minTransferTime,
+    }),
+  }));
 };
 
 export const serializeRoutesAdjacency = (
@@ -179,33 +183,30 @@ export const deserializeStopsAdjacency = (
 ): StopAdjacency[] => {
   const result: StopAdjacency[] = [];
 
-  for (let i = 0; i < protoStopsAdjacency.length; i++) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const value = protoStopsAdjacency[i]!;
-    const transfers: Transfer[] = [];
+  for (const value of protoStopsAdjacency) {
+    result.push({
+      routeIds: bytesToUint32Array(value.routeIds),
+      transferIds: bytesToUint32Array(value.transferIds),
+    });
+  }
 
-    for (let j = 0; j < value.transfers.length; j++) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const transfer = value.transfers[j]!;
-      const newTransfer: Transfer = {
-        destination: transfer.destination,
-        type: parseTransferType(transfer.type),
-        ...(transfer.minTransferTime !== undefined && {
-          minTransferTime: transfer.minTransferTime,
-        }),
-      };
-      transfers.push(newTransfer);
-    }
+  return result;
+};
 
-    const stopAdjacency: StopAdjacency = {
-      routes: value.routes,
-    };
+export const deserializeTransfers = (
+  protoTransfers: ProtoTransfer[],
+): Transfer[] => {
+  const result: Transfer[] = [];
 
-    if (transfers.length > 0) {
-      stopAdjacency.transfers = transfers;
-    }
-
-    result.push(stopAdjacency);
+  for (const transfer of protoTransfers) {
+    result.push({
+      from: transfer.origin,
+      destination: transfer.destination,
+      type: parseTransferType(transfer.type),
+      ...(transfer.minTransferTime !== undefined && {
+        minTransferTime: transfer.minTransferTime,
+      }),
+    });
   }
 
   return result;

@@ -7,6 +7,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
 import {
+  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -14,7 +15,7 @@ import {
 } from '../../timetable/timetable.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingState, TransferEdge, VehicleEdge } from '../router.js';
+import { RoutingState, TransferEdge, VehicleEdge } from '../state.js';
 
 const NB_STOPS = 7;
 
@@ -97,13 +98,13 @@ describe('Result', () => {
   };
 
   const stopsAdjacency: StopAdjacency[] = [
-    { routes: [0] },
-    { routes: [0] },
-    { routes: [0, 1] },
-    { routes: [1] },
-    { routes: [1] },
-    { routes: [1] },
-    { routes: [1] },
+    createStopAdjacency([0]),
+    createStopAdjacency([0]),
+    createStopAdjacency([0, 1]),
+    createStopAdjacency([1]),
+    createStopAdjacency([1]),
+    createStopAdjacency([1]),
+    createStopAdjacency([1]),
   ];
 
   const routesAdjacency = [
@@ -576,6 +577,7 @@ describe('Result', () => {
         to: 2,
         type: TransferTypes.RECOMMENDED,
         minTransferTime: 5,
+        transferId: 0,
       };
       const secondVehicleEdge: VehicleEdge = {
         arrival: timeFromHMS(9, 15, 0),
@@ -589,6 +591,14 @@ describe('Result', () => {
         nbStops: NB_STOPS,
         origins: [0],
         destinations: [3],
+        transfers: [
+          {
+            from: 1,
+            destination: 2,
+            type: TransferTypes.RECOMMENDED,
+            minTransferTime: 5,
+          },
+        ],
         arrivals: [
           [0, timeFromHMS(8, 0, 0), 0],
           [1, timeFromHMS(8, 30, 0), 1],

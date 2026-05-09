@@ -167,13 +167,14 @@ export class GtfsParser {
     );
     log.info('Building stops adjacency structure');
     const stopsAdjacencyStart = performance.now();
-    const stopsAdjacency = buildStopsAdjacencyStructure(
-      serviceRoutes,
-      routes,
-      transfers,
-      parsedStops.size,
-      activeStopIds,
-    );
+    const { stopsAdjacency, transfers: transferList } =
+      buildStopsAdjacencyStructure(
+        serviceRoutes,
+        routes,
+        transfers,
+        parsedStops.size,
+        activeStopIds,
+      );
 
     const stopsAdjacencyEnd = performance.now();
     log.info(
@@ -182,7 +183,14 @@ export class GtfsParser {
     await zip.close();
 
     // temporary timetable for building continuations
-    const timetable = new Timetable(stopsAdjacency, routes, serviceRoutes);
+    const timetable = new Timetable(
+      stopsAdjacency,
+      routes,
+      serviceRoutes,
+      undefined,
+      undefined,
+      transferList,
+    );
 
     log.info('Building in-seat trip continuations');
     const tripContinuationsStart = performance.now();
@@ -217,6 +225,7 @@ export class GtfsParser {
       serviceRoutes,
       tripContinuations,
       guaranteedTripTransfers,
+      transferList,
     );
   }
 

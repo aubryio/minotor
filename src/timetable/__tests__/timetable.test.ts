@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { PickUpDropOffTypes, Route } from '../route.js';
 import { timeFromHMS } from '../time.js';
 import {
+  createStopAdjacency,
   RouteType,
   RouteTypes,
   ServiceRoute,
@@ -16,25 +17,21 @@ import {
 import { encode } from '../tripStopId.js';
 
 describe('Timetable', () => {
+  const transfers = [
+    { from: 1, destination: 2, type: TransferTypes.RECOMMENDED },
+    {
+      from: 2,
+      destination: 1,
+      type: TransferTypes.GUARANTEED,
+      minTransferTime: 3,
+    },
+  ];
+
   const stopsAdjacency: StopAdjacency[] = [
-    { routes: [] },
-    {
-      transfers: [{ destination: 2, type: TransferTypes.RECOMMENDED }],
-      routes: [0, 1],
-    },
-    {
-      transfers: [
-        {
-          destination: 1,
-          type: TransferTypes.GUARANTEED,
-          minTransferTime: 3,
-        },
-      ],
-      routes: [1, 0],
-    },
-    {
-      routes: [],
-    },
+    createStopAdjacency([]),
+    createStopAdjacency([0, 1], [0]),
+    createStopAdjacency([1, 0], [1]),
+    createStopAdjacency([]),
   ];
 
   const route1 = Route.of({
@@ -104,6 +101,7 @@ describe('Timetable', () => {
     routes,
     new Map(),
     new Map(),
+    transfers,
   );
 
   it('should serialize a timetable to a Uint8Array', () => {
@@ -253,11 +251,9 @@ describe('Timetable', () => {
         ]);
 
         const stopsWithContinuations: StopAdjacency[] = [
-          { routes: [] },
-          {
-            routes: [0, 1],
-          },
-          { routes: [1] },
+          createStopAdjacency([]),
+          createStopAdjacency([0, 1]),
+          createStopAdjacency([1]),
         ];
 
         const timetableWithContinuations = new Timetable(
@@ -286,11 +282,9 @@ describe('Timetable', () => {
         ]);
 
         const stopsWithContinuations: StopAdjacency[] = [
-          { routes: [] },
-          {
-            routes: [0, 1],
-          },
-          { routes: [1] },
+          createStopAdjacency([]),
+          createStopAdjacency([0, 1]),
+          createStopAdjacency([1]),
         ];
 
         const timetableWithContinuations = new Timetable(
@@ -330,11 +324,9 @@ describe('Timetable', () => {
         ]);
 
         const stopsWithGuaranteedTransfers: StopAdjacency[] = [
-          { routes: [] },
-          {
-            routes: [0, 1],
-          },
-          { routes: [1] },
+          createStopAdjacency([]),
+          createStopAdjacency([0, 1]),
+          createStopAdjacency([1]),
         ];
 
         const timetableWithGuaranteedTransfers = new Timetable(
@@ -361,11 +353,9 @@ describe('Timetable', () => {
         ]);
 
         const stopsWithGuaranteedTransfers: StopAdjacency[] = [
-          { routes: [] },
-          {
-            routes: [0, 1],
-          },
-          { routes: [1] },
+          createStopAdjacency([]),
+          createStopAdjacency([0, 1]),
+          createStopAdjacency([1]),
         ];
 
         const timetableWithGuaranteedTransfers = new Timetable(
@@ -732,8 +722,8 @@ describe('Timetable', () => {
       });
 
       const ffbtStopsAdjacency: StopAdjacency[] = [
-        { routes: [FFBT_ROUTE_ID] },
-        { routes: [FFBT_ROUTE_ID] },
+        createStopAdjacency([FFBT_ROUTE_ID]),
+        createStopAdjacency([FFBT_ROUTE_ID]),
       ];
 
       const ffbtServiceRoutes = [

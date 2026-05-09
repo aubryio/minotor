@@ -8,8 +8,8 @@ import {
 } from '../timetable/route.js';
 import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
 import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
+import { DenseRoutingGraph, EdgeKinds, NO_CELL } from './graph.js';
 import { QueryOptions } from './query.js';
-import { EdgeKinds, NO_CELL, TypedStateGraph } from './stateGraph.js';
 
 /**
  * Common interface for all variants of RAPTOR routing.
@@ -19,7 +19,7 @@ export interface IRaptorState {
   readonly origins: StopId[];
 
   /** Per-round routing graph; `graph.cell(round, stop)` is the best edge used to reach `stop`. */
-  readonly graph: TypedStateGraph;
+  readonly graph: DenseRoutingGraph;
 
   /** Per-run earliest arrival at a stop. Used for boarding decisions. */
   arrivalTime(stop: StopId): Time;
@@ -149,7 +149,7 @@ export class Raptor {
   private findTripContinuations(
     markedStops: Set<StopId>,
     currentRoundOffset: number,
-    graph: TypedStateGraph,
+    graph: DenseRoutingGraph,
   ): TripContinuation[] {
     const continuations: TripContinuation[] = [];
     for (const stopId of markedStops) {
@@ -157,9 +157,9 @@ export class Raptor {
       if (!graph.isVehicleCell(cell)) continue;
 
       const continuousTrips = this.timetable.getContinuousTrips(
-        graph.u16c[cell]!,
-        graph.u32[cell]!,
-        graph.u16b[cell]!,
+        graph.hopOffStopIndex[cell]!,
+        graph.id[cell]!,
+        graph.tripIndex[cell]!,
       );
       for (const trip of continuousTrips) {
         continuations.push({
@@ -333,9 +333,9 @@ export class Raptor {
 
         const fromTripStop = graph.isVehicleCell(previousCell)
           ? {
-              stopIndex: graph.u16c[previousCell]!,
-              routeId: graph.u32[previousCell]!,
-              tripIndex: graph.u16b[previousCell]!,
+              stopIndex: graph.hopOffStopIndex[previousCell]!,
+              routeId: graph.id[previousCell]!,
+              tripIndex: graph.tripIndex[previousCell]!,
             }
           : undefined;
         const firstBoardableTrip = this.timetable.findFirstBoardableTrip(
@@ -400,8 +400,11 @@ export class Raptor {
       // Skip transfers if the last leg was also a transfer
       if (!graph.hasCell(currentCell) || graph.isTransferCell(currentCell))
         continue;
-      const transfers = this.timetable.getTransfers(stop);
-      for (const transfer of transfers) {
+      const transferIds = this.timetable.getTransferIds(stop);
+      for (let i = 0; i < transferIds.length; i++) {
+        const transferId = transferIds[i]!;
+        const transfer = this.timetable.getTransfer(transferId);
+        if (transfer === undefined) continue;
         let transferTime: Duration;
         if (transfer.minTransferTime) {
           transferTime = transfer.minTransferTime;
@@ -423,9 +426,7 @@ export class Raptor {
             round,
             transfer.destination,
             arrivalAfterTransfer,
-            stop,
-            transfer.type,
-            transferTime || undefined,
+            transferId,
             currentCell,
           );
           state.updateArrival(
