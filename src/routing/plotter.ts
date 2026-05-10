@@ -1,12 +1,49 @@
 import { StopId } from '../stops/stops.js';
-import { durationToString, timeToString } from '../timetable/time.js';
-import { routeTypeToString } from '../timetable/timetable.js';
+import { StopRouteIndex } from '../timetable/route.js';
+import {
+  Duration,
+  durationToString,
+  Time,
+  timeToString,
+} from '../timetable/time.js';
+import {
+  routeTypeToString,
+  TransferId,
+  TransferType,
+  TripStop,
+} from '../timetable/timetable.js';
+import { CellId, EdgeKinds, NO_CELL } from './graph.js';
 import { Result } from './result.js';
-import { AccessEdge, RoutingEdge, TransferEdge, VehicleEdge } from './state.js';
 
 /**
  * Configuration for DOT graph styling.
  */
+type OriginNode = { stopId: StopId; arrival: Time };
+
+type AccessEdge = {
+  arrival: Time;
+  from: StopId;
+  to: StopId;
+  duration: Duration;
+};
+
+type VehicleEdge = TripStop & {
+  arrival: Time;
+  hopOffStopIndex: StopRouteIndex;
+  continuationOf?: VehicleEdge;
+};
+
+type TransferEdge = {
+  arrival: Time;
+  from: StopId;
+  to: StopId;
+  type: TransferType;
+  minTransferTime?: Duration;
+  transferId?: TransferId;
+};
+
+type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
+
 const DOT_CONFIG = {
   colors: {
     rounds: [
@@ -188,6 +225,92 @@ export class Plotter {
     round: number,
   ): string {
     return `continuation_${fromStopId}_${toStopId}_${round}`;
+  }
+
+  private edgeAtCell(cell: CellId): RoutingEdge | undefined {
+    const graph = this.result.routingState.graph;
+    const kind = graph.kindAtCell(cell);
+    if (kind === EdgeKinds.NONE) return undefined;
+
+    const arrival = graph.arrivalAtCell(cell);
+    switch (kind) {
+      case EdgeKinds.ORIGIN: {
+        const originStop = graph.originStopAtCell(cell);
+        if (originStop === undefined) return undefined;
+        return { stopId: originStop, arrival };
+      }
+      case EdgeKinds.ACCESS: {
+        const access = graph.accessAtCell(cell);
+        if (access === undefined) return undefined;
+        return {
+          arrival,
+          from: access.from,
+          to: graph.stopOfCell(cell),
+          duration: access.duration,
+        };
+      }
+      case EdgeKinds.VEHICLE:
+      case EdgeKinds.VEHICLE_CONTINUATION:
+        return this.vehicleEdgeAtCell(cell);
+      case EdgeKinds.TRANSFER: {
+        const transferId = graph.transferIdAtCell(cell);
+        if (transferId === undefined) return undefined;
+        const transfer = this.result.timetable.getTransfer(transferId);
+        if (transfer === undefined) return undefined;
+        return {
+          arrival,
+          from: transfer.from,
+          to: transfer.destination,
+          type: transfer.type,
+          transferId,
+          ...(transfer.minTransferTime !== undefined && {
+            minTransferTime: transfer.minTransferTime,
+          }),
+        };
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  private vehicleEdgeAtCell(cell: CellId): VehicleEdge | undefined {
+    const graph = this.result.routingState.graph;
+    const payload = graph.vehiclePayload(cell);
+    if (payload === undefined) return undefined;
+
+    let continuationOf: VehicleEdge | undefined;
+    if (graph.kindAtCell(cell) === EdgeKinds.VEHICLE_CONTINUATION) {
+      const previousCell = graph.predecessorCell(cell);
+      if (previousCell !== NO_CELL && graph.isVehicleCell(previousCell)) {
+        continuationOf = this.vehicleEdgeAtCell(previousCell);
+      }
+    }
+
+    return {
+      arrival: graph.arrivalAtCell(cell),
+      routeId: payload.routeId,
+      stopIndex: payload.boardStopIndex,
+      tripIndex: payload.tripIndex,
+      hopOffStopIndex: payload.hopOffStopIndex,
+      ...(continuationOf !== undefined && { continuationOf }),
+    };
+  }
+
+  private *edges(): Generator<{
+    round: number;
+    stop: StopId;
+    edge: RoutingEdge;
+  }> {
+    const graph = this.result.routingState.graph;
+    for (const cell of graph.occupiedCells()) {
+      const edge = this.edgeAtCell(cell);
+      if (edge === undefined) continue;
+      yield {
+        round: graph.roundOfCell(cell),
+        stop: graph.stopOfCell(cell),
+        edge,
+      };
+    }
   }
 
   /**
@@ -392,7 +515,7 @@ export class Plotter {
   ): string[] {
     const fromStopId = this.getVehicleEdgeToStopId(fromEdge);
     const toStopId = this.getVehicleEdgeFromStopId(toEdge);
-    if (!fromStopId || !toStopId) {
+    if (fromStopId === undefined || toStopId === undefined) {
       return [];
     }
 
@@ -458,13 +581,13 @@ export class Plotter {
    */
   private collectStations(): Set<StopId> {
     const stations = new Set<StopId>();
-    for (const { stop: stopId, edge } of this.result.edges()) {
+    for (const { stop: stopId, edge } of this.edges()) {
       stations.add(stopId);
       if (isVehicleEdge(edge)) {
         const fromStopId = this.getVehicleEdgeFromStopId(edge);
         const toStopId = this.getVehicleEdgeToStopId(edge);
-        if (fromStopId) stations.add(fromStopId);
-        if (toStopId) stations.add(toStopId);
+        if (fromStopId !== undefined) stations.add(fromStopId);
+        if (toStopId !== undefined) stations.add(toStopId);
       } else if (isAccessEdge(edge)) {
         // Ensure the query origin (edge.from) is always collected even when
         // its own OriginNode hasn't been processed yet in this iteration.
@@ -505,7 +628,7 @@ export class Plotter {
   private collectEdges(): string[] {
     const edges: string[] = [];
     const continuationEdges: string[] = [];
-    for (const { round, edge } of this.result.edges()) {
+    for (const { round, edge } of this.edges()) {
       if (round === 0) {
         // Round 0 holds OriginNodes (no edge to draw) and AccessEdges
         // (walking legs from the query origin to the first boarding stop).

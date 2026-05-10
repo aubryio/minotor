@@ -12,14 +12,7 @@ export type { EdgeKind } from './graph.js';
 export { DenseRoutingGraph, EdgeKinds, NO_CELL } from './graph.js';
 export type { ArrivalWithDuration, ParetoRun } from './rangeResult.js';
 export { RangeResult } from './rangeResult.js';
-export type {
-  AccessEdge,
-  Arrival,
-  OriginNode,
-  RoutingEdge,
-  TransferEdge,
-  VehicleEdge,
-} from './state.js';
+export type { Arrival } from './state.js';
 export { RoutingState, UNREACHED_TIME } from './state.js';
 
 /**

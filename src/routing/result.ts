@@ -5,6 +5,7 @@ import {
   PickUpDropOffTypeString,
   RawPickUpDropOffType,
   Route as TimetableRoute,
+  StopRouteIndex,
 } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
 import {
@@ -13,7 +14,7 @@ import {
   transferTypeToString,
   TripStop,
 } from '../timetable/timetable.js';
-import { EdgeKinds, NO_CELL } from './graph.js';
+import { CellId, EdgeKinds, NO_CELL } from './graph.js';
 import {
   Access,
   Leg,
@@ -22,7 +23,7 @@ import {
   Transfer,
   VehicleLeg,
 } from './route.js';
-import { Arrival, RoutingEdge, RoutingState, VehicleEdge } from './state.js';
+import { Arrival, RoutingState } from './state.js';
 
 /**
  * Details about the pickup and drop-off modalities at each stop in each trip of a route.
@@ -52,13 +53,18 @@ const toPickupDropOffType = (
   return type;
 };
 
+type CellVehicleEdge = TripStop & {
+  arrival: Time;
+  hopOffStopIndex: StopRouteIndex;
+};
+
 type VehicleLegBoundary = {
   leg: VehicleLeg;
-  boardingEdge: VehicleEdge;
-  alightingEdge: VehicleEdge;
+  boardingEdge: CellVehicleEdge;
+  alightingEdge: CellVehicleEdge;
   boardingTrip: TripStop;
   alightingTrip: TripStop;
-  predecessorCell: number;
+  predecessorCell: CellId;
 };
 
 export class Result {
@@ -197,10 +203,10 @@ export class Result {
         previousVehicleBoundary = vehicle;
         nextCell = vehicle.predecessorCell;
       } else if (kind === EdgeKinds.TRANSFER) {
-        leg = this.buildTransferLegFromCell(cell);
+        leg = this.buildTransferLeg(cell);
         previousVehicleBoundary = undefined;
       } else if (kind === EdgeKinds.ACCESS) {
-        leg = this.buildAccessLegFromCell(cell);
+        leg = this.buildAccessLeg(cell);
         previousVehicleBoundary = undefined;
       } else {
         break;
@@ -213,75 +219,6 @@ export class Result {
     return new Route(route.reverse());
   }
 
-  edgeAt(round: number, stop: StopId): RoutingEdge | undefined {
-    return this.edgeAtCell(this.routingState.graph.cell(round, stop));
-  }
-
-  edgeAtCell(cell: number): RoutingEdge | undefined {
-    const graph = this.routingState.graph;
-    const kind = graph.kindAtCell(cell);
-    if (kind === EdgeKinds.NONE) return undefined;
-
-    const arrival = graph.arrivalAtCell(cell);
-    switch (kind) {
-      case EdgeKinds.ORIGIN: {
-        const originStop = graph.originStopAtCell(cell);
-        if (originStop === undefined) return undefined;
-        return { stopId: originStop, arrival };
-      }
-      case EdgeKinds.ACCESS: {
-        const access = graph.accessAtCell(cell);
-        if (access === undefined) return undefined;
-        return {
-          arrival,
-          from: access.from,
-          to: graph.stopOfCell(cell),
-          duration: access.duration,
-        };
-      }
-      case EdgeKinds.VEHICLE:
-      case EdgeKinds.VEHICLE_CONTINUATION:
-        return this.vehicleEdgeAtCell(cell);
-      case EdgeKinds.TRANSFER: {
-        const transferId = graph.transferIdAtCell(cell);
-        if (transferId === undefined) return undefined;
-        const transfer = this.timetable.getTransfer(transferId);
-        if (transfer === undefined) return undefined;
-        return {
-          arrival,
-          from: transfer.from,
-          to: transfer.destination,
-          type: transfer.type,
-          transferId,
-          ...(transfer.minTransferTime !== undefined && {
-            minTransferTime: transfer.minTransferTime,
-          }),
-        };
-      }
-      default:
-        return undefined;
-    }
-  }
-
-  *edges(): Generator<{
-    round: number;
-    stop: StopId;
-    cell: number;
-    edge: RoutingEdge;
-  }> {
-    const graph = this.routingState.graph;
-    for (const cell of graph.occupiedCells()) {
-      const edge = this.edgeAtCell(cell);
-      if (edge === undefined) continue;
-      yield {
-        round: graph.roundOfCell(cell),
-        stop: graph.stopOfCell(cell),
-        cell,
-        edge,
-      };
-    }
-  }
-
   private buildServiceRouteInfo(route: TimetableRoute): ServiceRouteInfo {
     const serviceRouteInfo = this.timetable.getServiceRouteInfo(route);
     return {
@@ -290,7 +227,7 @@ export class Result {
     };
   }
 
-  private buildVehicleLegFromCell(cell: number): VehicleLegBoundary {
+  private buildVehicleLegFromCell(cell: CellId): VehicleLegBoundary {
     const chainCells = this.vehicleChainCells(cell);
     if (chainCells.length === 0) {
       throw new Error(`Expected vehicle edge at graph cell ${cell}`);
@@ -312,7 +249,7 @@ export class Result {
     }
 
     return {
-      leg: this.buildVehicleLegFromCells(chainCells),
+      leg: this.buildVehicleLeg(chainCells),
       boardingEdge,
       alightingEdge,
       boardingTrip: {
@@ -330,11 +267,11 @@ export class Result {
     };
   }
 
-  private vehicleChainCells(cell: number): number[] {
+  private vehicleChainCells(cell: CellId): CellId[] {
     const graph = this.routingState.graph;
     if (!graph.isVehicleCell(cell)) return [];
 
-    const cells: number[] = [cell];
+    const cells: CellId[] = [cell];
     let currentCell = cell;
     while (graph.isVehicleContinuationCell(currentCell)) {
       const previousCell = graph.predecessorCell(currentCell);
@@ -346,10 +283,10 @@ export class Result {
   }
 
   private vehicleEdgeAtCellWithoutContinuation(
-    cell: number,
-  ): VehicleEdge | undefined {
+    cell: CellId,
+  ): CellVehicleEdge | undefined {
     const graph = this.routingState.graph;
-    const payload = graph.vehiclePayloadAtCell(cell);
+    const payload = graph.vehiclePayload(cell);
     if (payload === undefined) return undefined;
 
     return {
@@ -358,29 +295,6 @@ export class Result {
       stopIndex: payload.boardStopIndex,
       tripIndex: payload.tripIndex,
       hopOffStopIndex: payload.hopOffStopIndex,
-    };
-  }
-
-  private vehicleEdgeAtCell(cell: number): VehicleEdge | undefined {
-    const graph = this.routingState.graph;
-    const payload = graph.vehiclePayloadAtCell(cell);
-    if (payload === undefined) return undefined;
-
-    let continuationOf: VehicleEdge | undefined;
-    if (graph.kindAtCell(cell) === EdgeKinds.VEHICLE_CONTINUATION) {
-      const previousCell = graph.predecessorCell(cell);
-      if (previousCell !== NO_CELL && graph.isVehicleCell(previousCell)) {
-        continuationOf = this.vehicleEdgeAtCell(previousCell);
-      }
-    }
-
-    return {
-      arrival: graph.arrivalAtCell(cell),
-      routeId: payload.routeId,
-      stopIndex: payload.boardStopIndex,
-      tripIndex: payload.tripIndex,
-      hopOffStopIndex: payload.hopOffStopIndex,
-      ...(continuationOf !== undefined && { continuationOf }),
     };
   }
 
@@ -393,7 +307,7 @@ export class Result {
    * @returns A vehicle leg with departure/arrival information and route details
    * @throws Error if the edges array is empty
    */
-  private buildVehicleLegFromCells(cells: number[]): VehicleLeg {
+  private buildVehicleLeg(cells: CellId[]): VehicleLeg {
     if (cells.length === 0) {
       throw new Error('Cannot build vehicle leg from empty cell chain');
     }
@@ -404,8 +318,8 @@ export class Result {
     if (firstCell === undefined || lastCell === undefined) {
       throw new Error('Cannot build vehicle leg from empty cell chain');
     }
-    const firstPayload = graph.vehiclePayloadAtCell(firstCell);
-    const lastPayload = graph.vehiclePayloadAtCell(lastCell);
+    const firstPayload = graph.vehiclePayload(firstCell);
+    const lastPayload = graph.vehiclePayload(lastCell);
     if (firstPayload === undefined || lastPayload === undefined) {
       throw new Error('Cannot build vehicle leg from non-vehicle cell chain');
     }
@@ -446,7 +360,7 @@ export class Result {
   }
 
   /** Builds a transfer leg directly from a typed graph cell. */
-  private buildTransferLegFromCell(cell: number): Transfer | undefined {
+  private buildTransferLeg(cell: CellId): Transfer | undefined {
     const graph = this.routingState.graph;
     const transferId = graph.transferIdAtCell(cell);
     if (transferId === undefined) return undefined;
@@ -465,7 +379,7 @@ export class Result {
   }
 
   /** Builds an access leg directly from a typed graph cell. */
-  private buildAccessLegFromCell(cell: number): Access | undefined {
+  private buildAccessLeg(cell: CellId): Access | undefined {
     const graph = this.routingState.graph;
     const access = graph.accessAtCell(cell);
     if (access === undefined) return undefined;
@@ -487,8 +401,8 @@ export class Result {
    * @returns A transfer leg with type 'GUARANTEED'
    */
   private buildGuaranteedTransferLeg(
-    fromEdge: VehicleEdge,
-    toEdge: VehicleEdge,
+    fromEdge: CellVehicleEdge,
+    toEdge: CellVehicleEdge,
   ): Transfer {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const fromRoute = this.timetable.getRoute(fromEdge.routeId)!;

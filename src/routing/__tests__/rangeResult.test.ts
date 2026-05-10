@@ -14,7 +14,7 @@ import {
 } from '../../timetable/timetable.js';
 import { ParetoRun, RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
-import { RoutingState, VehicleEdge } from '../state.js';
+import { RoutingState, TestVehicleEdge } from '../state.js';
 
 // Two-stop timetable with two trips on a single route:
 //   trip 0: stop 0 departs 09:00, stop 1 arrives 09:30
@@ -41,7 +41,10 @@ const stops: Stop[] = [
 ];
 const stopsIndex = new StopsIndex(stops);
 
-const stopsAdjacency: StopAdjacency[] = [createStopAdjacency([0]), createStopAdjacency([0])];
+const stopsAdjacency: StopAdjacency[] = [
+  createStopAdjacency([0]),
+  createStopAdjacency([0]),
+];
 const routesAdjacency = [
   Route.of({
     id: 0,
@@ -87,7 +90,7 @@ const DEST = 1;
 const DESTINATIONS = new Set([DEST]);
 
 // Run A — later departure (09:00→09:30, 30-minute duration)
-const edgeA: VehicleEdge = {
+const edgeA: TestVehicleEdge = {
   arrival: timeFromHM(9, 30),
   stopIndex: 0,
   hopOffStopIndex: 1,
@@ -114,7 +117,7 @@ const runA: ParetoRun = {
 };
 
 // Run B — earlier departure (08:30→09:10, 40-minute duration)
-const edgeB: VehicleEdge = {
+const edgeB: TestVehicleEdge = {
   arrival: timeFromHM(9, 10),
   stopIndex: 0,
   hopOffStopIndex: 1,

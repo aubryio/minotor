@@ -8,7 +8,7 @@ import {
 } from '../timetable/route.js';
 import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
 import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
-import { DenseRoutingGraph, EdgeKinds, NO_CELL } from './graph.js';
+import { CellId, DenseRoutingGraph, EdgeKinds, NO_CELL } from './graph.js';
 import { QueryOptions } from './query.js';
 
 /**
@@ -55,7 +55,7 @@ export interface IRaptorState {
 }
 
 type TripContinuation = TripStop & {
-  previousCell: number;
+  previousCell: CellId;
 };
 
 type Round = number;
@@ -148,12 +148,12 @@ export class Raptor {
    */
   private findTripContinuations(
     markedStops: Set<StopId>,
-    currentRoundOffset: number,
+    currentRoundOffset: CellId,
     graph: DenseRoutingGraph,
   ): TripContinuation[] {
     const continuations: TripContinuation[] = [];
     for (const stopId of markedStops) {
-      const cell = currentRoundOffset + stopId;
+      const cell: CellId = currentRoundOffset + stopId;
       if (!graph.isVehicleCell(cell)) continue;
 
       const continuousTrips = this.timetable.getContinuousTrips(
@@ -279,7 +279,7 @@ export class Raptor {
       currentStopIndex++
     ) {
       const currentStop: StopId = route.stops[currentStopIndex]!;
-      const previousCell = previousRoundOffset + currentStop;
+      const previousCell: CellId = previousRoundOffset + currentStop;
 
       // If on a trip, check whether alighting here improves the global best.
       if (activeTripIndex !== undefined) {
@@ -390,7 +390,7 @@ export class Raptor {
     const graph = state.graph;
     const currentRoundOffset = graph.roundOffset(round);
     for (const stop of markedStops) {
-      const currentCell = currentRoundOffset + stop;
+      const currentCell: CellId = currentRoundOffset + stop;
       // Skip transfers if the last leg was also a transfer
       if (
         !graph.hasCellUnchecked(currentCell) ||

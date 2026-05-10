@@ -15,7 +15,7 @@ import {
 } from '../../timetable/timetable.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingState, TransferEdge, VehicleEdge } from '../state.js';
+import { RoutingState, TestTransferEdge, TestVehicleEdge } from '../state.js';
 
 const NB_STOPS = 7;
 
@@ -214,7 +214,7 @@ describe('Result', () => {
     });
 
     it('should return route to closest destination when multiple destinations exist', () => {
-      const vehicleEdge: VehicleEdge = {
+      const vehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -252,7 +252,7 @@ describe('Result', () => {
     });
 
     it('should return route to fastest child stop when parent stop is queried', () => {
-      const vehicleEdge: VehicleEdge = {
+      const vehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(10, 10, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -301,7 +301,7 @@ describe('Result', () => {
     });
 
     it('should handle simple single-leg route reconstruction', () => {
-      const vehicleEdge: VehicleEdge = {
+      const vehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -338,7 +338,7 @@ describe('Result', () => {
     });
 
     it('should handle multi-leg route with transfer', () => {
-      const firstVehicleEdge: VehicleEdge = {
+      const firstVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -346,7 +346,7 @@ describe('Result', () => {
         tripIndex: 0,
       };
 
-      const secondVehicleEdge: VehicleEdge = {
+      const secondVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -391,7 +391,7 @@ describe('Result', () => {
 
   describe('bestRouteToStopId', () => {
     it('should return route when given a single SourceStopId', () => {
-      const vehicleEdge: VehicleEdge = {
+      const vehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -428,7 +428,7 @@ describe('Result', () => {
     });
 
     it('should return route to closest destination when given a Set of SourceStopIds', () => {
-      const vehicleEdge: VehicleEdge = {
+      const vehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -468,7 +468,7 @@ describe('Result', () => {
 
   describe('continuous trips', () => {
     it('should handle single continuous trip correctly', () => {
-      const firstVehicleEdge: VehicleEdge = {
+      const firstVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(8, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -476,7 +476,7 @@ describe('Result', () => {
         tripIndex: 0,
       };
 
-      const continuousVehicleEdge: VehicleEdge = {
+      const continuousVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 1,
         hopOffStopIndex: 2,
@@ -518,7 +518,7 @@ describe('Result', () => {
     });
 
     it('should handle continuous trips with route change mid-journey', () => {
-      const firstVehicleEdge: VehicleEdge = {
+      const firstVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -526,7 +526,7 @@ describe('Result', () => {
         tripIndex: 0,
       };
 
-      const continuousVehicleEdge: VehicleEdge = {
+      const continuousVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -568,14 +568,14 @@ describe('Result', () => {
     });
 
     it('should handle route reconstruction with actual transfer edges', () => {
-      const firstVehicleEdge: VehicleEdge = {
+      const firstVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(8, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
         routeId: 0,
         tripIndex: 0,
       };
-      const transferEdge: TransferEdge = {
+      const transferEdge: TestTransferEdge = {
         arrival: timeFromHMS(8, 35, 0),
         from: 1,
         to: 2,
@@ -583,7 +583,7 @@ describe('Result', () => {
         minTransferTime: 5,
         transferId: 0,
       };
-      const secondVehicleEdge: VehicleEdge = {
+      const secondVehicleEdge: TestVehicleEdge = {
         arrival: timeFromHMS(9, 15, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -730,7 +730,7 @@ describe('Result', () => {
       const directArrival = { arrival: timeFromHMS(9, 30, 0), legNumber: 1 };
       const transferArrival = { arrival: timeFromHMS(9, 0, 0), legNumber: 2 };
 
-      const vehicleEdge1: VehicleEdge = {
+      const vehicleEdge1: TestVehicleEdge = {
         arrival: timeFromHMS(9, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -738,7 +738,7 @@ describe('Result', () => {
         tripIndex: 0,
       };
 
-      const vehicleEdge2: VehicleEdge = {
+      const vehicleEdge2: TestVehicleEdge = {
         arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,

@@ -4,30 +4,30 @@ import { StopRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
 import { TransferId, TransferType, TripStop } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
-import { DenseRoutingGraph, NO_CELL, UNREACHED_TIME } from './graph.js';
+import { CellId, DenseRoutingGraph, NO_CELL, UNREACHED_TIME } from './graph.js';
 import type { IRaptorState } from './raptor.js';
 
 export { UNREACHED_TIME } from './graph.js';
 
-export type OriginNode = { stopId: StopId; arrival: Time };
+export type TestOriginEdge = { stopId: StopId; arrival: Time };
 
-export type AccessEdge = {
+export type TestAccessEdge = {
   arrival: Time;
   from: StopId;
   to: StopId;
   duration: Duration;
 };
 
-/** A boarded transit trip that carries the passenger from one stop to another. */
-export type VehicleEdge = TripStop & {
+/** A boarded transit trip used to seed typed graph cells in tests. */
+export type TestVehicleEdge = TripStop & {
   arrival: Time;
   hopOffStopIndex: StopRouteIndex;
-  /** modeling in-seat transfer */
-  continuationOf?: VehicleEdge;
+  /** Link to the previous test vehicle edge when modeling an in-seat transfer. */
+  continuationOf?: TestVehicleEdge;
 };
 
-/** A walking or guaranteed connection between two stops. */
-export type TransferEdge = {
+/** A walking or guaranteed connection used to seed typed graph cells in tests. */
+export type TestTransferEdge = {
   arrival: Time;
   from: StopId;
   to: StopId;
@@ -36,11 +36,14 @@ export type TransferEdge = {
   transferId?: TransferId;
 };
 
-export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
-
 export type TestRoutingCell = { round: number; stop: StopId };
 
-export type TestRoutingEdge = RoutingEdge & {
+export type TestRoutingEdge = (
+  | TestOriginEdge
+  | TestAccessEdge
+  | TestVehicleEdge
+  | TestTransferEdge
+) & {
   /** Explicit predecessor cell for tests that need deterministic reconstruction. */
   predecessor?: TestRoutingCell;
 };
@@ -368,7 +371,7 @@ export class RoutingState implements IRaptorState {
 
     // Convert the sparse per-round object representation into the typed graph.
     state.graph.clearAll();
-    const knownVehicleCells = new WeakMap<VehicleEdge, number>();
+    const knownVehicleCells = new WeakMap<TestVehicleEdge, CellId>();
     for (let round = 0; round < graph.length; round++) {
       const roundEdges = graph[round]!;
       for (const [stop, edge] of roundEdges) {
@@ -383,7 +386,7 @@ export class RoutingState implements IRaptorState {
     round: number,
     stop: StopId,
     edge: TestRoutingEdge,
-    knownVehicleCells: WeakMap<VehicleEdge, number>,
+    knownVehicleCells: WeakMap<TestVehicleEdge, CellId>,
   ): void {
     if ('routeId' in edge) {
       const previousCell = edge.continuationOf
@@ -442,12 +445,12 @@ export class RoutingState implements IRaptorState {
     this.graph.setOrigin(stop, edge.arrival, edge.stopId);
   }
 
-  private testPredecessorCell(edge: TestRoutingEdge): number | undefined {
+  private testPredecessorCell(edge: TestRoutingEdge): CellId | undefined {
     if (edge.predecessor === undefined) return undefined;
     return this.graph.cell(edge.predecessor.round, edge.predecessor.stop);
   }
 
-  private inferTestVehiclePredecessorCell(round: number): number {
+  private inferTestVehiclePredecessorCell(round: number): CellId {
     if (round <= 0) return NO_CELL;
 
     let onlyPreviousCell = NO_CELL;
@@ -471,8 +474,8 @@ export class RoutingState implements IRaptorState {
 
   private testPredecessorForTransfer(
     round: number,
-    edge: TransferEdge,
-  ): number {
+    edge: TestTransferEdge,
+  ): CellId {
     const candidate = this.graph.cell(round, edge.from);
     return this.graph.hasCell(candidate) ? candidate : NO_CELL;
   }
