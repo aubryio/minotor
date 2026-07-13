@@ -411,6 +411,7 @@ export class Raptor {
             to: transfer.destination, // TODO needed?
             minTransferTime: transferTime || undefined,
             type: transfer.type,
+            generated: transfer.generated,
           } as TransferEdge;
           state.updateArrival(
             transfer.destination,

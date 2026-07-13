@@ -39,6 +39,8 @@ message Transfer {
   uint32 destination = 1;
   TransferType type = 2;
   optional uint32 min_transfer_time = 3;
+  // True when synthesized by a transfer generator rather than read from the feed.
+  bool generated = 4;
 }
 
 message TripStop {

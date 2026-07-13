@@ -5,6 +5,8 @@ import StreamZip from 'node-stream-zip';
 import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
+import { TransferGenerator } from '../transfers/generator.js';
+import { getOrInsert } from '../utils/map.js';
 import { FrequenciesMap, parseFrequencies } from './frequencies.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
@@ -39,11 +41,17 @@ export type GtfsProfile = {
 export class GtfsParser {
   private path: string;
   private profile: GtfsProfile;
+  private transferGenerator?: TransferGenerator;
 
-  constructor(path: string, profile: GtfsProfile = standardGtfsProfile) {
+  constructor(
+    path: string,
+    profile: GtfsProfile = standardGtfsProfile,
+    transferGenerator?: TransferGenerator,
+  ) {
     // TODO: support input from multiple sources
     this.path = path;
     this.profile = profile;
+    this.transferGenerator = transferGenerator;
   }
 
   /**
@@ -165,6 +173,58 @@ export class GtfsParser {
     log.info(
       `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
     );
+
+    if (this.transferGenerator) {
+      log.info('Generating virtual transfers');
+      const virtualTransfersStart = performance.now();
+      // Only route-served stops with coordinates are worth connecting: a
+      // transfer to a stop no route calls at is a dead end for the router.
+      const originStops = Array.from(parsedStops.values()).filter(
+        (stop) =>
+          activeStopIds.has(stop.id) &&
+          stop.lat !== undefined &&
+          stop.lon !== undefined,
+      );
+      const stopsIndex = new StopsIndex(Array.from(parsedStops.values()));
+      const stopModes = new Map<StopId, Set<RouteType>>();
+      for (const route of routes) {
+        const serviceRoute = serviceRoutes[route.serviceRoute()];
+        if (serviceRoute === undefined) continue;
+        for (const stopId of route.stops) {
+          getOrInsert(stopModes, stopId, new Set<RouteType>()).add(
+            serviceRoute.type,
+          );
+        }
+      }
+      const generatedTransfers = await this.transferGenerator.generate(
+        originStops,
+        stopsIndex,
+        stopModes,
+      );
+      let addedTransfers = 0;
+      for (const [fromStop, newTransfers] of generatedTransfers) {
+        const existing = getOrInsert(transfers, fromStop, []);
+        // Deduplicate per directed pair against existing (feed) transfers, and
+        // only keep transfers into stops a route actually calls at.
+        const connected = new Set(existing.map((t) => t.destination));
+        for (const transfer of newTransfers) {
+          if (
+            !activeStopIds.has(transfer.destination) ||
+            connected.has(transfer.destination)
+          ) {
+            continue;
+          }
+          connected.add(transfer.destination);
+          existing.push({ ...transfer, generated: true });
+          addedTransfers += 1;
+        }
+      }
+      const virtualTransfersEnd = performance.now();
+      log.info(
+        `${addedTransfers} virtual transfers added. (${(virtualTransfersEnd - virtualTransfersStart).toFixed(2)}ms)`,
+      );
+    }
+
     log.info('Building stops adjacency structure');
     const stopsAdjacencyStart = performance.now();
     const stopsAdjacency = buildStopsAdjacencyStructure(

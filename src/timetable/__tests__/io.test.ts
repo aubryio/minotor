@@ -61,7 +61,7 @@ describe('Timetable IO', () => {
   ];
   const stopsAdjacencyProto = [
     {
-      transfers: [{ destination: 2, type: 1 }],
+      transfers: [{ destination: 2, type: 1, generated: false }],
       routes: [0],
     },
     {
@@ -70,6 +70,7 @@ describe('Timetable IO', () => {
           destination: 1,
           type: 2,
           minTransferTime: 3,
+          generated: false,
         },
       ],
       routes: [1],
@@ -133,6 +134,29 @@ describe('Timetable IO', () => {
     const deserialized = deserializeTripTransfers(serialized);
 
     assert.deepStrictEqual(deserialized, tripContinuations);
+  });
+
+  it('should round-trip the generated flag on transfers', () => {
+    const adjacency: StopAdjacency[] = [
+      {
+        transfers: [
+          {
+            destination: 1,
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
+            minTransferTime: 5,
+            generated: true,
+          },
+          { destination: 2, type: TransferTypes.RECOMMENDED },
+        ],
+        routes: [0],
+      },
+    ];
+
+    const deserialized = deserializeStopsAdjacency(
+      serializeStopsAdjacency(adjacency),
+    );
+
+    assert.deepStrictEqual(deserialized, adjacency);
   });
 
   it('should handle empty StopAdjacency without transfers or tripContinuations', () => {

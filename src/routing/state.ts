@@ -36,6 +36,7 @@ export type TransferEdge = {
   to: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+  generated?: boolean;
 };
 
 export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;

@@ -468,8 +468,9 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
             const minTime = transfer.minTransferTime
               ? ` (min: ${transfer.minTransferTime}min)`
               : '';
+            const source = transfer.generated ? ' [generated]' : ' [feed]';
             console.log(
-              `${index + 1}. ${transfer.type} to ${destStop?.name ?? 'Unknown'}${platform} (${transfer.destination}, ${destStop?.sourceStopId ?? 'N/A'})${minTime}`,
+              `${index + 1}. ${transfer.type} to ${destStop?.name ?? 'Unknown'}${platform} (${transfer.destination}, ${destStop?.sourceStopId ?? 'N/A'})${minTime}${source}`,
             );
           });
         }

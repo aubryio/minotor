@@ -8,6 +8,7 @@ import {
   GtfsParser,
   GtfsProfile,
   standardGtfsProfile,
+  StraightLineTransferGenerator,
 } from '../parser.js';
 import { Router, StopsIndex, Timetable } from '../router.js';
 import {
@@ -63,6 +64,10 @@ program
     'Profile name for GTFS config',
     'extended',
   )
+  .option(
+    '--virtual-transfers-radius <meters>',
+    'Generate virtual walking transfers between stops within this radius (in meters). Disabled when omitted.',
+  )
   .option('-v, --verbose', 'Verbose mode', false)
   .action(
     async (
@@ -72,6 +77,7 @@ program
         timetableOutputPath: string;
         stopsOutputPath: string;
         profileName: string;
+        virtualTransfersRadius?: string;
         verbose: boolean;
       },
     ) => {
@@ -80,7 +86,21 @@ program
       } else {
         log.setDefaultLevel(log.levels.ERROR);
       }
-      const parser = new GtfsParser(gtfsPath, profiles[options.profileName]);
+      const radiusMeters =
+        options.virtualTransfersRadius !== undefined
+          ? parseInt(options.virtualTransfersRadius, 10)
+          : undefined;
+      const transferGenerator =
+        radiusMeters !== undefined && Number.isFinite(radiusMeters)
+          ? new StraightLineTransferGenerator({
+              maxDistanceMeters: radiusMeters,
+            })
+          : undefined;
+      const parser = new GtfsParser(
+        gtfsPath,
+        profiles[options.profileName],
+        transferGenerator,
+      );
       const stopsIndex = await parser.parseStops();
       fs.writeFileSync(options.stopsOutputPath, stopsIndex.serialize());
       const timetable = await parser.parseTimetable(new Date(options.date));

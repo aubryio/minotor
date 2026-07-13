@@ -117,6 +117,14 @@ describe('Route', () => {
       assert(str.includes('Transfer: RECOMMENDED'));
     });
 
+    it('labels transfers by their source', () => {
+      const feedRoute = new Route([transferLeg]);
+      assert(feedRoute.toString().includes('[feed]'));
+
+      const generatedRoute = new Route([{ ...transferLeg, generated: true }]);
+      assert(generatedRoute.toString().includes('[generated]'));
+    });
+
     it('includes platform info when present', () => {
       const stopWithPlatform: Stop = {
         ...stopA,

@@ -38,6 +38,12 @@ export type Transfer = {
   destination: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+  /**
+   * True when the transfer was synthesized by a {@link TransferGenerator}
+   * rather than read from the source feed. Absent/false means it came from the
+   * GTFS `transfers.txt`.
+   */
+  generated?: boolean;
 };
 
 export type TripStop = {
