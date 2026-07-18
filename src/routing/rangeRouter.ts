@@ -66,7 +66,6 @@ export class RangeRouter {
     const rangeState = new RangeRaptorState(
       maxRounds,
       this.timetable.nbStops(),
-      latest,
     );
 
     const paretoRuns: ParetoRun[] = [];

@@ -2,11 +2,11 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
   ALL_TRANSPORT_MODES,
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -70,9 +70,9 @@ const route1 = Route.of({
 });
 
 const stopsAdjacency: StopAdjacency[] = [
-  createStopAdjacency([0]), // stop 0: origin
-  createStopAdjacency([0, 1]), // stop 1: transfer stop
-  createStopAdjacency([1]), // stop 2: destination
+  stopAdjacency([0]), // stop 0: origin
+  stopAdjacency([0, 1]), // stop 1: transfer stop
+  stopAdjacency([1]), // stop 2: destination
 ];
 
 const serviceRoutes: ServiceRoute[] = [
@@ -105,9 +105,9 @@ const route2 = Route.of({
 });
 
 const stopsAdjacencyWithDirectRoute: StopAdjacency[] = [
-  createStopAdjacency([0, 2]), // stop 0
-  createStopAdjacency([0, 1]), // stop 1
-  createStopAdjacency([1, 2]), // stop 2
+  stopAdjacency([0, 2]), // stop 0
+  stopAdjacency([0, 1]), // stop 1
+  stopAdjacency([1, 2]), // stop 2
 ];
 
 const serviceRoutesWithDirectRoute: ServiceRoute[] = [
@@ -129,9 +129,9 @@ const walkingTransfers = [
 ];
 
 const stopsAdjacencyWithTransfer: StopAdjacency[] = [
-  createStopAdjacency([0]),
-  createStopAdjacency([0], [0]),
-  createStopAdjacency([]),
+  stopAdjacency([0]),
+  stopAdjacency([0], [0]),
+  stopAdjacency([]),
 ];
 
 // ─── Extended fixture: mixed transport modes ──────────────────────────────────

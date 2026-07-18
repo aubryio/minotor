@@ -3,10 +3,10 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -18,6 +18,7 @@ import { RangeQuery } from '../query.js';
 import { RangeResult } from '../rangeResult.js';
 import { RangeRouter } from '../rangeRouter.js';
 import { Raptor } from '../raptor.js';
+import { routingScenario } from './helpers/routingScenario.js';
 
 describe('RangeRouter', () => {
   describe('with initial walking access', () => {
@@ -28,9 +29,9 @@ describe('RangeRouter', () => {
         { from: 0, destination: 1, type: TransferTypes.REQUIRES_MINIMAL_TIME },
       ];
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([], [0]),
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([], [0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -138,8 +139,8 @@ describe('RangeRouter', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -243,8 +244,8 @@ describe('RangeRouter', () => {
       //   trip 0: departs 08:00 → arrives 09:00 (slower)
       //   trip 1: departs 08:30 → arrives 08:50 (faster; dominates trip 0)
       const dominatingAdj: StopAdjacency[] = [
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
 
       const dominatingRoutes = [
@@ -390,8 +391,8 @@ describe('RangeRouter', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -511,8 +512,8 @@ describe('RangeRouter', () => {
 
     beforeEach(() => {
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -627,6 +628,82 @@ describe('RangeRouter', () => {
 
     it('getRoutes returns an empty array', () => {
       assert.deepStrictEqual(result.getRoutes(), []);
+    });
+  });
+
+  describe('optimizeBeyondLatestDeparture', () => {
+    it('suppresses in-window departures dominated by a post-window trip', () => {
+      const { rangeRouter } = routingScenario({
+        stops: ['Origin', 'Destination'],
+        routes: [
+          {
+            trips: [
+              {
+                stops: [
+                  {
+                    id: 0,
+                    arrivalTime: timeFromHM(8, 0),
+                    departureTime: timeFromHM(8, 0),
+                  },
+                  {
+                    id: 1,
+                    arrivalTime: timeFromHM(9, 0),
+                    departureTime: timeFromHM(9, 0),
+                  },
+                ],
+              },
+              {
+                stops: [
+                  {
+                    id: 0,
+                    arrivalTime: timeFromHM(8, 30),
+                    departureTime: timeFromHM(8, 30),
+                  },
+                  {
+                    id: 1,
+                    arrivalTime: timeFromHM(8, 50),
+                    departureTime: timeFromHM(8, 50),
+                  },
+                ],
+              },
+              {
+                stops: [
+                  {
+                    id: 0,
+                    arrivalTime: timeFromHM(8, 31),
+                    departureTime: timeFromHM(8, 31),
+                  },
+                  {
+                    id: 1,
+                    arrivalTime: timeFromHM(8, 45),
+                    departureTime: timeFromHM(8, 45),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      const baseQuery = new RangeQuery.Builder()
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
+        .lastDepartureTime(timeFromHM(8, 30));
+
+      const optimized = rangeRouter.rangeRoute(baseQuery.build());
+      assert.strictEqual(optimized.size, 0);
+
+      const hardWindow = rangeRouter.rangeRoute(
+        baseQuery
+          .rangeOptions({ optimizeBeyondLatestDeparture: false })
+          .build(),
+      );
+      assert.strictEqual(hardWindow.size, 1);
+      assert.strictEqual(
+        hardWindow.latestDepartureRoute()?.departureTime(),
+        timeFromHM(8, 30),
+      );
     });
   });
 });

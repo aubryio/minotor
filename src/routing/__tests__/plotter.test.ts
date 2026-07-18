@@ -4,10 +4,10 @@ import { describe, it } from 'node:test';
 import { Timetable } from '../../router.js';
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -16,7 +16,7 @@ import {
 import { Plotter } from '../plotter.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingState } from '../state.js';
+import { routingStateForGraph } from './helpers/routingStateForGraph.js';
 
 const NB_STOPS = 3;
 
@@ -38,8 +38,8 @@ describe('Plotter', () => {
   };
 
   const stopsAdjacency: StopAdjacency[] = [
-    createStopAdjacency([0]),
-    createStopAdjacency([0]),
+    stopAdjacency([0]),
+    stopAdjacency([0]),
   ];
 
   const routesAdjacency = [
@@ -85,7 +85,7 @@ describe('Plotter', () => {
     it('should generate valid DOT graph structure', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({ nbStops: NB_STOPS }),
+        routingStateForGraph({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -102,7 +102,7 @@ describe('Plotter', () => {
     it('should include station nodes', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [0],
@@ -117,13 +117,13 @@ describe('Plotter', () => {
 
       assert(dotGraph.includes('"s_0"'));
       assert(dotGraph.includes('Lausanne'));
-      assert(dotGraph.includes('shape=box'));
+      assert(dotGraph.includes('shape="box"'));
     });
 
     it('should handle empty graph gracefully', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({ nbStops: NB_STOPS }),
+        routingStateForGraph({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -151,7 +151,7 @@ describe('Plotter', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [2],
           destinations: [2],
@@ -191,7 +191,7 @@ describe('Plotter', () => {
       );
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [1],

@@ -3,10 +3,10 @@ import { beforeEach, describe, it } from 'node:test';
 
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -20,6 +20,7 @@ import { PlainRouter } from '../plainRouter.js';
 import { Query } from '../query.js';
 import { Raptor } from '../raptor.js';
 import { Result } from '../result.js';
+import { routingScenario } from './helpers/routingScenario.js';
 
 describe('PlainRouter', () => {
   describe('with a single route', () => {
@@ -30,9 +31,9 @@ describe('PlainRouter', () => {
       // Setup: A single route (Line 1) serving 3 stops in sequence
       // Route 0: stop1 (depart 08:10) -> stop2 (08:15-08:25) -> stop3 (arrive 08:35)
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0]), // stop 1 (stop2)
-        createStopAdjacency([0]), // stop 2 (stop3)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0]), // stop 1 (stop2)
+        stopAdjacency([0]), // stop 2 (stop3)
       ];
 
       const routesAdjacency = [
@@ -185,11 +186,11 @@ describe('PlainRouter', () => {
       // Route 1 (Line 2): stop4 (depart 08:20) -> stop2 (09:00-09:15) -> stop5 (09:20)
       // Both routes serve stop2, allowing transfer without walking
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0, 1]), // stop 1 (stop2) - shared by both routes
-        createStopAdjacency([0]), // stop 2 (stop3)
-        createStopAdjacency([1]), // stop 3 (stop4)
-        createStopAdjacency([1]), // stop 4 (stop5)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0, 1]), // stop 1 (stop2) - shared by both routes
+        stopAdjacency([0]), // stop 2 (stop3)
+        stopAdjacency([1]), // stop 3 (stop4)
+        stopAdjacency([1]), // stop 4 (stop5)
       ];
 
       const routesAdjacency = [
@@ -358,12 +359,12 @@ describe('PlainRouter', () => {
       // Route 1 (Line 2): stop4 (depart 08:20) -> stop5 (08:40-08:50) -> stop6 (09:10)
       // Walking transfer from stop2 to stop5 with 5 minute minTransferTime
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0], [0]), // stop 1 (stop2) - has walking transfer to stop5
-        createStopAdjacency([0]), // stop 2 (stop3)
-        createStopAdjacency([1]), // stop 3 (stop4)
-        createStopAdjacency([1]), // stop 4 (stop5)
-        createStopAdjacency([1]), // stop 5 (stop6)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0], [0]), // stop 1 (stop2) - has walking transfer to stop5
+        stopAdjacency([0]), // stop 2 (stop3)
+        stopAdjacency([1]), // stop 3 (stop4)
+        stopAdjacency([1]), // stop 4 (stop5)
+        stopAdjacency([1]), // stop 5 (stop6)
       ];
 
       const routesAdjacency = [
@@ -558,11 +559,11 @@ describe('PlainRouter', () => {
       // Route 2 (Line 3): stop1 (08:15) -> stop5 (09:45) - direct but slower
       // The router should prefer Route 0 + Route 1 (arrive 09:10) over Route 2 (arrive 09:45)
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0, 2]), // stop 0 (stop1) - served by Line 1 and Line 3
-        createStopAdjacency([0, 1]), // stop 1 (stop2) - transfer point
-        createStopAdjacency([0]), // stop 2 (stop3)
-        createStopAdjacency([1]), // stop 3 (stop4)
-        createStopAdjacency([1, 2]), // stop 4 (stop5) - destination
+        stopAdjacency([0, 2]), // stop 0 (stop1) - served by Line 1 and Line 3
+        stopAdjacency([0, 1]), // stop 1 (stop2) - transfer point
+        stopAdjacency([0]), // stop 2 (stop3)
+        stopAdjacency([1]), // stop 3 (stop4)
+        stopAdjacency([1, 2]), // stop 4 (stop5) - destination
       ];
 
       const routesAdjacency = [
@@ -747,10 +748,10 @@ describe('PlainRouter', () => {
       ]);
 
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0, 1]), // stop 1 (stop2) - continuation point
-        createStopAdjacency([1]), // stop 2 (stop3)
-        createStopAdjacency([1]), // stop 3 (stop4)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0, 1]), // stop 1 (stop2) - continuation point
+        stopAdjacency([1]), // stop 2 (stop3)
+        stopAdjacency([1]), // stop 3 (stop4)
       ];
 
       const routesAdjacency = [
@@ -915,9 +916,9 @@ describe('PlainRouter', () => {
       ]);
 
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0, 1]), // stop 1 (stop2) - both routes serve this stop
-        createStopAdjacency([1]), // stop 2 (stop3)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0, 1]), // stop 1 (stop2) - both routes serve this stop
+        stopAdjacency([1]), // stop 2 (stop3)
       ];
 
       const routesAdjacency = [
@@ -1065,9 +1066,9 @@ describe('PlainRouter', () => {
       // Route 1 trip 0: stop2 (depart 08:21) -> stop3 (arrive 08:35) - NOT catchable with 5 min minTransferTime
       // Route 1 trip 1: stop2 (depart 08:26) -> stop3 (arrive 08:45) - catchable with 5 min minTransferTime
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0, 1]), // stop 1 (stop2) - both routes serve this stop
-        createStopAdjacency([1]), // stop 2 (stop3)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0, 1]), // stop 1 (stop2) - both routes serve this stop
+        stopAdjacency([1]), // stop 2 (stop3)
       ];
 
       const routesAdjacency = [
@@ -1218,10 +1219,10 @@ describe('PlainRouter', () => {
       // With maxTransfers=1, stop4 should not be reachable
       // With maxTransfers=2, stop4 should be reachable
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]), // stop 0 (stop1)
-        createStopAdjacency([0, 1]), // stop 1 (stop2)
-        createStopAdjacency([1, 2]), // stop 2 (stop3)
-        createStopAdjacency([2]), // stop 3 (stop4)
+        stopAdjacency([0]), // stop 0 (stop1)
+        stopAdjacency([0, 1]), // stop 1 (stop2)
+        stopAdjacency([1, 2]), // stop 2 (stop3)
+        stopAdjacency([2]), // stop 3 (stop4)
       ];
 
       const routesAdjacency = [
@@ -1400,8 +1401,8 @@ describe('PlainRouter', () => {
       // Route 1 (RAIL): stop1 -> stop2, arrives 08:20 (faster)
       // When filtering to BUS only, should use the slower bus route
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0, 1]), // stop 0 (stop1) - served by both routes
-        createStopAdjacency([0, 1]), // stop 1 (stop2) - served by both routes
+        stopAdjacency([0, 1]), // stop 0 (stop1) - served by both routes
+        stopAdjacency([0, 1]), // stop 1 (stop2) - served by both routes
       ];
 
       const routesAdjacency = [
@@ -1535,8 +1536,8 @@ describe('PlainRouter', () => {
       // Trip 0: departs 08:10, arrives 08:30
       // Trip 1: departs 09:10, arrives 09:30
       const stopsAdjacency: StopAdjacency[] = [
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
 
       const routesAdjacency = [
@@ -1660,6 +1661,112 @@ describe('PlainRouter', () => {
 
       // Should still catch the first trip
       assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 30));
+    });
+  });
+
+  describe('with equivalent destination stops', () => {
+    it('routes to the fastest child platform when the parent stop is requested', () => {
+      const { plainRouter } = routingScenario({
+        stops: [
+          'Origin',
+          { name: 'Station', children: [2, 3], locationType: 'STATION' },
+          { name: 'Platform 1', parent: 1 },
+          { name: 'Platform 2', parent: 1 },
+        ],
+        routes: [
+          {
+            name: 'Slow child',
+            mode: RouteTypes.BUS,
+            trips: [
+              {
+                stops: [
+                  {
+                    id: 0,
+                    arrivalTime: timeFromHM(8, 0),
+                    departureTime: timeFromHM(8, 5),
+                  },
+                  {
+                    id: 2,
+                    arrivalTime: timeFromHM(8, 30),
+                    departureTime: timeFromHM(8, 30),
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            name: 'Fast child',
+            mode: RouteTypes.RAIL,
+            trips: [
+              {
+                stops: [
+                  {
+                    id: 0,
+                    arrivalTime: timeFromHM(8, 0),
+                    departureTime: timeFromHM(8, 10),
+                  },
+                  {
+                    id: 3,
+                    arrivalTime: timeFromHM(8, 20),
+                    departureTime: timeFromHM(8, 20),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = plainRouter.route(
+        new Query.Builder()
+          .from(0)
+          .to(1)
+          .departureTime(timeFromHM(8, 0))
+          .build(),
+      );
+
+      const route = result.bestRoute();
+      assert(route);
+      assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 20));
+      assert.strictEqual(route.arrivalTime(), timeFromHM(8, 20));
+      assert.strictEqual(route.legs[route.legs.length - 1]?.to.id, 3);
+    });
+
+    it('returns no route when the requested destination has no equivalent stops', () => {
+      const { plainRouter } = routingScenario({
+        stops: ['Origin', 'Destination'],
+        routes: [
+          {
+            trips: [
+              {
+                stops: [
+                  {
+                    id: 0,
+                    arrivalTime: timeFromHM(8, 0),
+                    departureTime: timeFromHM(8, 10),
+                  },
+                  {
+                    id: 1,
+                    arrivalTime: timeFromHM(8, 30),
+                    departureTime: timeFromHM(8, 30),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = plainRouter.route(
+        new Query.Builder()
+          .from(0)
+          .to(99)
+          .departureTime(timeFromHM(8, 0))
+          .build(),
+      );
+
+      assert.strictEqual(result.bestRoute(), undefined);
+      assert.strictEqual(result.arrivalAt(99), undefined);
     });
   });
 });

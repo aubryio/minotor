@@ -4,17 +4,17 @@ import { describe, it } from 'node:test';
 import { Timetable } from '../../router.js';
 import { Stop, StopId } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
 } from '../../timetable/timetable.js';
 import { ParetoRun, RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
-import { RoutingState, TestVehicleEdge } from '../state.js';
+import { routingRun } from './helpers/routingStateForGraph.js';
 
 // Two-stop timetable with two trips on a single route:
 //   trip 0: stop 0 departs 09:00, stop 1 arrives 09:30
@@ -42,8 +42,8 @@ const stops: Stop[] = [
 const stopsIndex = new StopsIndex(stops);
 
 const stopsAdjacency: StopAdjacency[] = [
-  createStopAdjacency([0]),
-  createStopAdjacency([0]),
+  stopAdjacency([0]),
+  stopAdjacency([0]),
 ];
 const routesAdjacency = [
   Route.of({
@@ -89,62 +89,49 @@ const timetable = new Timetable(stopsAdjacency, routesAdjacency, serviceRoutes);
 const DEST = 1;
 const DESTINATIONS = new Set([DEST]);
 
+function paretoRun(params: {
+  departureTime: number;
+  arrival: number;
+  tripIndex: number;
+  destinations?: ReadonlySet<StopId>;
+}): ParetoRun {
+  const destinations = params.destinations ?? DESTINATIONS;
+  const builder = routingRun({ nbStops: 2, destinations: [...destinations] });
+  builder.origin(0, params.departureTime);
+  builder.ride({
+    round: 1,
+    to: DEST,
+    arrival: params.arrival,
+    routeId: 0,
+    tripIndex: params.tripIndex,
+    boardStopIndex: 0,
+    hopOffStopIndex: 1,
+  });
+
+  return {
+    departureTime: params.departureTime,
+    result: new Result(
+      destinations,
+      builder.buildState(),
+      stopsIndex,
+      timetable,
+    ),
+  };
+}
+
 // Run A — later departure (09:00→09:30, 30-minute duration)
-const edgeA: TestVehicleEdge = {
-  arrival: timeFromHM(9, 30),
-  stopIndex: 0,
-  hopOffStopIndex: 1,
-  routeId: 0,
-  tripIndex: 0,
-};
-const runA: ParetoRun = {
+const runA = paretoRun({
   departureTime: timeFromHM(9, 0),
-  result: new Result(
-    DESTINATIONS,
-    RoutingState.fromTestData({
-      nbStops: 2,
-      origins: [0],
-      destinations: [DEST],
-      arrivals: [
-        [0, timeFromHM(9, 0), 0],
-        [DEST, timeFromHM(9, 30), 1],
-      ],
-      graph: [[[0, { stopId: 0, arrival: timeFromHM(9, 0) }]], [[DEST, edgeA]]],
-    }),
-    stopsIndex,
-    timetable,
-  ),
-};
+  arrival: timeFromHM(9, 30),
+  tripIndex: 0,
+});
 
 // Run B — earlier departure (08:30→09:10, 40-minute duration)
-const edgeB: TestVehicleEdge = {
-  arrival: timeFromHM(9, 10),
-  stopIndex: 0,
-  hopOffStopIndex: 1,
-  routeId: 0,
-  tripIndex: 1,
-};
-const runB: ParetoRun = {
+const runB = paretoRun({
   departureTime: timeFromHM(8, 30),
-  result: new Result(
-    DESTINATIONS,
-    RoutingState.fromTestData({
-      nbStops: 2,
-      origins: [0],
-      destinations: [DEST],
-      arrivals: [
-        [0, timeFromHM(8, 30), 0],
-        [DEST, timeFromHM(9, 10), 1],
-      ],
-      graph: [
-        [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
-        [[DEST, edgeB]],
-      ],
-    }),
-    stopsIndex,
-    timetable,
-  ),
-};
+  arrival: timeFromHM(9, 10),
+  tripIndex: 1,
+});
 
 // Runs are stored latest-departure-first: [runA, runB]
 const rangeResult = new RangeResult([runA, runB], DESTINATIONS);
@@ -284,49 +271,19 @@ describe('RangeResult', () => {
     // reflecting how RangeRouter constructs results in full-network mode.
     const emptyDests = new Set<StopId>();
 
-    const runAFull: ParetoRun = {
+    const runAFull = paretoRun({
       departureTime: timeFromHM(9, 0),
-      result: new Result(
-        emptyDests,
-        RoutingState.fromTestData({
-          nbStops: 2,
-          origins: [0],
-          destinations: [],
-          arrivals: [
-            [0, timeFromHM(9, 0), 0],
-            [DEST, timeFromHM(9, 30), 1],
-          ],
-          graph: [
-            [[0, { stopId: 0, arrival: timeFromHM(9, 0) }]],
-            [[DEST, edgeA]],
-          ],
-        }),
-        stopsIndex,
-        timetable,
-      ),
-    };
+      arrival: timeFromHM(9, 30),
+      tripIndex: 0,
+      destinations: emptyDests,
+    });
 
-    const runBFull: ParetoRun = {
+    const runBFull = paretoRun({
       departureTime: timeFromHM(8, 30),
-      result: new Result(
-        emptyDests,
-        RoutingState.fromTestData({
-          nbStops: 2,
-          origins: [0],
-          destinations: [],
-          arrivals: [
-            [0, timeFromHM(8, 30), 0],
-            [DEST, timeFromHM(9, 10), 1],
-          ],
-          graph: [
-            [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
-            [[DEST, edgeB]],
-          ],
-        }),
-        stopsIndex,
-        timetable,
-      ),
-    };
+      arrival: timeFromHM(9, 10),
+      tripIndex: 1,
+      destinations: emptyDests,
+    });
 
     const fullNetworkResult = new RangeResult([runAFull, runBFull], emptyDests);
 

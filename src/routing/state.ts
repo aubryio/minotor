@@ -1,52 +1,11 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
-import { StopRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
-import { TransferId, TransferType, TripStop } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
-import { CellId, DenseRoutingGraph, NO_CELL, UNREACHED_TIME } from './graph.js';
+import { DenseRoutingGraph, UNREACHED_TIME } from './graph.js';
 import type { IRaptorState } from './raptor.js';
 
 export { UNREACHED_TIME } from './graph.js';
-
-export type TestOriginEdge = { stopId: StopId; arrival: Time };
-
-export type TestAccessEdge = {
-  arrival: Time;
-  from: StopId;
-  to: StopId;
-  duration: Duration;
-};
-
-/** A boarded transit trip used to seed typed graph cells in tests. */
-export type TestVehicleEdge = TripStop & {
-  arrival: Time;
-  hopOffStopIndex: StopRouteIndex;
-  /** Link to the previous test vehicle edge when modeling an in-seat transfer. */
-  continuationOf?: TestVehicleEdge;
-};
-
-/** A walking or guaranteed connection used to seed typed graph cells in tests. */
-export type TestTransferEdge = {
-  arrival: Time;
-  from: StopId;
-  to: StopId;
-  type: TransferType;
-  minTransferTime?: Duration;
-  transferId?: TransferId;
-};
-
-export type TestRoutingCell = { round: number; stop: StopId };
-
-export type TestRoutingEdge = (
-  | TestOriginEdge
-  | TestAccessEdge
-  | TestVehicleEdge
-  | TestTransferEdge
-) & {
-  /** Explicit predecessor cell for tests that need deterministic reconstruction. */
-  predecessor?: TestRoutingCell;
-};
 
 /** The earliest arrival at a stop together with how many legs were needed to reach it. */
 export type Arrival = {
@@ -73,16 +32,14 @@ export class RoutingState implements IRaptorState {
   /**
    * Earliest arrival time at each stop (minutes from midnight), indexed by stop ID.
    * Pre-filled with UNREACHED_TIME; updated exclusively through updateArrival().
-   * Not readonly so that fromTestData() can replace the arrays directly.
    */
-  private earliestArrivalTimes: Uint16Array;
+  private readonly earliestArrivalTimes: Uint16Array;
 
   /**
    * Round number (leg count) in which each stop was first reached, indexed by stop ID.
    * Zero-initialized by the typed array; updated exclusively through updateArrival().
-   * Not readonly so that fromTestData() can replace the arrays directly.
    */
-  private earliestArrivalLegs: Uint8Array;
+  private readonly earliestArrivalLegs: Uint8Array;
 
   /**
    * Fast O(1) membership test for destination stops.
@@ -279,16 +236,6 @@ export class RoutingState implements IRaptorState {
   }
 
   /**
-   * Finds the earliest arrival time at any stop from a given set of destinations.
-   *
-   * @param routingState The routing state containing arrival times and destinations.
-   * @returns The earliest arrival time among the provided destinations.
-   */
-  earliestArrivalAtAnyDestination(): Time {
-    return this._destinationBest;
-  }
-
-  /**
    * Returns the earliest arrival at a stop as an {@link Arrival} object,
    * or undefined if the stop has not been reached.
    */
@@ -304,179 +251,5 @@ export class RoutingState implements IRaptorState {
    */
   isDestination(stop: StopId): boolean {
     return this.destinationMask[stop] === 1;
-  }
-
-  /**
-   * Creates a {@link RoutingState} from fully-specified raw data.
-   *
-   * Use this in tests instead of constructing the object through the production
-   * constructor, which is designed for incremental algorithm state.
-   *
-   * @param nbStops  Total number of stops (sets array sizes).
-   * @param origins  Origin stop IDs.
-   * @param destinations  Destination stop IDs.
-   * @param arrivals  Each entry is `[stop, time, leg]` — the earliest arrival
-   *                  time in minutes and the round number for one stop.
-   * @param graph  One element per round. Each round is a sparse list of
-   *               `[stop, edge]` pairs; stops absent from the list are
-   *               left as `undefined` in the dense output array.
-   *
-   * @internal For use in tests only.
-   */
-  static fromTestData({
-    nbStops,
-    origins = [],
-    destinations = [],
-    arrivals = [],
-    graph = [],
-  }: {
-    nbStops: number;
-    origins?: StopId[];
-    destinations?: StopId[];
-    arrivals?: [stop: StopId, time: Time, leg: number][];
-    graph?: [stop: StopId, edge: TestRoutingEdge][][];
-  }): RoutingState {
-    const state = new RoutingState(
-      0,
-      destinations,
-      origins.map((stop) => ({
-        fromStopId: stop,
-        toStopId: stop,
-        duration: 0,
-      })),
-      nbStops,
-      Math.max(0, graph.length - 1),
-      undefined,
-    );
-
-    // Replace the arrival arrays with freshly built ones so the constructor's
-    // origin-seeding doesn't bleed into the test state.
-    const earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
-    const earliestArrivalLegs = new Uint8Array(nbStops);
-    for (const [stop, time, leg] of arrivals) {
-      earliestArrivalTimes[stop] = time;
-      earliestArrivalLegs[stop] = leg;
-    }
-    state.earliestArrivalTimes = earliestArrivalTimes;
-    state.earliestArrivalLegs = earliestArrivalLegs;
-
-    // Recompute _destinationBest from the test data since we bypassed updateArrival.
-    // fromTestData is a static method of RoutingState, so private access is allowed.
-    state._destinationBest = UNREACHED_TIME;
-    for (const dest of destinations) {
-      const t = earliestArrivalTimes[dest];
-      if (t !== undefined && t < state._destinationBest)
-        state._destinationBest = t;
-    }
-
-    // Convert the sparse per-round object representation into the typed graph.
-    state.graph.clearAll();
-    const knownVehicleCells = new WeakMap<TestVehicleEdge, CellId>();
-    for (let round = 0; round < graph.length; round++) {
-      const roundEdges = graph[round]!;
-      for (const [stop, edge] of roundEdges) {
-        state.setTestRoutingEdge(round, stop, edge, knownVehicleCells);
-      }
-    }
-
-    return state;
-  }
-
-  private setTestRoutingEdge(
-    round: number,
-    stop: StopId,
-    edge: TestRoutingEdge,
-    knownVehicleCells: WeakMap<TestVehicleEdge, CellId>,
-  ): void {
-    if ('routeId' in edge) {
-      const previousCell = edge.continuationOf
-        ? (knownVehicleCells.get(edge.continuationOf) ?? NO_CELL)
-        : (this.testPredecessorCell(edge) ??
-          this.inferTestVehiclePredecessorCell(round));
-      if (edge.continuationOf) {
-        this.graph.setVehicleContinuation(
-          round,
-          stop,
-          edge.arrival,
-          edge.routeId,
-          edge.stopIndex,
-          edge.tripIndex,
-          edge.hopOffStopIndex,
-          previousCell,
-        );
-      } else {
-        this.graph.setVehicle(
-          round,
-          stop,
-          edge.arrival,
-          edge.routeId,
-          edge.stopIndex,
-          edge.tripIndex,
-          edge.hopOffStopIndex,
-          previousCell,
-        );
-      }
-      knownVehicleCells.set(edge, this.graph.cell(round, stop));
-      return;
-    }
-
-    if ('type' in edge) {
-      if (edge.transferId === undefined) {
-        throw new Error('Transfer test edges must include transferId.');
-      }
-      const previousCell =
-        this.testPredecessorCell(edge) ??
-        this.testPredecessorForTransfer(round, edge);
-      this.graph.setTransfer(
-        round,
-        stop,
-        edge.arrival,
-        edge.transferId,
-        previousCell,
-      );
-      return;
-    }
-
-    if ('duration' in edge) {
-      this.graph.setAccess(stop, edge.arrival, edge.from, edge.duration);
-      return;
-    }
-
-    this.graph.setOrigin(stop, edge.arrival, edge.stopId);
-  }
-
-  private testPredecessorCell(edge: TestRoutingEdge): CellId | undefined {
-    if (edge.predecessor === undefined) return undefined;
-    return this.graph.cell(edge.predecessor.round, edge.predecessor.stop);
-  }
-
-  private inferTestVehiclePredecessorCell(round: number): CellId {
-    if (round <= 0) return NO_CELL;
-
-    let onlyPreviousCell = NO_CELL;
-    let previousCellCount = 0;
-    let onlyTransferCell = NO_CELL;
-    let transferCellCount = 0;
-
-    for (const cell of this.graph.occupiedCells()) {
-      if (this.graph.roundOfCell(cell) !== round - 1) continue;
-      onlyPreviousCell = cell;
-      previousCellCount++;
-      if (this.graph.isTransferCell(cell)) {
-        onlyTransferCell = cell;
-        transferCellCount++;
-      }
-    }
-
-    if (transferCellCount === 1) return onlyTransferCell;
-    return previousCellCount === 1 ? onlyPreviousCell : NO_CELL;
-  }
-
-  private testPredecessorForTransfer(
-    round: number,
-    edge: TestTransferEdge,
-  ): CellId {
-    const candidate = this.graph.cell(round, edge.from);
-    return this.graph.hasCell(candidate) ? candidate : NO_CELL;
   }
 }

@@ -4,10 +4,10 @@ import { describe, it } from 'node:test';
 
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -31,9 +31,9 @@ const transfers = [
 ];
 
 const stopsAdjacency: StopAdjacency[] = [
-  createStopAdjacency([], [0, 1]),
-  createStopAdjacency([0]),
-  createStopAdjacency([0]),
+  stopAdjacency([], [0, 1]),
+  stopAdjacency([0]),
+  stopAdjacency([0]),
 ];
 
 const routesAdjacency = [
@@ -145,9 +145,9 @@ describe('AccessFinder', () => {
         },
       ];
       const adj: StopAdjacency[] = [
-        createStopAdjacency([], [0]),
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
+        stopAdjacency([], [0]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
       ];
       const localTimetable = new Timetable(
         adj,
@@ -174,12 +174,12 @@ describe('AccessFinder', () => {
       // Parent stop 3 with two children: stop 4 (8-min walk to stop 1)
       // and stop 5 (3-min walk to stop 1).
       const adj: StopAdjacency[] = [
-        createStopAdjacency([]),
-        createStopAdjacency([0]),
-        createStopAdjacency([0]),
-        createStopAdjacency([]),
-        createStopAdjacency([], [0]),
-        createStopAdjacency([], [1]),
+        stopAdjacency([]),
+        stopAdjacency([0]),
+        stopAdjacency([0]),
+        stopAdjacency([]),
+        stopAdjacency([], [0]),
+        stopAdjacency([], [1]),
       ];
       const extraStops: Stop[] = [
         ...stops,

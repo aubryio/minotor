@@ -16,7 +16,6 @@ import {
 import { PickUpDropOffTypes, Route } from '../route.js';
 import { timeFromHMS } from '../time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -24,11 +23,12 @@ import {
   TripStop,
 } from '../timetable.js';
 import { encode } from '../tripStopId.js';
+import { stopAdjacency } from './helpers/timetable.js';
 
 describe('Timetable IO', () => {
   const stopsAdjacency: StopAdjacency[] = [
-    createStopAdjacency([0], [0]),
-    createStopAdjacency([1], [1]),
+    stopAdjacency([0], [0]),
+    stopAdjacency([1], [1]),
   ];
   const transfers = [
     { from: 0, destination: 2, type: TransferTypes.RECOMMENDED },
@@ -138,8 +138,8 @@ describe('Timetable IO', () => {
 
   it('should handle empty StopAdjacency without transfers or tripContinuations', () => {
     const emptyStopsAdjacency: StopAdjacency[] = [
-      createStopAdjacency([0]),
-      createStopAdjacency([1]),
+      stopAdjacency([0]),
+      stopAdjacency([1]),
     ];
 
     const serialized = serializeStopsAdjacency(emptyStopsAdjacency);

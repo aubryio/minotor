@@ -3,10 +3,10 @@ import { Readable } from 'node:stream';
 import { describe, it } from 'node:test';
 
 import { StopId } from '../../stops/stops.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { PickUpDropOffTypes, Route } from '../../timetable/route.js';
 import { timeFromHMS } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   TransferTypes,
@@ -65,14 +65,8 @@ describe('buildStopsAdjacencyStructure', () => {
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
-      [
-        0,
-        createStopAdjacency([0], [0]),
-      ],
-      [
-        1,
-        createStopAdjacency([]),
-      ],
+      [0, stopAdjacency([0], [0])],
+      [1, stopAdjacency([])],
     ]);
     assert.deepEqual(transfers, [
       { from: 0, destination: 1, type: TransferTypes.RECOMMENDED },
@@ -120,22 +114,10 @@ describe('buildStopsAdjacencyStructure', () => {
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
-      [
-        0,
-        createStopAdjacency([0]),
-      ],
-      [
-        1,
-        createStopAdjacency([0]),
-      ],
-      [
-        2,
-        createStopAdjacency([]),
-      ],
-      [
-        3,
-        createStopAdjacency([]),
-      ],
+      [0, stopAdjacency([0])],
+      [1, stopAdjacency([0])],
+      [2, stopAdjacency([])],
+      [3, stopAdjacency([])],
     ]);
     assert.deepEqual(serviceRoutes[0]?.routes, [0]);
   });
@@ -188,14 +170,8 @@ describe('buildStopsAdjacencyStructure', () => {
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
-      [
-        0,
-        createStopAdjacency([0]),
-      ],
-      [
-        1,
-        createStopAdjacency([1]),
-      ],
+      [0, stopAdjacency([0])],
+      [1, stopAdjacency([1])],
     ]);
   });
 
@@ -232,10 +208,7 @@ describe('buildStopsAdjacencyStructure', () => {
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
-      [
-        0,
-        createStopAdjacency([0]),
-      ],
+      [0, stopAdjacency([0])],
     ]);
   });
 
@@ -272,22 +245,10 @@ describe('buildStopsAdjacencyStructure', () => {
     );
 
     assert.deepEqual(Array.from(stopsAdjacency.entries()), [
-      [
-        0,
-        createStopAdjacency([0]),
-      ],
-      [
-        1,
-        createStopAdjacency([]),
-      ],
-      [
-        2,
-        createStopAdjacency([]),
-      ],
-      [
-        3,
-        createStopAdjacency([]),
-      ],
+      [0, stopAdjacency([0])],
+      [1, stopAdjacency([])],
+      [2, stopAdjacency([])],
+      [3, stopAdjacency([])],
     ]);
   });
 });

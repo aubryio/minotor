@@ -56,14 +56,6 @@ export type StopAdjacency = {
   transferIds: Uint32Array;
 };
 
-export const createStopAdjacency = (
-  routeIds: Iterable<RouteId> = [],
-  transferIds: Iterable<TransferId> = [],
-): StopAdjacency => ({
-  routeIds: Uint32Array.from(routeIds),
-  transferIds: Uint32Array.from(transferIds),
-});
-
 export type TripTransfers = Map<TripStopId, TripStop[]>;
 
 export type ServiceRouteId = number;

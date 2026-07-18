@@ -27,11 +27,6 @@ export class RangeRaptorState implements IRaptorState {
   readonly roundLabels: Uint16Array[];
 
   /**
-   * The latest departure time of the range query.
-   */
-  readonly latestDeparture: Time;
-
-  /**
    * Global best arrival at any destination stop across all runs and rounds.
    * Used for destination-pruning inside scan methods so that routes that cannot
    * beat the already-known best are skipped early.
@@ -55,8 +50,7 @@ export class RangeRaptorState implements IRaptorState {
 
   private currentRun!: RoutingState;
 
-  constructor(maxRounds: number, nbStops: number, latestDeparture: Time) {
-    this.latestDeparture = latestDeparture;
+  constructor(maxRounds: number, nbStops: number) {
     // maxRounds + 2: index 0 = origin/walk legs, indices 1…maxRounds+1 = transit rounds
     this.roundLabels = Array.from({ length: maxRounds + 2 }, () =>
       new Uint16Array(nbStops).fill(UNREACHED_TIME),

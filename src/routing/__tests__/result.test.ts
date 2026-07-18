@@ -4,10 +4,10 @@ import { describe, it } from 'node:test';
 import { Timetable } from '../../router.js';
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
+import { stopAdjacency } from '../../timetable/__tests__/helpers/timetable.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHMS, timeFromString } from '../../timetable/time.js';
 import {
-  createStopAdjacency,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -15,7 +15,13 @@ import {
 } from '../../timetable/timetable.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingState, TestTransferEdge, TestVehicleEdge } from '../state.js';
+import { expectRouteStops } from './helpers/routingAssertions.js';
+import {
+  routingRun,
+  routingStateForGraph,
+  TestTransferEdge,
+  TestVehicleEdge,
+} from './helpers/routingStateForGraph.js';
 
 const NB_STOPS = 7;
 
@@ -98,13 +104,13 @@ describe('Result', () => {
   };
 
   const stopsAdjacency: StopAdjacency[] = [
-    createStopAdjacency([0]),
-    createStopAdjacency([0]),
-    createStopAdjacency([0, 1]),
-    createStopAdjacency([1]),
-    createStopAdjacency([1]),
-    createStopAdjacency([1]),
-    createStopAdjacency([1]),
+    stopAdjacency([0]),
+    stopAdjacency([0]),
+    stopAdjacency([0, 1]),
+    stopAdjacency([1]),
+    stopAdjacency([1]),
+    stopAdjacency([1]),
+    stopAdjacency([1]),
   ];
 
   const routesAdjacency = [
@@ -186,7 +192,7 @@ describe('Result', () => {
     it('should return undefined when no route exists', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2, 3] }),
+        routingStateForGraph({ nbStops: NB_STOPS, destinations: [2, 3] }),
         mockStopsIndex,
         mockTimetable,
       );
@@ -198,7 +204,7 @@ describe('Result', () => {
     it('should return undefined for unreachable destination', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [2, 3],
@@ -224,7 +230,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [2, 3],
@@ -262,7 +268,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [2],
           destinations: [4],
@@ -301,91 +307,58 @@ describe('Result', () => {
     });
 
     it('should handle simple single-leg route reconstruction', () => {
-      const vehicleEdge: TestVehicleEdge = {
+      const run = routingRun({ nbStops: NB_STOPS, destinations: [2] });
+      run.origin(0, timeFromHMS(8, 0, 0));
+      run.ride({
+        round: 1,
+        to: 2,
         arrival: timeFromHMS(9, 0, 0),
-        stopIndex: 0,
-        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
-      };
+        boardStopIndex: 0,
+        hopOffStopIndex: 2,
+      });
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
-          nbStops: NB_STOPS,
-          origins: [0],
-          destinations: [2],
-          arrivals: [
-            [0, timeFromHMS(8, 0, 0), 0],
-            [2, timeFromHMS(9, 0, 0), 1],
-          ],
-          graph: [
-            [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
-            [[2, vehicleEdge]], // round 1
-          ],
-        }),
+        run.buildState(),
         mockStopsIndex,
         mockTimetable,
       );
 
-      const route = result.bestRoute(2);
-      assert(route);
-      assert.strictEqual(route.legs.length, 1);
-      const firstLeg = route.legs[0];
-      assert(firstLeg);
-      assert.strictEqual(firstLeg.from.id, 0);
-      assert.strictEqual(firstLeg.to.id, 2);
+      expectRouteStops(result.bestRoute(2), [0, 2]);
     });
 
     it('should handle multi-leg route with transfer', () => {
-      const firstVehicleEdge: TestVehicleEdge = {
+      const run = routingRun({ nbStops: NB_STOPS, destinations: [3] });
+      run.origin(0, timeFromHMS(8, 0, 0));
+      run.ride({
+        round: 1,
+        to: 2,
         arrival: timeFromHMS(9, 0, 0),
-        stopIndex: 0,
-        hopOffStopIndex: 2,
         routeId: 0,
         tripIndex: 0,
-      };
-
-      const secondVehicleEdge: TestVehicleEdge = {
+        boardStopIndex: 0,
+        hopOffStopIndex: 2,
+      });
+      run.ride({
+        round: 2,
+        to: 3,
         arrival: timeFromHMS(9, 45, 0),
-        stopIndex: 0,
-        hopOffStopIndex: 1,
         routeId: 1,
         tripIndex: 0,
-      };
+        boardStopIndex: 0,
+        hopOffStopIndex: 1,
+      });
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
-          nbStops: NB_STOPS,
-          origins: [0],
-          destinations: [3],
-          arrivals: [
-            [0, timeFromHMS(8, 0, 0), 0],
-            [2, timeFromHMS(9, 0, 0), 1],
-            [3, timeFromHMS(9, 45, 0), 2],
-          ],
-          graph: [
-            [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
-            [[2, firstVehicleEdge]], // round 1
-            [[3, secondVehicleEdge]], // round 2
-          ],
-        }),
+        run.buildState(),
         mockStopsIndex,
         mockTimetable,
       );
 
-      const route = result.bestRoute(3);
-      assert(route);
-      assert.strictEqual(route.legs.length, 2);
-      const firstLeg = route.legs[0];
-      const secondLeg = route.legs[1];
-      assert(firstLeg);
-      assert(secondLeg);
-      assert.strictEqual(firstLeg.from.id, 0);
-      assert.strictEqual(firstLeg.to.id, 2);
-      assert.strictEqual(secondLeg.from.id, 2);
-      assert.strictEqual(secondLeg.to.id, 3);
+      expectRouteStops(result.bestRoute(3), [0, 2, 3]);
     });
   });
 
@@ -401,7 +374,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [2],
@@ -438,7 +411,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [2, 3],
@@ -487,7 +460,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [2],
@@ -537,7 +510,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [3],
@@ -606,7 +579,7 @@ describe('Result', () => {
           },
         ],
       );
-      const state = RoutingState.fromTestData({
+      const state = routingStateForGraph({
         nbStops: NB_STOPS,
         origins: [0],
         destinations: [3],
@@ -676,7 +649,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           destinations: [2],
           arrivals: [[2, timeFromHMS(9, 0, 0), 1]],
@@ -692,7 +665,7 @@ describe('Result', () => {
     it('should return undefined for unreachable stop', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           destinations: [2],
           arrivals: [[2, timeFromHMS(9, 0, 0), 1]],
@@ -710,7 +683,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           destinations: [4],
           arrivals: [
@@ -748,7 +721,7 @@ describe('Result', () => {
 
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [2],
@@ -779,7 +752,7 @@ describe('Result', () => {
     it('should handle non-existent stops', () => {
       const result = new Result(
         mockQuery.to,
-        RoutingState.fromTestData({
+        routingStateForGraph({
           nbStops: NB_STOPS,
           destinations: [2],
           arrivals: [[2, timeFromHMS(9, 0, 0), 1]],
