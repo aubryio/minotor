@@ -26,23 +26,21 @@ On top of the walking time, some adjustments make the estimate more realistic:
 
 - a **detour factor** as no path in the real world is a straight line
 - a flat **change penalty** added to every transfer, for the general overhead of changing
-- a per-mode **access penalty** added on each end, based on the modes serving the two stops, so that a change out of a deep mode such as the subway costs more than the straight-line distance alone would suggest
 
-Both penalties are symmetric, the two directions of a transfer share the same minimum time. Existing transfers from the feed are always preserved:
+The change penalty is symmetric, so the two directions of a transfer share the same minimum time. Existing transfers from the feed are always preserved:
 
-| Option                     | Default                  | Description                                                                                              |
-| -------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `maxDistanceMeters`        | `500`                    | Radius within which two stops are connected                                                              |
-| `walkingSpeedKmh`          | `4`                      | Assumed walking speed                                                                                    |
-| `detourFactor`             | `1.3`                    | Multiplier from straight-line to real walking distance (`1` to disable)                                  |
-| `changePenaltyMinutes`     | `3`                      | Flat penalty added to every generated transfer (`0` to disable)                                          |
-| `modeAccessPenaltyMinutes` | `{ SUBWAY: 4, RAIL: 3 }` | Per-mode access penalty in minutes, keyed by mode name; passing this replaces the default, `{}` disables |
+| Option                 | Default | Description                                                             |
+| ---------------------- | ------- | ----------------------------------------------------------------------- |
+| `maxDistanceMeters`    | `500`   | Radius within which two stops are connected                             |
+| `walkingSpeedKmh`      | `4`     | Assumed walking speed                                                   |
+| `detourFactor`         | `1.3`   | Multiplier from straight-line to real walking distance (`1` to disable) |
+| `changePenaltyMinutes` | `3`     | Flat penalty added to every generated transfer (`0` to disable)         |
 
 ## Custom implementation
 
 The straight-line estimate is relatively basic but works without external dependencies. For realistic walking times, you can implement the `TransferGenerator` interface yourself by e.g. delegating to an external pedestrian routing engine.
 
-The parser passes the candidate origin stops (route-served stops with coordinates) and deduplicates the result against the transfers already in the feed, keeping only links between stops a route actually calls at — so you can emit a transfer for every nearby pair without tracking what already exists. `stopModes` gives the transport modes serving each stop (derived from the routes calling at it) so you can tune transfers to the modes involved; ignore it if you don't need it. Return the directed transfers to add, using `TransferTypes.REQUIRES_MINIMAL_TIME` so the router treats them as walking connections (for both transfers and access/egress). `minTransferTime` is expressed in minutes.
+The parser passes the candidate origin stops (route-served stops with coordinates) and deduplicates the result against the transfers already in the feed, keeping only links between stops a route actually calls at — so you can emit a transfer for every nearby pair without tracking what already exists. Return the directed transfers to add, using `TransferTypes.REQUIRES_MINIMAL_TIME` so the router treats them as walking connections (for both transfers and access/egress). `minTransferTime` is expressed in minutes.
 
 ```ts
 import { GtfsParser, TransferTypes, extendedGtfsProfile } from 'minotor/parser';

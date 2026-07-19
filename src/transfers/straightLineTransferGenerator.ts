@@ -3,27 +3,9 @@ import { distance } from 'geokdbush';
 import { Stop } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { Duration } from '../timetable/time.js';
-import {
-  RouteType,
-  RouteTypes,
-  RouteTypeString,
-  Transfer,
-  TransferTypes,
-} from '../timetable/timetable.js';
+import { Transfer, TransferTypes } from '../timetable/timetable.js';
 import { getOrInsert } from '../utils/map.js';
-import {
-  GeneratedTransfers,
-  StopModes,
-  TransferGenerator,
-} from './generator.js';
-
-/**
- * Extra transfer time, in minutes, attributed to leaving a stop served by a
- * given mode, keyed by mode name. Represents the (mostly vertical) effort of
- * getting between the vehicle and street level — e.g. climbing up from a deep
- * subway platform. Modes absent from the table contribute no penalty.
- */
-export type ModeAccessPenalties = Partial<Record<RouteTypeString, number>>;
+import { GeneratedTransfers, TransferGenerator } from './generator.js';
 
 export type StraightLineTransferGeneratorOptions = {
   /**
@@ -48,24 +30,12 @@ export type StraightLineTransferGeneratorOptions = {
    * station). Use 0 to disable.
    */
   changePenaltyMinutes?: number;
-
-  /**
-   * Per-mode access penalty, in minutes, added on both ends of a transfer based
-   * on the modes serving the origin and destination stops (see
-   * {@link ModeAccessPenalties}). Passing this replaces the default table; pass
-   * `{}` to disable mode penalties entirely.
-   */
-  modeAccessPenaltyMinutes?: ModeAccessPenalties;
 };
 
 const DEFAULT_MAX_DISTANCE_METERS = 500;
 const DEFAULT_WALKING_SPEED_KMH = 4;
 const DEFAULT_DETOUR_FACTOR = 1.3;
 const DEFAULT_CHANGE_PENALTY_MINUTES = 3;
-const DEFAULT_MODE_ACCESS_PENALTY_MINUTES: ModeAccessPenalties = {
-  SUBWAY: 4,
-  RAIL: 3,
-};
 
 /**
  * A {@link TransferGenerator} that connects geographically close stops with
@@ -84,11 +54,8 @@ const DEFAULT_MODE_ACCESS_PENALTY_MINUTES: ModeAccessPenalties = {
  * with a single directed edge; the reverse edge is produced when the neighbor
  * is itself visited as an origin.
  *
- * On top of the walking time, two penalties are added: a flat
- * `changePenaltyMinutes` for the general overhead of any change, and a per-mode
- * access penalty on each end (see {@link ModeAccessPenalties}) so that changes
- * out of deep modes like the subway cost more than the straight-line distance
- * alone would suggest. Both penalties are symmetric, so the two directions of a
+ * On top of the walking time, a flat `changePenaltyMinutes` is added for the
+ * general overhead of any change. It is symmetric, so the two directions of a
  * transfer share the same minimum time.
  */
 export class StraightLineTransferGenerator implements TransferGenerator {
@@ -96,7 +63,6 @@ export class StraightLineTransferGenerator implements TransferGenerator {
   private readonly walkingSpeedKmh: number;
   private readonly detourFactor: number;
   private readonly changePenaltyMinutes: number;
-  private readonly modeAccessPenalty: Map<RouteType, number>;
 
   constructor(options: StraightLineTransferGeneratorOptions = {}) {
     this.maxDistanceMeters =
@@ -105,19 +71,9 @@ export class StraightLineTransferGenerator implements TransferGenerator {
     this.detourFactor = options.detourFactor ?? DEFAULT_DETOUR_FACTOR;
     this.changePenaltyMinutes =
       options.changePenaltyMinutes ?? DEFAULT_CHANGE_PENALTY_MINUTES;
-    this.modeAccessPenalty = new Map();
-    const penalties =
-      options.modeAccessPenaltyMinutes ?? DEFAULT_MODE_ACCESS_PENALTY_MINUTES;
-    for (const [name, minutes] of Object.entries(penalties)) {
-      this.modeAccessPenalty.set(RouteTypes[name as RouteTypeString], minutes);
-    }
   }
 
-  generate(
-    originStops: Stop[],
-    stops: StopsIndex,
-    stopModes: StopModes,
-  ): GeneratedTransfers {
+  generate(originStops: Stop[], stops: StopsIndex): GeneratedTransfers {
     const generated: GeneratedTransfers = new Map();
     const maxDistanceKm = this.maxDistanceMeters / 1000;
 
@@ -126,7 +82,6 @@ export class StraightLineTransferGenerator implements TransferGenerator {
       if (lat === undefined || lon === undefined) {
         continue;
       }
-      const originAccessPenalty = this.accessPenalty(stopModes.get(id));
       const neighbors = stops.findStopsByLocation(
         lat,
         lon,
@@ -149,36 +104,13 @@ export class StraightLineTransferGenerator implements TransferGenerator {
           neighborLat,
         );
         // Emit a single directed edge; the reverse edge is emitted when the
-        // neighbor is itself visited as an origin. Penalties are symmetric, so
+        // neighbor is itself visited as an origin. The penalty is symmetric, so
         // both directions end up with the same minimum time.
-        const minTransferTime =
-          walkingTime +
-          this.changePenaltyMinutes +
-          originAccessPenalty +
-          this.accessPenalty(stopModes.get(neighborId));
+        const minTransferTime = walkingTime + this.changePenaltyMinutes;
         this.addTransfer(generated, id, neighborId, minTransferTime);
       }
     }
     return generated;
-  }
-
-  /**
-   * The access penalty for a stop, in minutes: the smallest per-mode penalty
-   * among the modes serving it (the least-effort way in or out). Stops with no
-   * known or no penalized mode contribute nothing.
-   */
-  private accessPenalty(modes: ReadonlySet<RouteType> | undefined): number {
-    if (modes === undefined) {
-      return 0;
-    }
-    let min = Infinity;
-    for (const mode of modes) {
-      const penalty = this.modeAccessPenalty.get(mode) ?? 0;
-      if (penalty < min) {
-        min = penalty;
-      }
-    }
-    return min === Infinity ? 0 : min;
   }
 
   private addTransfer(

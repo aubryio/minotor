@@ -1,6 +1,6 @@
 import { Stop, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import { RouteType, Transfer } from '../timetable/timetable.js';
+import { Transfer } from '../timetable/timetable.js';
 
 /**
  * A map of directed transfers keyed by their origin stop id. Structurally
@@ -8,16 +8,6 @@ import { RouteType, Transfer } from '../timetable/timetable.js';
  * merged directly into a feed's parsed transfers.
  */
 export type GeneratedTransfers = Map<StopId, Transfer[]>;
-
-/**
- * The set of transport modes (route types) serving each stop, keyed by stop id.
- *
- * A stop's modes are derived from the routes that call at it, so stops that are
- * not served by any route (e.g. parent stations or transfer-only nodes) are
- * simply absent from the map. Generators can use this to tune transfers to the
- * modes involved (e.g. penalizing a change out of a deep subway platform).
- */
-export type StopModes = ReadonlyMap<StopId, ReadonlySet<RouteType>>;
 
 /**
  * Strategy for synthesizing additional stop-to-stop (walking) transfers that
@@ -46,12 +36,10 @@ export interface TransferGenerator {
    *
    * @param originStops - Stops to generate outgoing transfers from.
    * @param stops - Index of all stops, providing coordinates and geo search.
-   * @param stopModes - Transport modes serving each stop, for mode-aware tuning.
    * @returns Candidate transfers to merge into the feed's transfers.
    */
   generate(
     originStops: Stop[],
     stops: StopsIndex,
-    stopModes: StopModes,
   ): GeneratedTransfers | Promise<GeneratedTransfers>;
 }

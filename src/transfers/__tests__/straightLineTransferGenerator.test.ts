@@ -5,12 +5,7 @@ import { distance } from 'geokdbush';
 
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
-import {
-  RouteType,
-  RouteTypes,
-  TransferTypes,
-} from '../../timetable/timetable.js';
-import { StopModes } from '../generator.js';
+import { TransferTypes } from '../../timetable/timetable.js';
 import { StraightLineTransferGenerator } from '../straightLineTransferGenerator.js';
 
 // A tiny synthetic interchange: a subway and a tram stop ~100m apart, a bus
@@ -55,15 +50,12 @@ const noCoords: Stop = {
 
 const stops = new StopsIndex([subway, tram, far, noCoords]);
 
-// No mode information: every stop's access penalty resolves to 0.
-const noModes: StopModes = new Map();
-
 describe('StraightLineTransferGenerator', () => {
   it('connects nearby stops with typed walking transfers', () => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 500,
     });
-    const transfers = generator.generate([subway, tram], stops, noModes);
+    const transfers = generator.generate([subway, tram], stops);
 
     const subwayToTram = (transfers.get(subway.id) ?? []).find(
       (t) => t.destination === tram.id,
@@ -80,7 +72,7 @@ describe('StraightLineTransferGenerator', () => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 500,
     });
-    const transfers = generator.generate([subway, tram], stops, noModes);
+    const transfers = generator.generate([subway, tram], stops);
 
     const subwayToTram = (transfers.get(subway.id) ?? []).filter(
       (t) => t.destination === tram.id,
@@ -98,7 +90,7 @@ describe('StraightLineTransferGenerator', () => {
     });
     // Only the subway is an origin; the reverse tram -> subway edge is only
     // emitted when the tram is itself visited as an origin.
-    const transfers = generator.generate([subway], stops, noModes);
+    const transfers = generator.generate([subway], stops);
 
     const subwayToTram = (transfers.get(subway.id) ?? []).some(
       (t) => t.destination === tram.id,
@@ -114,7 +106,7 @@ describe('StraightLineTransferGenerator', () => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 500,
     });
-    const transfers = generator.generate([subway], stops, noModes);
+    const transfers = generator.generate([subway], stops);
 
     const subwayToFar = (transfers.get(subway.id) ?? []).some(
       (t) => t.destination === far.id,
@@ -127,7 +119,7 @@ describe('StraightLineTransferGenerator', () => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 5000,
     });
-    const transfers = generator.generate([subway], stops, noModes);
+    const transfers = generator.generate([subway], stops);
 
     const subwayToFar = (transfers.get(subway.id) ?? []).some(
       (t) => t.destination === far.id,
@@ -139,7 +131,7 @@ describe('StraightLineTransferGenerator', () => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 5000,
     });
-    const transfers = generator.generate([subway, noCoords], stops, noModes);
+    const transfers = generator.generate([subway, noCoords], stops);
 
     assert.ok(!transfers.has(noCoords.id));
     for (const stopTransfers of transfers.values()) {
@@ -155,9 +147,8 @@ describe('StraightLineTransferGenerator', () => {
       walkingSpeedKmh,
       detourFactor,
       changePenaltyMinutes: 0,
-      modeAccessPenaltyMinutes: {},
     });
-    const transfers = generator.generate([subway], stops, noModes);
+    const transfers = generator.generate([subway], stops);
     const subwayToTram = (transfers.get(subway.id) ?? []).find(
       (t) => t.destination === tram.id,
     );
@@ -171,16 +162,15 @@ describe('StraightLineTransferGenerator', () => {
   });
 
   // Walking time between the subway and tram at the default speed and detour,
-  // with penalties disabled, as a baseline the penalty tests build on. Derived
-  // from the generator so it tracks the default speed/detour.
+  // with the change penalty disabled, as a baseline the penalty test builds on.
+  // Derived from the generator so it tracks the default speed/detour.
   const baseWalkingTime = (() => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 500,
       changePenaltyMinutes: 0,
-      modeAccessPenaltyMinutes: {},
     });
     const transfer = generator
-      .generate([subway], stops, noModes)
+      .generate([subway], stops)
       .get(subway.id)
       ?.find((t) => t.destination === tram.id);
     assert.ok(transfer?.minTransferTime !== undefined);
@@ -191,9 +181,8 @@ describe('StraightLineTransferGenerator', () => {
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 500,
       changePenaltyMinutes: 5,
-      modeAccessPenaltyMinutes: {},
     });
-    const transfers = generator.generate([subway], stops, noModes);
+    const transfers = generator.generate([subway], stops);
     const subwayToTram = (transfers.get(subway.id) ?? []).find(
       (t) => t.destination === tram.id,
     );
@@ -201,60 +190,15 @@ describe('StraightLineTransferGenerator', () => {
     assert.strictEqual(subwayToTram.minTransferTime, baseWalkingTime + 5);
   });
 
-  it('adds a per-mode access penalty on each end, symmetrically', () => {
-    const generator = new StraightLineTransferGenerator({
-      maxDistanceMeters: 500,
-      changePenaltyMinutes: 0,
-      modeAccessPenaltyMinutes: { SUBWAY: 4 },
-    });
-    const modes: StopModes = new Map([
-      [subway.id, new Set<RouteType>([RouteTypes.SUBWAY])],
-      [tram.id, new Set<RouteType>([RouteTypes.TRAM])],
-    ]);
-    const transfers = generator.generate([subway, tram], stops, modes);
-
-    // Only the subway end carries a penalty; the tram mode is not in the table.
-    const subwayToTram = (transfers.get(subway.id) ?? []).find(
-      (t) => t.destination === tram.id,
-    );
-    const tramToSubway = (transfers.get(tram.id) ?? []).find(
-      (t) => t.destination === subway.id,
-    );
-    assert.strictEqual(subwayToTram?.minTransferTime, baseWalkingTime + 4);
-    assert.strictEqual(tramToSubway?.minTransferTime, baseWalkingTime + 4);
-  });
-
-  it('applies the default subway and change penalties out of the box', () => {
-    // Defaults: changePenaltyMinutes 3, SUBWAY access 4, TRAM 0.
+  it('applies the default change penalty out of the box', () => {
+    // Default changePenaltyMinutes is 3.
     const generator = new StraightLineTransferGenerator({
       maxDistanceMeters: 500,
     });
-    const modes: StopModes = new Map([
-      [subway.id, new Set<RouteType>([RouteTypes.SUBWAY])],
-      [tram.id, new Set<RouteType>([RouteTypes.TRAM])],
-    ]);
-    const transfers = generator.generate([subway], stops, modes);
+    const transfers = generator.generate([subway], stops);
     const subwayToTram = (transfers.get(subway.id) ?? []).find(
       (t) => t.destination === tram.id,
     );
-    assert.strictEqual(subwayToTram?.minTransferTime, baseWalkingTime + 3 + 4);
-  });
-
-  it('uses the least-effort mode for a stop served by several modes', () => {
-    // A stop served by both subway and bus has street-level (bus) access, so
-    // the smaller penalty wins.
-    const generator = new StraightLineTransferGenerator({
-      maxDistanceMeters: 500,
-      changePenaltyMinutes: 0,
-      modeAccessPenaltyMinutes: { SUBWAY: 3, BUS: 0 },
-    });
-    const modes: StopModes = new Map([
-      [subway.id, new Set<RouteType>([RouteTypes.SUBWAY, RouteTypes.BUS])],
-    ]);
-    const transfers = generator.generate([subway], stops, modes);
-    const subwayToTram = (transfers.get(subway.id) ?? []).find(
-      (t) => t.destination === tram.id,
-    );
-    assert.strictEqual(subwayToTram?.minTransferTime, baseWalkingTime);
+    assert.strictEqual(subwayToTram?.minTransferTime, baseWalkingTime + 3);
   });
 });

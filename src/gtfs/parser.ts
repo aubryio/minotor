@@ -186,20 +186,9 @@ export class GtfsParser {
           stop.lon !== undefined,
       );
       const stopsIndex = new StopsIndex(Array.from(parsedStops.values()));
-      const stopModes = new Map<StopId, Set<RouteType>>();
-      for (const route of routes) {
-        const serviceRoute = serviceRoutes[route.serviceRoute()];
-        if (serviceRoute === undefined) continue;
-        for (const stopId of route.stops) {
-          getOrInsert(stopModes, stopId, new Set<RouteType>()).add(
-            serviceRoute.type,
-          );
-        }
-      }
       const generatedTransfers = await this.transferGenerator.generate(
         originStops,
         stopsIndex,
-        stopModes,
       );
       let addedTransfers = 0;
       for (const [fromStop, newTransfers] of generatedTransfers) {
