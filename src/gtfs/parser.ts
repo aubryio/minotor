@@ -215,7 +215,7 @@ export class GtfsParser {
             continue;
           }
           connected.add(transfer.destination);
-          existing.push({ ...transfer, generated: true });
+          existing.push(transfer);
           addedTransfers += 1;
         }
       }

@@ -176,8 +176,6 @@ export interface Transfer {
   destination: number;
   type: TransferType;
   minTransferTime?: number | undefined;
-  /** True when synthesized by a transfer generator rather than read from the feed. */
-  generated: boolean;
 }
 
 export interface TripStop {
@@ -326,7 +324,7 @@ export const Route: MessageFns<Route> = {
 };
 
 function createBaseTransfer(): Transfer {
-  return { destination: 0, type: 0, minTransferTime: undefined, generated: false };
+  return { destination: 0, type: 0, minTransferTime: undefined };
 }
 
 export const Transfer: MessageFns<Transfer> = {
@@ -339,9 +337,6 @@ export const Transfer: MessageFns<Transfer> = {
     }
     if (message.minTransferTime !== undefined) {
       writer.uint32(24).uint32(message.minTransferTime);
-    }
-    if (message.generated !== false) {
-      writer.uint32(32).bool(message.generated);
     }
     return writer;
   },
@@ -377,14 +372,6 @@ export const Transfer: MessageFns<Transfer> = {
           message.minTransferTime = reader.uint32();
           continue;
         }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.generated = reader.bool();
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -399,7 +386,6 @@ export const Transfer: MessageFns<Transfer> = {
       destination: isSet(object.destination) ? globalThis.Number(object.destination) : 0,
       type: isSet(object.type) ? transferTypeFromJSON(object.type) : 0,
       minTransferTime: isSet(object.minTransferTime) ? globalThis.Number(object.minTransferTime) : undefined,
-      generated: isSet(object.generated) ? globalThis.Boolean(object.generated) : false,
     };
   },
 
@@ -414,9 +400,6 @@ export const Transfer: MessageFns<Transfer> = {
     if (message.minTransferTime !== undefined) {
       obj.minTransferTime = Math.round(message.minTransferTime);
     }
-    if (message.generated !== false) {
-      obj.generated = message.generated;
-    }
     return obj;
   },
 
@@ -428,7 +411,6 @@ export const Transfer: MessageFns<Transfer> = {
     message.destination = object.destination ?? 0;
     message.type = object.type ?? 0;
     message.minTransferTime = object.minTransferTime ?? undefined;
-    message.generated = object.generated ?? false;
     return message;
   },
 };

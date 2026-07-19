@@ -290,7 +290,6 @@ export class Result {
       to: this.stopsIndex.findStopById(edge.to)!,
       minTransferTime: edge.minTransferTime,
       type: transferTypeToString(edge.type),
-      ...(edge.generated && { generated: true }),
     };
   }
 

@@ -137,7 +137,6 @@ export const serializeStopsAdjacency = (
             ...(transfer.minTransferTime !== undefined && {
               minTransferTime: transfer.minTransferTime,
             }),
-            generated: transfer.generated ?? false,
           }))
         : [],
       routes: value.routes,
@@ -194,7 +193,6 @@ export const deserializeStopsAdjacency = (
         ...(transfer.minTransferTime !== undefined && {
           minTransferTime: transfer.minTransferTime,
         }),
-        ...(transfer.generated && { generated: true }),
       };
       transfers.push(newTransfer);
     }

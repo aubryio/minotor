@@ -30,7 +30,6 @@ export type Access = BaseLeg & {
 export type Transfer = BaseLeg & {
   minTransferTime?: Duration;
   type: TransferTypeString;
-  generated?: boolean;
 };
 
 export type VehicleLeg = BaseLeg & {
@@ -123,7 +122,7 @@ export class Route {
         const toStop = `To: ${leg.to.name}${leg.to.platform ? ` (Pl. ${leg.to.platform})` : ''}`;
         const transferDetails =
           'type' in leg && !('route' in leg)
-            ? `Transfer: ${leg.type}${leg.minTransferTime ? `, Minimum Transfer Time: ${durationToString(leg.minTransferTime)}` : ''} ${leg.generated ? '[generated]' : '[feed]'}`
+            ? `Transfer: ${leg.type}${leg.minTransferTime ? `, Minimum Transfer Time: ${durationToString(leg.minTransferTime)}` : ''}`
             : '';
         const accessDetails =
           'duration' in leg

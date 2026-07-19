@@ -95,10 +95,6 @@ describe('GTFS parser', () => {
     const transfers = timetable.getTransfers(furCreekResId);
     assert(transfers.length > 0);
     assert(
-      transfers.every((t) => t.generated === true),
-      'all synthesized transfers should be flagged as generated',
-    );
-    assert(
       transfers.every((t) => t.type === TransferTypes.REQUIRES_MINIMAL_TIME),
     );
     // Transfers only point at route-served stops, never at the origin itself.
