@@ -2,7 +2,8 @@ import assert from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
 
 import { timeFromHMS } from '../../timetable/time.js';
-import { RouteTypes } from '../../timetable/timetable.js';
+import { RouteTypes, TransferTypes } from '../../timetable/timetable.js';
+import { StraightLineTransferGenerator } from '../../transfers/straightLineTransferGenerator.js';
 import { GtfsParser } from '../parser.js';
 describe('GTFS parser', () => {
   let parser: GtfsParser;
@@ -72,5 +73,31 @@ describe('GTFS parser', () => {
     assert(serviceRoute);
     assert.strictEqual(serviceRoute.name, '10');
     assert.strictEqual(serviceRoute.type, RouteTypes.BUS);
+  });
+
+  it('adds virtual transfers flagged as generated when a generator is supplied', async () => {
+    // The sample feed has no transfers.txt, so a wide radius connects the
+    // route-served stops to each other.
+    const generatorParser = new GtfsParser(
+      './src/gtfs/__tests__/resources/sample-feed.zip',
+      undefined,
+      new StraightLineTransferGenerator({ maxDistanceMeters: 1_000_000 }),
+    );
+    const timetable = await generatorParser.parseTimetable(
+      new Date('2007-01-10'),
+    );
+    const stopsIndex = await generatorParser.parseStops();
+
+    const furCreekResId =
+      stopsIndex.findStopBySourceStopId('FUR_CREEK_RES')?.id;
+    assert(furCreekResId !== undefined);
+
+    const transfers = timetable.getTransfers(furCreekResId);
+    assert(transfers.length > 0);
+    assert(
+      transfers.every((t) => t.type === TransferTypes.REQUIRES_MINIMAL_TIME),
+    );
+    // Transfers only point at route-served stops, never at the origin itself.
+    assert(transfers.every((t) => t.destination !== furCreekResId));
   });
 });

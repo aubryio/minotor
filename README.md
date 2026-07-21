@@ -34,6 +34,7 @@ A more complete isochrone map showcase can be found on [isochrone.ch](https://is
 ## Features
 
 - GTFS feed parsing (standard and extended)
+- Virtual transfer generation — add missing walking transfers between nearby stops
 - Geographic and textual stop search
 - **Point queries** — earliest-arrival journey from an origin to a destination at a given time
 - **Range queries** — all Pareto-optimal journeys within a departure-time window
@@ -64,6 +65,28 @@ const stopsIndex = await parser.parseStops();
 ```
 
 Times are represented at the minute level (16-bit integers). Parsing can take a few minutes for large feeds.
+
+#### Virtual transfers
+
+Many GTFS feeds only partially populate `transfers.txt`, so nearby stops in different stations end up with no walking connection and can't be used as an interchange. Pass a `TransferGenerator` to the parser to synthesize the missing walking transfers before the timetable is serialized. The built-in `StraightLineTransferGenerator` connects nearby stops that aren't already linked, estimating walking time from the straight-line distance:
+
+```ts
+import {
+  GtfsParser,
+  StraightLineTransferGenerator,
+  extendedGtfsProfile,
+} from 'minotor/parser';
+
+const parser = new GtfsParser(
+  'gtfs-feed.zip',
+  extendedGtfsProfile,
+  new StraightLineTransferGenerator({ maxDistanceMeters: 500 }),
+);
+
+const timetable = await parser.parseTimetable(new Date());
+```
+
+See [`src/transfers/README.md`](src/transfers/README.md) for the tuning options and how to plug in a custom generator (e.g. an external pedestrian routing engine).
 
 #### Stop search (browser or Node.js)
 
@@ -155,6 +178,10 @@ const durations = rangeResult.allShortestDurations(); // Map<StopId, DurationArr
 Parse GTFS data for today and save the timetable and stops index to `/tmp`:
 
 `minotor parse-gtfs gtfs_feed.zip`
+
+Additionally generate virtual walking transfers between stops within 1 km:
+
+`minotor parse-gtfs gtfs_feed.zip --virtual-transfers-radius 1000`
 
 Start the interactive REPL:
 
