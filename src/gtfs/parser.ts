@@ -133,7 +133,7 @@ export class GtfsParser {
         transfers: parsedTransfers,
         tripContinuations: parsedTripContinuations,
         guaranteedTripTransfers: parsedGuaranteedTripTransfers,
-      } = await parseTransfers(transfersStream, parsedStops);
+      } = await parseTransfers(transfersStream, parsedStops, activeServiceIds);
       transfers = parsedTransfers;
       tripContinuationsList = parsedTripContinuations;
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
