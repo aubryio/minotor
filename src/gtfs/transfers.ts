@@ -364,6 +364,50 @@ export const addMissingSiblingTransfers = (
 };
 
 /**
+ * Merges generated transfers into parsed feed transfers.
+ *
+ * Only transfers between active stops are kept. Explicit feed transfers and
+ * forbidden directed pairs take precedence over generated candidates.
+ *
+ * @returns The number of generated transfers added.
+ */
+export const addGeneratedTransfers = (
+  generatedTransfers: ReadonlyMap<StopId, readonly Transfer[]>,
+  activeStops: ReadonlySet<StopId>,
+  transfers: TransfersMap,
+  forbiddenTransfers: ForbiddenTransfersMap = new Map(),
+): number => {
+  let addedTransfers = 0;
+
+  for (const [fromStop, candidates] of generatedTransfers) {
+    if (!activeStops.has(fromStop)) continue;
+
+    const existing = transfers.get(fromStop) ?? [];
+    const connected = new Set(existing.map((transfer) => transfer.destination));
+    const forbidden = forbiddenTransfers.get(fromStop);
+
+    for (const transfer of candidates) {
+      if (
+        !activeStops.has(transfer.destination) ||
+        connected.has(transfer.destination) ||
+        forbidden?.has(transfer.destination)
+      ) {
+        continue;
+      }
+      connected.add(transfer.destination);
+      existing.push(transfer);
+      addedTransfers += 1;
+    }
+
+    if (existing.length > 0) {
+      transfers.set(fromStop, existing);
+    }
+  }
+
+  return addedTransfers;
+};
+
+/**
  * Disambiguates stops involved in a transfer.
  *
  * The GTFS specification only refers to a stopId in the trip-to-trip transfers and not the

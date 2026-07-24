@@ -6,13 +6,13 @@ import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { TransferGenerator } from '../transfers/generator.js';
-import { getOrInsert } from '../utils/map.js';
 import { FrequenciesMap, parseFrequencies } from './frequencies.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
 import {
+  addGeneratedTransfers,
   addMissingSiblingTransfers,
   buildTripTransfers,
   ForbiddenTransfersMap,
@@ -207,24 +207,12 @@ export class GtfsParser {
         originStops,
         stopsIndex,
       );
-      let addedTransfers = 0;
-      for (const [fromStop, newTransfers] of generatedTransfers) {
-        const existing = getOrInsert(transfers, fromStop, []);
-        // Deduplicate per directed pair against existing (feed) transfers, and
-        // only keep transfers into stops a route actually calls at.
-        const connected = new Set(existing.map((t) => t.destination));
-        for (const transfer of newTransfers) {
-          if (
-            !activeStopIds.has(transfer.destination) ||
-            connected.has(transfer.destination)
-          ) {
-            continue;
-          }
-          connected.add(transfer.destination);
-          existing.push(transfer);
-          addedTransfers += 1;
-        }
-      }
+      const addedTransfers = addGeneratedTransfers(
+        generatedTransfers,
+        activeStopIds,
+        transfers,
+        forbiddenTransfers,
+      );
       const virtualTransfersEnd = performance.now();
       log.info(
         `${addedTransfers} virtual transfers added. (${(virtualTransfersEnd - virtualTransfersStart).toFixed(2)}ms)`,
