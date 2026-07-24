@@ -67,7 +67,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     const expectedTransfers = new Map([
       [
@@ -148,7 +148,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
@@ -186,7 +186,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
@@ -244,7 +244,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     const expectedTripContinuations = [
       {
@@ -318,7 +318,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     const expectedGuaranteedTripTransfers = [
       {
@@ -398,7 +398,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     // Type 1 with trip IDs -> guaranteedTripTransfers
     const expectedGuaranteedTripTransfers = [
@@ -486,7 +486,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
@@ -523,7 +523,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
@@ -560,7 +560,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
@@ -618,7 +618,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     const expectedTransfers = new Map([
       [
@@ -698,7 +698,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     const expectedTransfers = new Map([
       [
@@ -726,6 +726,93 @@ describe('GTFS transfers parser', () => {
     assert.deepEqual(result.tripContinuations, expectedTripContinuations);
   });
 
+  it('should filter service-scoped transfers by active service regardless of type', async () => {
+    const mockedStream = new Readable();
+    mockedStream.push(
+      'from_stop_id,to_stop_id,from_trip_id,to_trip_id,service_id,transfer_type,min_transfer_time\n',
+    );
+    mockedStream.push('"from","to","","","","0",""\n');
+    mockedStream.push('"from","to","","","","2","120"\n');
+    mockedStream.push('"from","to","","","active","1",""\n');
+    mockedStream.push('"from","to","","","inactive","2","180"\n');
+    mockedStream.push('"from","to","tripA","tripB","active","1",""\n');
+    mockedStream.push('"from","to","tripC","tripD","inactive","1",""\n');
+    mockedStream.push('"from","to","tripE","tripF","active","4",""\n');
+    mockedStream.push('"from","to","tripG","tripH","inactive","4",""\n');
+    mockedStream.push(null);
+
+    const stopsMap: GtfsStopsMap = new Map([
+      [
+        'from',
+        {
+          id: 0,
+          sourceStopId: 'from',
+          name: 'From',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+      [
+        'to',
+        {
+          id: 1,
+          sourceStopId: 'to',
+          name: 'To',
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM',
+        },
+      ],
+    ]);
+
+    const result = await parseTransfers(
+      mockedStream,
+      stopsMap,
+      new Set(['active']),
+    );
+
+    assert.deepEqual(
+      result.transfers,
+      new Map([
+        [
+          0,
+          [
+            {
+              destination: 1,
+              type: TransferTypes.RECOMMENDED,
+              minTransferTime: durationFromSeconds(0),
+            },
+            {
+              destination: 1,
+              type: TransferTypes.REQUIRES_MINIMAL_TIME,
+              minTransferTime: durationFromSeconds(120),
+            },
+            {
+              destination: 1,
+              type: TransferTypes.GUARANTEED,
+              minTransferTime: durationFromSeconds(0),
+            },
+          ],
+        ],
+      ]),
+    );
+    assert.deepEqual(result.guaranteedTripTransfers, [
+      {
+        fromStop: 0,
+        fromTrip: 'tripA',
+        toStop: 1,
+        toTrip: 'tripB',
+      },
+    ]);
+    assert.deepEqual(result.tripContinuations, [
+      {
+        fromStop: 0,
+        fromTrip: 'tripE',
+        toStop: 1,
+        toTrip: 'tripF',
+      },
+    ]);
+  });
+
   it('should handle empty transfers file', async () => {
     const mockedStream = new Readable();
     mockedStream.push(
@@ -735,7 +822,7 @@ describe('GTFS transfers parser', () => {
 
     const stopsMap: GtfsStopsMap = new Map();
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
@@ -774,7 +861,7 @@ describe('GTFS transfers parser', () => {
       ],
     ]);
 
-    const result = await parseTransfers(mockedStream, stopsMap);
+    const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     const expectedTransfers = new Map([
       [

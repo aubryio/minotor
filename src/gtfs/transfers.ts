@@ -13,6 +13,7 @@ import {
   TripTransfers as TripTransfers,
 } from '../timetable/timetable.js';
 import { encode } from '../timetable/tripStopId.js';
+import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTripId, TripsMapping } from './trips.js';
 import { parseCsv } from './utils.js';
@@ -41,6 +42,7 @@ export type TransferEntry = {
   to_trip_id?: GtfsTripId;
   from_route_id?: ServiceRouteId;
   to_route_id?: ServiceRouteId;
+  service_id?: ServiceId;
   transfer_type: GtfsTransferType;
   min_transfer_time?: number;
 };
@@ -180,12 +182,15 @@ const processStopToStopTransfer = (
 /**
  * Parses the transfers.txt file from a GTFS feed.
  *
- * @param stopsStream The readable stream containing the stops data.
- * @return A mapping of stop IDs to corresponding stop details.
+ * @param transfersStream The readable stream containing the transfers data.
+ * @param stopsMap The parsed GTFS stops indexed by their source IDs.
+ * @param activeServiceIds The service IDs active for the requested date.
+ * @returns Parsed stop transfers, trip continuations, and guaranteed trip transfers.
  */
 export const parseTransfers = async (
   transfersStream: NodeJS.ReadableStream,
   stopsMap: GtfsStopsMap,
+  activeServiceIds: ServiceIds,
 ): Promise<{
   transfers: TransfersMap;
   tripContinuations: GtfsTripTransfer[];
@@ -200,6 +205,13 @@ export const parseTransfers = async (
     'min_transfer_time',
   ])) {
     const transferEntry = rawLine as TransferEntry;
+
+    if (
+      transferEntry.service_id &&
+      !activeServiceIds.has(transferEntry.service_id)
+    ) {
+      continue;
+    }
 
     if (
       transferEntry.transfer_type === 3 ||
