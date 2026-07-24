@@ -151,6 +151,7 @@ describe('GTFS transfers parser', () => {
     const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
+    assert.deepEqual(result.forbiddenTransfers, new Map([[0, new Set([1])]]));
     assert.deepEqual(result.tripContinuations, []);
   });
 

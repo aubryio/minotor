@@ -13,7 +13,9 @@ import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
 import {
+  addMissingSiblingTransfers,
   buildTripTransfers,
+  ForbiddenTransfersMap,
   GtfsTripTransfer,
   parseTransfers,
   TransfersMap,
@@ -123,6 +125,7 @@ export class GtfsParser {
     );
 
     let transfers: TransfersMap = new Map();
+    let forbiddenTransfers: ForbiddenTransfersMap = new Map();
     let tripContinuationsList: GtfsTripTransfer[] = [];
     let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
     if (entries[TRANSFERS_FILE]) {
@@ -131,10 +134,12 @@ export class GtfsParser {
       const transfersStream = await zip.stream(TRANSFERS_FILE);
       const {
         transfers: parsedTransfers,
+        forbiddenTransfers: parsedForbiddenTransfers,
         tripContinuations: parsedTripContinuations,
         guaranteedTripTransfers: parsedGuaranteedTripTransfers,
       } = await parseTransfers(transfersStream, parsedStops, activeServiceIds);
       transfers = parsedTransfers;
+      forbiddenTransfers = parsedForbiddenTransfers;
       tripContinuationsList = parsedTripContinuations;
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
       const transfersEnd = performance.now();
@@ -172,6 +177,18 @@ export class GtfsParser {
     const stopTimesEnd = performance.now();
     log.info(
       `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
+    );
+
+    const siblingTransfersStart = performance.now();
+    const siblingTransfersAdded = addMissingSiblingTransfers(
+      parsedStops,
+      activeStopIds,
+      transfers,
+      forbiddenTransfers,
+    );
+    const siblingTransfersEnd = performance.now();
+    log.info(
+      `${siblingTransfersAdded} sibling transfers added. (${(siblingTransfersEnd - siblingTransfersStart).toFixed(2)}ms)`,
     );
 
     if (this.transferGenerator) {

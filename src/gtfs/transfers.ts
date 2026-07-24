@@ -28,6 +28,15 @@ export type GtfsTransferType =
 
 export type TransfersMap = Map<StopId, Transfer[]>;
 
+/**
+ * Directed stop pairs for which the feed explicitly disallows transfers.
+ *
+ * These constraints are retained during parsing so generated transfers do not
+ * accidentally re-enable a connection declared with GTFS transfer_type=3.
+ * They are not serialized into the routing timetable.
+ */
+export type ForbiddenTransfersMap = Map<StopId, Set<StopId>>;
+
 export type GtfsTripTransfer = {
   fromStop: StopId;
   fromTrip: GtfsTripId;
@@ -193,10 +202,12 @@ export const parseTransfers = async (
   activeServiceIds: ServiceIds,
 ): Promise<{
   transfers: TransfersMap;
+  forbiddenTransfers: ForbiddenTransfersMap;
   tripContinuations: GtfsTripTransfer[];
   guaranteedTripTransfers: GtfsTripTransfer[];
 }> => {
   const transfers: TransfersMap = new Map();
+  const forbiddenTransfers: ForbiddenTransfersMap = new Map();
   const tripContinuations: GtfsTripTransfer[] = [];
   const guaranteedTripTransfers: GtfsTripTransfer[] = [];
 
@@ -213,10 +224,9 @@ export const parseTransfers = async (
       continue;
     }
 
-    if (
-      transferEntry.transfer_type === 3 ||
-      transferEntry.transfer_type === 5
-    ) {
+    // Type 5 only prevents remaining seated between two specific trips. It
+    // does not prohibit an ordinary stop-to-stop transfer.
+    if (transferEntry.transfer_type === 5) {
       continue;
     }
 
@@ -231,6 +241,14 @@ export const parseTransfers = async (
       log.warn(
         `Transfer references non-existent stop(s): from_stop_id=${transferEntry.from_stop_id}, to_stop_id=${transferEntry.to_stop_id}`,
       );
+      continue;
+    }
+
+    if (transferEntry.transfer_type === 3) {
+      const forbiddenDestinations =
+        forbiddenTransfers.get(fromStop.id) ?? new Set<StopId>();
+      forbiddenDestinations.add(toStop.id);
+      forbiddenTransfers.set(fromStop.id, forbiddenDestinations);
       continue;
     }
 
@@ -282,9 +300,67 @@ export const parseTransfers = async (
 
   return {
     transfers,
+    forbiddenTransfers,
     tripContinuations,
     guaranteedTripTransfers,
   };
+};
+
+/**
+ * Adds missing directed transfers between route-served child stops belonging
+ * to the same parent station.
+ *
+ * GTFS feeds commonly use parent_station to group platforms while omitting the
+ * corresponding transfers.txt rows. The generated transfers intentionally do
+ * not carry a fixed duration: routing applies the query's fallback minimum
+ * transfer time. Explicit and forbidden feed entries always take precedence.
+ *
+ * @returns The number of directed sibling transfers added.
+ */
+export const addMissingSiblingTransfers = (
+  stopsMap: GtfsStopsMap,
+  activeStops: ReadonlySet<StopId>,
+  transfers: TransfersMap,
+  forbiddenTransfers: ForbiddenTransfersMap = new Map(),
+): number => {
+  let addedTransfers = 0;
+
+  for (const parent of stopsMap.values()) {
+    const activeChildren = parent.children.filter((child) =>
+      activeStops.has(child),
+    );
+    if (activeChildren.length < 2) continue;
+
+    for (const fromStop of activeChildren) {
+      const existing = transfers.get(fromStop) ?? [];
+      const connected = new Set(
+        existing.map((transfer) => transfer.destination),
+      );
+      const forbidden = forbiddenTransfers.get(fromStop);
+
+      for (const toStop of activeChildren) {
+        if (
+          toStop === fromStop ||
+          connected.has(toStop) ||
+          forbidden?.has(toStop)
+        ) {
+          continue;
+        }
+        existing.push({
+          destination: toStop,
+          type: TransferTypes.REQUIRES_MINIMAL_TIME,
+        });
+        connected.add(toStop);
+        addedTransfers += 1;
+      }
+
+      if (existing.length > 0) {
+        transfers.set(fromStop, existing);
+      }
+    }
+  }
+
+  return addedTransfers;
 };
 
 /**
