@@ -2,6 +2,7 @@ import { RouteTypes } from '../../timetable/timetable.js';
 import { GtfsProfile } from '../parser.js';
 
 export const standardGtfsProfile: GtfsProfile = {
+  deriveSiblingTransfers: true,
   routeTypeParser: (routeType: number) => {
     switch (routeType) {
       case 0:

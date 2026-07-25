@@ -38,6 +38,12 @@ const TRANSFERS_FILE = 'transfers.txt';
 
 export type GtfsProfile = {
   routeTypeParser: (routeType: number) => Maybe<RouteType>;
+  /**
+   * Derive fallback transfers between active stops that share a parent station.
+   *
+   * @default true
+   */
+  deriveSiblingTransfers?: boolean;
 };
 
 export class GtfsParser {
@@ -179,17 +185,19 @@ export class GtfsParser {
       `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
     );
 
-    const siblingTransfersStart = performance.now();
-    const siblingTransfersAdded = addMissingSiblingTransfers(
-      parsedStops,
-      activeStopIds,
-      transfers,
-      forbiddenTransfers,
-    );
-    const siblingTransfersEnd = performance.now();
-    log.info(
-      `${siblingTransfersAdded} sibling transfers added. (${(siblingTransfersEnd - siblingTransfersStart).toFixed(2)}ms)`,
-    );
+    if (this.profile.deriveSiblingTransfers !== false) {
+      const siblingTransfersStart = performance.now();
+      const siblingTransfersAdded = addMissingSiblingTransfers(
+        parsedStops,
+        activeStopIds,
+        transfers,
+        forbiddenTransfers,
+      );
+      const siblingTransfersEnd = performance.now();
+      log.info(
+        `${siblingTransfersAdded} sibling transfers added. (${(siblingTransfersEnd - siblingTransfersStart).toFixed(2)}ms)`,
+      );
+    }
 
     if (this.transferGenerator) {
       log.info('Generating virtual transfers');

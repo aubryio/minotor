@@ -142,5 +142,6 @@ const routeTypeParser = (routeType: number): Maybe<RouteType> => {
 };
 
 export const extendedGtfsProfile: GtfsProfile = {
+  deriveSiblingTransfers: true,
   routeTypeParser,
 };
