@@ -8,9 +8,13 @@ import { Timetable, TransferTypes } from '../../timetable/timetable.js';
 import { encode } from '../../timetable/tripStopId.js';
 import { GtfsStopsMap } from '../stops.js';
 import {
+  addGeneratedTransfers,
+  addMissingSiblingTransfers,
   buildTripTransfers,
+  ForbiddenTransfersMap,
   GtfsTripTransfer,
   parseTransfers,
+  TransfersMap,
 } from '../transfers.js';
 import { TripsMapping } from '../trips.js';
 
@@ -96,13 +100,15 @@ describe('GTFS transfers parser', () => {
     assert.deepEqual(result.tripContinuations, []);
   });
 
-  it('should ignore impossible transfer types (3 and 5)', async () => {
+  it('should only retain unscoped impossible transfers as forbidden', async () => {
     const mockedStream = new Readable();
     mockedStream.push(
-      'from_stop_id,to_stop_id,transfer_type,min_transfer_time\n',
+      'from_stop_id,to_stop_id,from_trip_id,to_trip_id,from_route_id,to_route_id,transfer_type,min_transfer_time\n',
     );
-    mockedStream.push('"1100084","8014440:0:1","3","180"\n');
-    mockedStream.push('"1100097","8014447","5","240"\n');
+    mockedStream.push('"1100084","8014440:0:1","","","","","3","180"\n');
+    mockedStream.push('"8014440:0:1","1100084","trip-a","","","","3","180"\n');
+    mockedStream.push('"1100097","8014447","","","","route-b","3","240"\n');
+    mockedStream.push('"1100097","8014447","","","","","5","240"\n');
     mockedStream.push(null);
 
     const stopsMap: GtfsStopsMap = new Map([
@@ -151,6 +157,7 @@ describe('GTFS transfers parser', () => {
     const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
     assert.deepEqual(result.transfers, new Map());
+    assert.deepEqual(result.forbiddenTransfers, new Map([[0, new Set([1])]]));
     assert.deepEqual(result.tripContinuations, []);
   });
 
@@ -878,6 +885,159 @@ describe('GTFS transfers parser', () => {
 
     assert.deepEqual(result.transfers, expectedTransfers);
     assert.deepEqual(result.tripContinuations, []);
+  });
+});
+
+describe('generated transfers', () => {
+  const stopsMap: GtfsStopsMap = new Map([
+    [
+      'station',
+      {
+        id: 0,
+        sourceStopId: 'station',
+        name: 'Interchange',
+        children: [1, 2],
+        locationType: 'STATION',
+      },
+    ],
+    [
+      'platform-a',
+      {
+        id: 1,
+        sourceStopId: 'platform-a',
+        name: 'Interchange',
+        parent: 0,
+        children: [],
+        locationType: 'SIMPLE_STOP_OR_PLATFORM',
+      },
+    ],
+    [
+      'platform-b',
+      {
+        id: 2,
+        sourceStopId: 'platform-b',
+        name: 'Interchange',
+        parent: 0,
+        children: [],
+        locationType: 'SIMPLE_STOP_OR_PLATFORM',
+      },
+    ],
+  ]);
+
+  it('adds directed fallback transfers between active sibling platforms', () => {
+    const transfers: TransfersMap = new Map();
+
+    const added = addMissingSiblingTransfers(
+      stopsMap,
+      new Set([1, 2]),
+      transfers,
+    );
+
+    assert.strictEqual(added, 2);
+    assert.deepStrictEqual(
+      transfers,
+      new Map([
+        [
+          1,
+          [
+            {
+              destination: 2,
+              type: TransferTypes.REQUIRES_MINIMAL_TIME,
+            },
+          ],
+        ],
+        [
+          2,
+          [
+            {
+              destination: 1,
+              type: TransferTypes.REQUIRES_MINIMAL_TIME,
+            },
+          ],
+        ],
+      ]),
+    );
+  });
+
+  it('preserves explicit transfers and excludes forbidden sibling directions', () => {
+    const transfers: TransfersMap = new Map([
+      [
+        1,
+        [
+          {
+            destination: 2,
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
+            minTransferTime: 7,
+          },
+        ],
+      ],
+    ]);
+    const forbiddenTransfers: ForbiddenTransfersMap = new Map([
+      [2, new Set([1])],
+    ]);
+
+    const added = addMissingSiblingTransfers(
+      stopsMap,
+      new Set([1, 2]),
+      transfers,
+      forbiddenTransfers,
+    );
+
+    assert.strictEqual(added, 0);
+    assert.deepStrictEqual(transfers.get(1), [
+      {
+        destination: 2,
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
+        minTransferTime: 7,
+      },
+    ]);
+    assert.strictEqual(transfers.has(2), false);
+  });
+
+  it('excludes forbidden directions from generated transfers', () => {
+    const transfers: TransfersMap = new Map();
+    const generatedTransfers: TransfersMap = new Map([
+      [
+        1,
+        [
+          {
+            destination: 2,
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
+            minTransferTime: 3,
+          },
+        ],
+      ],
+      [
+        2,
+        [
+          {
+            destination: 1,
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
+            minTransferTime: 3,
+          },
+        ],
+      ],
+    ]);
+    const forbiddenTransfers: ForbiddenTransfersMap = new Map([
+      [1, new Set([2])],
+    ]);
+
+    const added = addGeneratedTransfers(
+      generatedTransfers,
+      new Set([1, 2]),
+      transfers,
+      forbiddenTransfers,
+    );
+
+    assert.strictEqual(added, 1);
+    assert.strictEqual(transfers.has(1), false);
+    assert.deepStrictEqual(transfers.get(2), [
+      {
+        destination: 1,
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
+        minTransferTime: 3,
+      },
+    ]);
   });
 });
 

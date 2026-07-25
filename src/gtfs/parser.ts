@@ -6,14 +6,16 @@ import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { TransferGenerator } from '../transfers/generator.js';
-import { getOrInsert } from '../utils/map.js';
 import { FrequenciesMap, parseFrequencies } from './frequencies.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
 import { parseStops } from './stops.js';
 import {
+  addGeneratedTransfers,
+  addMissingSiblingTransfers,
   buildTripTransfers,
+  ForbiddenTransfersMap,
   GtfsTripTransfer,
   parseTransfers,
   TransfersMap,
@@ -36,6 +38,12 @@ const TRANSFERS_FILE = 'transfers.txt';
 
 export type GtfsProfile = {
   routeTypeParser: (routeType: number) => Maybe<RouteType>;
+  /**
+   * Derive fallback transfers between active stops that share a parent station.
+   *
+   * @default true
+   */
+  deriveSiblingTransfers?: boolean;
 };
 
 export class GtfsParser {
@@ -123,6 +131,7 @@ export class GtfsParser {
     );
 
     let transfers: TransfersMap = new Map();
+    let forbiddenTransfers: ForbiddenTransfersMap = new Map();
     let tripContinuationsList: GtfsTripTransfer[] = [];
     let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
     if (entries[TRANSFERS_FILE]) {
@@ -131,10 +140,12 @@ export class GtfsParser {
       const transfersStream = await zip.stream(TRANSFERS_FILE);
       const {
         transfers: parsedTransfers,
+        forbiddenTransfers: parsedForbiddenTransfers,
         tripContinuations: parsedTripContinuations,
         guaranteedTripTransfers: parsedGuaranteedTripTransfers,
       } = await parseTransfers(transfersStream, parsedStops, activeServiceIds);
       transfers = parsedTransfers;
+      forbiddenTransfers = parsedForbiddenTransfers;
       tripContinuationsList = parsedTripContinuations;
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
       const transfersEnd = performance.now();
@@ -174,6 +185,20 @@ export class GtfsParser {
       `${routes.length} valid unique routes. (${(stopTimesEnd - stopTimesStart).toFixed(2)}ms)`,
     );
 
+    if (this.profile.deriveSiblingTransfers !== false) {
+      const siblingTransfersStart = performance.now();
+      const siblingTransfersAdded = addMissingSiblingTransfers(
+        parsedStops,
+        activeStopIds,
+        transfers,
+        forbiddenTransfers,
+      );
+      const siblingTransfersEnd = performance.now();
+      log.info(
+        `${siblingTransfersAdded} sibling transfers added. (${(siblingTransfersEnd - siblingTransfersStart).toFixed(2)}ms)`,
+      );
+    }
+
     if (this.transferGenerator) {
       log.info('Generating virtual transfers');
       const virtualTransfersStart = performance.now();
@@ -190,24 +215,12 @@ export class GtfsParser {
         originStops,
         stopsIndex,
       );
-      let addedTransfers = 0;
-      for (const [fromStop, newTransfers] of generatedTransfers) {
-        const existing = getOrInsert(transfers, fromStop, []);
-        // Deduplicate per directed pair against existing (feed) transfers, and
-        // only keep transfers into stops a route actually calls at.
-        const connected = new Set(existing.map((t) => t.destination));
-        for (const transfer of newTransfers) {
-          if (
-            !activeStopIds.has(transfer.destination) ||
-            connected.has(transfer.destination)
-          ) {
-            continue;
-          }
-          connected.add(transfer.destination);
-          existing.push(transfer);
-          addedTransfers += 1;
-        }
-      }
+      const addedTransfers = addGeneratedTransfers(
+        generatedTransfers,
+        activeStopIds,
+        transfers,
+        forbiddenTransfers,
+      );
       const virtualTransfersEnd = performance.now();
       log.info(
         `${addedTransfers} virtual transfers added. (${(virtualTransfersEnd - virtualTransfersStart).toFixed(2)}ms)`,

@@ -5,6 +5,10 @@ import { RouteTypes } from '../../../timetable/timetable.js';
 import { extendedGtfsProfile } from '../extended.js';
 
 describe('The extended GTFS feed parser', () => {
+  it('derives sibling transfers by default', () => {
+    assert.strictEqual(extendedGtfsProfile.deriveSiblingTransfers, true);
+  });
+
   it('should convert the extended route type to GTFS route type', () => {
     assert.ok(extendedGtfsProfile.routeTypeParser);
     assert.equal(extendedGtfsProfile.routeTypeParser(106), RouteTypes.RAIL);
