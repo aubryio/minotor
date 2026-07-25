@@ -244,24 +244,6 @@ export const parseTransfers = async (
       continue;
     }
 
-    if (transferEntry.transfer_type === 3) {
-      if (
-        transferEntry.from_trip_id ||
-        transferEntry.to_trip_id ||
-        transferEntry.from_route_id ||
-        transferEntry.to_route_id
-      ) {
-        log.warn(
-          `Unsupported transfer of type 3 with trip or route constraints: from_trip_id=${transferEntry.from_trip_id}, to_trip_id=${transferEntry.to_trip_id}, from_route_id=${transferEntry.from_route_id}, to_route_id=${transferEntry.to_route_id}.`,
-        );
-        continue;
-      }
-      const forbiddenDestinations =
-        forbiddenTransfers.get(fromStop.id) ?? new Set<StopId>();
-      forbiddenDestinations.add(toStop.id);
-      forbiddenTransfers.set(fromStop.id, forbiddenDestinations);
-    }
-
     switch (transferEntry.transfer_type) {
       case 4: // In-seat transfer
         processInSeatTransfer(
@@ -295,6 +277,24 @@ export const parseTransfers = async (
           );
         }
         break;
+      case 3: {
+        if (
+          transferEntry.from_trip_id ||
+          transferEntry.to_trip_id ||
+          transferEntry.from_route_id ||
+          transferEntry.to_route_id
+        ) {
+          log.warn(
+            `Unsupported transfer of type 3 with trip or route constraints: from_trip_id=${transferEntry.from_trip_id}, to_trip_id=${transferEntry.to_trip_id}, from_route_id=${transferEntry.from_route_id}, to_route_id=${transferEntry.to_route_id}.`,
+          );
+          break;
+        }
+        const forbiddenDestinations =
+          forbiddenTransfers.get(fromStop.id) ?? new Set<StopId>();
+        forbiddenDestinations.add(toStop.id);
+        forbiddenTransfers.set(fromStop.id, forbiddenDestinations);
+        break;
+      }
       case 0: // Recommended transfer
       case 2: // Requires minimal time
       default:
