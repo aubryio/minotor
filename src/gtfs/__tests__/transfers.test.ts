@@ -100,13 +100,15 @@ describe('GTFS transfers parser', () => {
     assert.deepEqual(result.tripContinuations, []);
   });
 
-  it('should ignore impossible transfer types (3 and 5)', async () => {
+  it('should only retain unscoped impossible transfers as forbidden', async () => {
     const mockedStream = new Readable();
     mockedStream.push(
-      'from_stop_id,to_stop_id,transfer_type,min_transfer_time\n',
+      'from_stop_id,to_stop_id,from_trip_id,to_trip_id,from_route_id,to_route_id,transfer_type,min_transfer_time\n',
     );
-    mockedStream.push('"1100084","8014440:0:1","3","180"\n');
-    mockedStream.push('"1100097","8014447","5","240"\n');
+    mockedStream.push('"1100084","8014440:0:1","","","","","3","180"\n');
+    mockedStream.push('"8014440:0:1","1100084","trip-a","","","","3","180"\n');
+    mockedStream.push('"1100097","8014447","","","","route-b","3","240"\n');
+    mockedStream.push('"1100097","8014447","","","","","5","240"\n');
     mockedStream.push(null);
 
     const stopsMap: GtfsStopsMap = new Map([
