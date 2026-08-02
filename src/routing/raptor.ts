@@ -7,9 +7,20 @@ import {
   TripRouteIndex,
 } from '../timetable/route.js';
 import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
-import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
+import {
+  QualifiedTripTransferDestination,
+  QualifiedTripTransferOrigin,
+  Timetable,
+  TransferTypes,
+  TripStop,
+} from '../timetable/timetable.js';
 import { QueryOptions } from './query.js';
-import { RoutingEdge, TransferEdge, VehicleEdge } from './state.js';
+import {
+  BoardingTransferEdge,
+  RoutingEdge,
+  TransferEdge,
+  VehicleEdge,
+} from './state.js';
 
 /**
  * Common interface for all variants of RAPTOR routing.
@@ -58,6 +69,17 @@ type TripContinuation = TripStop & {
   previousEdge: VehicleEdge;
 };
 
+type QualifiedTransferBoarding = QualifiedTripTransferDestination & {
+  previousEdge: VehicleEdge;
+  fromStop: StopId;
+  toStop: StopId;
+};
+
+type QualifiedTransferScanResult = {
+  markedStops: Set<StopId>;
+  nextBoardings: QualifiedTransferBoarding[];
+};
+
 type Round = number;
 
 /**
@@ -75,11 +97,19 @@ export class Raptor {
 
   run(options: QueryOptions, state: IRaptorState): void {
     const markedStops = new Set<StopId>(state.origins);
+    let pendingQualifiedBoardings = new Map<
+      string,
+      QualifiedTransferBoarding
+    >();
 
     for (let round = 1; round <= options.maxTransfers + 1; round++) {
       state.initRound(round);
 
       const edgesAtCurrentRound = state.graph[round]!;
+      const qualifiedTransferBoardings = Array.from(
+        pendingQualifiedBoardings.values(),
+      );
+      pendingQualifiedBoardings = new Map();
       const reachableRoutes = this.timetable.findReachableRoutes(
         markedStops,
         options.transportModes,
@@ -96,6 +126,31 @@ export class Raptor {
         )) {
           markedStops.add(stop);
         }
+        this.enqueueQualifiedBoardings(
+          pendingQualifiedBoardings,
+          this.findQualifiedTransfersFromRoute(route, round, state, options),
+        );
+      }
+
+      for (const boarding of qualifiedTransferBoardings) {
+        const route = this.timetable.getRoute(boarding.routeId);
+        if (!route) continue;
+        const serviceRoute = this.timetable.getServiceRouteInfo(route);
+        if (!options.transportModes.has(serviceRoute.type)) continue;
+        const scanResult = this.scanQualifiedTransfer(
+          route,
+          round,
+          state,
+          options,
+          boarding,
+        );
+        for (const stop of scanResult.markedStops) {
+          markedStops.add(stop);
+        }
+        this.enqueueQualifiedBoardings(
+          pendingQualifiedBoardings,
+          scanResult.nextBoardings,
+        );
       }
 
       let continuations = this.findTripContinuations(
@@ -107,16 +162,21 @@ export class Raptor {
         stopsFromContinuations.clear();
         for (const continuation of continuations) {
           const route = this.timetable.getRoute(continuation.routeId)!;
-          for (const stop of this.scanRouteContinuation(
+          const scanResult = this.scanRouteContinuation(
             route,
             continuation.stopIndex,
             round,
             state,
             continuation,
-          )) {
+          );
+          for (const stop of scanResult.markedStops) {
             stopsFromContinuations.add(stop);
             markedStops.add(stop);
           }
+          this.enqueueQualifiedBoardings(
+            pendingQualifiedBoardings,
+            scanResult.nextBoardings,
+          );
         }
         continuations = this.findTripContinuations(
           stopsFromContinuations,
@@ -133,7 +193,228 @@ export class Raptor {
         markedStops.add(stop);
       }
 
-      if (markedStops.size === 0) break;
+      if (markedStops.size === 0 && pendingQualifiedBoardings.size === 0) break;
+    }
+  }
+
+  /**
+   * Evaluates the sparse set of trips on a reachable route that own qualified
+   * transfers. These trips are checked independently of stop-label dominance.
+   */
+  private findQualifiedTransfersFromRoute(
+    route: Route,
+    round: Round,
+    state: IRaptorState,
+    options: QueryOptions,
+  ): QualifiedTransferBoarding[] {
+    const boardings: QualifiedTransferBoarding[] = [];
+    const edgesAtPreviousRound = state.graph[round - 1]!;
+
+    for (const origin of this.timetable.getQualifiedTripTransferOrigins(
+      route.id,
+    )) {
+      if (
+        route.dropOffTypeAt(origin.stopIndex, origin.tripIndex) ===
+        PickUpDropOffTypes.NOT_AVAILABLE
+      ) {
+        continue;
+      }
+      const sourceArrival = route.arrivalAt(origin.stopIndex, origin.tripIndex);
+      if (sourceArrival > state.maxArrivalTime) continue;
+
+      for (
+        let boardStopIndex = 0;
+        boardStopIndex < origin.stopIndex;
+        boardStopIndex++
+      ) {
+        const boardStop = route.stops[boardStopIndex]!;
+        const previousEdge = edgesAtPreviousRound[boardStop];
+        if (!previousEdge) continue;
+        const fromTripStop =
+          'routeId' in previousEdge
+            ? {
+                stopIndex: previousEdge.hopOffStopIndex,
+                routeId: previousEdge.routeId,
+                tripIndex: previousEdge.tripIndex,
+              }
+            : undefined;
+        const departure = route.departureFrom(boardStopIndex, origin.tripIndex);
+        if (fromTripStop === undefined && departure < previousEdge.arrival) {
+          continue;
+        }
+        const boardableTrip = this.timetable.findFirstBoardableTrip(
+          boardStopIndex,
+          route,
+          origin.tripIndex,
+          previousEdge.arrival,
+          origin.tripIndex + 1,
+          fromTripStop,
+          options.minTransferTime,
+        );
+        if (boardableTrip !== origin.tripIndex) continue;
+
+        const exceedsInitialWait =
+          round === 1 &&
+          options.maxInitialWaitingTime !== undefined &&
+          departure - previousEdge.arrival > options.maxInitialWaitingTime;
+        if (exceedsInitialWait || departure > state.maxArrivalTime) continue;
+
+        const sourceEdge: VehicleEdge = {
+          routeId: route.id,
+          stopIndex: boardStopIndex,
+          tripIndex: origin.tripIndex,
+          arrival: sourceArrival,
+          hopOffStopIndex: origin.stopIndex,
+        };
+        boardings.push(
+          ...this.createQualifiedTransferBoardings(sourceEdge, origin),
+        );
+        break;
+      }
+    }
+
+    return boardings;
+  }
+
+  /**
+   * Scans the exact destination trip of a qualified transfer, delegating the
+   * guarantee and minimum-time decision to findFirstBoardableTrip.
+   */
+  private scanQualifiedTransfer(
+    route: Route,
+    round: Round,
+    state: IRaptorState,
+    options: QueryOptions,
+    boarding: QualifiedTransferBoarding,
+  ): QualifiedTransferScanResult {
+    const newlyMarkedStops = new Set<StopId>();
+    const nextBoardings: QualifiedTransferBoarding[] = [];
+    const tripIndex = this.timetable.findFirstBoardableTrip(
+      boarding.stopIndex,
+      route,
+      boarding.tripIndex,
+      boarding.previousEdge.arrival,
+      boarding.tripIndex + 1,
+      {
+        stopIndex: boarding.previousEdge.hopOffStopIndex,
+        routeId: boarding.previousEdge.routeId,
+        tripIndex: boarding.previousEdge.tripIndex,
+      },
+      options.minTransferTime,
+    );
+    if (tripIndex !== boarding.tripIndex) {
+      return { markedStops: newlyMarkedStops, nextBoardings };
+    }
+
+    const departure = route.departureFrom(boarding.stopIndex, tripIndex);
+    if (departure > state.maxArrivalTime) {
+      return { markedStops: newlyMarkedStops, nextBoardings };
+    }
+
+    const effectiveTransferTime =
+      boarding.type === TransferTypes.GUARANTEED
+        ? DURATION_ZERO
+        : (boarding.minTransferTime ?? options.minTransferTime);
+    const boardingTransfer: BoardingTransferEdge = {
+      arrival: boarding.previousEdge.arrival + effectiveTransferTime,
+      from: boarding.fromStop,
+      to: boarding.toStop,
+      type: boarding.type,
+      previousEdge: boarding.previousEdge,
+      ...(effectiveTransferTime !== DURATION_ZERO && {
+        minTransferTime: effectiveTransferTime,
+      }),
+    };
+    const edgesAtCurrentRound = state.graph[round]!;
+    const tripStopOffset = route.tripStopOffset(tripIndex);
+
+    for (
+      let currentStopIndex = boarding.stopIndex + 1;
+      currentStopIndex < route.getNbStops();
+      currentStopIndex++
+    ) {
+      const currentStop = route.stops[currentStopIndex]!;
+      const arrivalTime = route.arrivalAtOffset(
+        currentStopIndex,
+        tripStopOffset,
+      );
+      const dropOffType = route.dropOffTypeAtOffset(
+        currentStopIndex,
+        tripStopOffset,
+      );
+      if (
+        dropOffType === PickUpDropOffTypes.NOT_AVAILABLE ||
+        arrivalTime > state.maxArrivalTime
+      ) {
+        continue;
+      }
+
+      const sourceEdge: VehicleEdge = {
+        routeId: route.id,
+        stopIndex: boarding.stopIndex,
+        tripIndex,
+        arrival: arrivalTime,
+        hopOffStopIndex: currentStopIndex,
+        boardingTransfer,
+      };
+      const destinations = this.timetable.getQualifiedTripTransfers(
+        currentStopIndex,
+        route.id,
+        tripIndex,
+      );
+      if (destinations.length > 0) {
+        nextBoardings.push(
+          ...this.createQualifiedTransferBoardings(sourceEdge, {
+            routeId: route.id,
+            tripIndex,
+            stopIndex: currentStopIndex,
+            destinations,
+          }),
+        );
+      }
+
+      if (
+        arrivalTime < state.improvementBound(round, currentStop) &&
+        arrivalTime < state.destinationBest
+      ) {
+        edgesAtCurrentRound[currentStop] = sourceEdge;
+        state.updateArrival(currentStop, arrivalTime, round);
+        newlyMarkedStops.add(currentStop);
+      }
+    }
+
+    return { markedStops: newlyMarkedStops, nextBoardings };
+  }
+
+  private createQualifiedTransferBoardings(
+    previousEdge: VehicleEdge,
+    origin: QualifiedTripTransferOrigin,
+  ): QualifiedTransferBoarding[] {
+    const fromRoute = this.timetable.getRoute(previousEdge.routeId);
+    if (!fromRoute) return [];
+    const boardings: QualifiedTransferBoarding[] = [];
+
+    for (const destination of origin.destinations) {
+      const toRoute = this.timetable.getRoute(destination.routeId);
+      if (!toRoute) continue;
+      boardings.push({
+        ...destination,
+        previousEdge,
+        fromStop: fromRoute.stopId(previousEdge.hopOffStopIndex),
+        toStop: toRoute.stopId(destination.stopIndex),
+      });
+    }
+    return boardings;
+  }
+
+  private enqueueQualifiedBoardings(
+    target: Map<string, QualifiedTransferBoarding>,
+    boardings: QualifiedTransferBoarding[],
+  ): void {
+    for (const boarding of boardings) {
+      const source = boarding.previousEdge;
+      const key = `${source.hopOffStopIndex}:${source.routeId}:${source.tripIndex}>${boarding.stopIndex}:${boarding.routeId}:${boarding.tripIndex}`;
+      if (!target.has(key)) target.set(key, boarding);
     }
   }
 
@@ -188,8 +469,9 @@ export class Raptor {
     round: Round,
     state: IRaptorState,
     tripContinuation: TripContinuation,
-  ): Set<StopId> {
+  ): QualifiedTransferScanResult {
     const newlyMarkedStops = new Set<StopId>();
+    const nextBoardings: QualifiedTransferBoarding[] = [];
     const edgesAtCurrentRound = state.graph[round]!;
 
     const nbStops = route.getNbStops();
@@ -214,6 +496,36 @@ export class Raptor {
       );
 
       if (
+        currentStopIndex > hopOnStopIndex &&
+        dropOffType !== PickUpDropOffTypes.NOT_AVAILABLE &&
+        arrivalTime <= state.maxArrivalTime
+      ) {
+        const destinations = this.timetable.getQualifiedTripTransfers(
+          currentStopIndex,
+          route.id,
+          tripIndex,
+        );
+        if (destinations.length > 0) {
+          const sourceEdge: VehicleEdge = {
+            routeId,
+            stopIndex: hopOnStopIndex,
+            tripIndex,
+            arrival: arrivalTime,
+            hopOffStopIndex: currentStopIndex,
+            continuationOf: previousEdge,
+          };
+          nextBoardings.push(
+            ...this.createQualifiedTransferBoardings(sourceEdge, {
+              routeId,
+              tripIndex,
+              stopIndex: currentStopIndex,
+              destinations,
+            }),
+          );
+        }
+      }
+
+      if (
         dropOffType !== PickUpDropOffTypes.NOT_AVAILABLE &&
         arrivalTime <= state.maxArrivalTime &&
         arrivalTime < state.improvementBound(round, currentStop) &&
@@ -231,7 +543,7 @@ export class Raptor {
         newlyMarkedStops.add(currentStop);
       }
     }
-    return newlyMarkedStops;
+    return { markedStops: newlyMarkedStops, nextBoardings };
   }
 
   /**
@@ -367,8 +679,7 @@ export class Raptor {
   /**
    * Processes all currently marked stops to find available transfers
    * and determines if using these transfers would result in earlier arrival times
-   * at destination stops. It handles different transfer types including in-seat
-   * transfers and walking transfers with appropriate minimum transfer times.
+   * at destination stops.
    *
    * @param options  Query options (minTransferTime, etc.)
    * @param round The current round number in the RAPTOR algorithm

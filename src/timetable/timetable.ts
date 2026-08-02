@@ -3,10 +3,12 @@ import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
 import { StopId } from '../stops/stops.js';
 import {
+  deserializeMinimumTimeTripTransfers,
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
   deserializeTripTransfers,
+  serializeMinimumTimeTripTransfers,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
@@ -21,7 +23,7 @@ import {
   TripRouteIndex,
 } from './route.js';
 import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
-import { encode, TripStopId } from './tripStopId.js';
+import { decode, encode, TripStopId } from './tripStopId.js';
 
 export const TransferTypes = {
   RECOMMENDED: 1,
@@ -52,6 +54,26 @@ export type StopAdjacency = {
 };
 
 export type TripTransfers = Map<TripStopId, TripStop[]>;
+
+export type MinimumTimeTripTransferDestination = TripStop & {
+  minTransferTime?: Duration;
+};
+
+export type QualifiedTripTransferDestination =
+  MinimumTimeTripTransferDestination & {
+    type:
+      | typeof TransferTypes.GUARANTEED
+      | typeof TransferTypes.REQUIRES_MINIMAL_TIME;
+  };
+
+export type QualifiedTripTransferOrigin = TripStop & {
+  destinations: QualifiedTripTransferDestination[];
+};
+
+export type MinimumTimeTripTransfers = Map<
+  TripStopId,
+  MinimumTimeTripTransferDestination[]
+>;
 
 export type ServiceRouteId = number;
 
@@ -97,6 +119,11 @@ export class Timetable {
   private readonly serviceRoutes: ServiceRoute[];
   private readonly tripContinuations?: TripTransfers;
   private readonly guaranteedTripTransfers?: TripTransfers;
+  private readonly minimumTimeTripTransfers?: MinimumTimeTripTransfers;
+  private readonly qualifiedTripTransferOriginsByRoute: Map<
+    RouteId,
+    QualifiedTripTransferOrigin[]
+  >;
   private readonly activeStops: Set<StopId>;
 
   constructor(
@@ -105,12 +132,16 @@ export class Timetable {
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
     guaranteedTripTransfers?: TripTransfers,
+    minimumTimeTripTransfers?: MinimumTimeTripTransfers,
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
     this.tripContinuations = tripContinuations;
     this.guaranteedTripTransfers = guaranteedTripTransfers;
+    this.minimumTimeTripTransfers = minimumTimeTripTransfers;
+    this.qualifiedTripTransferOriginsByRoute =
+      this.buildQualifiedTripTransferOriginsByRoute();
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -139,6 +170,10 @@ export class Timetable {
       guaranteedTripTransfers: serializeTripTransfers(
         this.guaranteedTripTransfers || new Map<TripStopId, TripStop[]>(),
       ),
+      minimumTimeTripTransfers: serializeMinimumTimeTripTransfers(
+        this.minimumTimeTripTransfers ||
+          new Map<TripStopId, MinimumTimeTripTransferDestination[]>(),
+      ),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -154,12 +189,16 @@ export class Timetable {
   static fromData(data: Uint8Array): Timetable {
     const reader = new BinaryReader(data);
     const protoTimetable = ProtoTimetable.decode(reader);
+    const minimumTimeTripTransfers = deserializeMinimumTimeTripTransfers(
+      protoTimetable.minimumTimeTripTransfers,
+    );
     return new Timetable(
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
       deserializeTripTransfers(protoTimetable.tripContinuations),
       deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
+      minimumTimeTripTransfers.size > 0 ? minimumTimeTripTransfers : undefined,
     );
   }
 
@@ -391,8 +430,18 @@ export class Timetable {
       if (isGuaranteed) {
         return t;
       }
+      const destination = {
+        stopIndex,
+        routeId: route.id,
+        tripIndex: t,
+      };
+      const exactTransfer = this.getMinimumTimeTripTransfer(
+        fromTripStop,
+        destination,
+      );
       const departure = route.departureFrom(stopIndex, t);
-      const requiredTime = after + transferTime;
+      const requiredTime =
+        after + (exactTransfer?.minTransferTime ?? transferTime);
       if (departure >= requiredTime) {
         return t;
       }
@@ -420,6 +469,118 @@ export class Timetable {
       return EMPTY_TRIP_BOARDINGS;
     }
     return guaranteedTripTransfers;
+  }
+
+  getMinimumTimeTripTransfers(
+    stopIndex: StopRouteIndex,
+    routeId: RouteId,
+    tripIndex: TripRouteIndex,
+  ): MinimumTimeTripTransferDestination[] {
+    return (
+      this.minimumTimeTripTransfers?.get(
+        encode(stopIndex, routeId, tripIndex),
+      ) ?? []
+    );
+  }
+
+  /**
+   * Retrieves exact trip-to-trip transfers from a trip stop. A guarantee takes
+   * precedence when the same destination also has a minimum-time transfer.
+   */
+  getQualifiedTripTransfers(
+    stopIndex: StopRouteIndex,
+    routeId: RouteId,
+    tripIndex: TripRouteIndex,
+  ): QualifiedTripTransferDestination[] {
+    const transfers: QualifiedTripTransferDestination[] = [];
+    const guaranteedDestinations = new Set<string>();
+
+    for (const transfer of this.getGuaranteedTripTransfers(
+      stopIndex,
+      routeId,
+      tripIndex,
+    )) {
+      guaranteedDestinations.add(
+        `${transfer.stopIndex}:${transfer.routeId}:${transfer.tripIndex}`,
+      );
+      transfers.push({ ...transfer, type: TransferTypes.GUARANTEED });
+    }
+
+    for (const transfer of this.getMinimumTimeTripTransfers(
+      stopIndex,
+      routeId,
+      tripIndex,
+    )) {
+      const destinationKey = `${transfer.stopIndex}:${transfer.routeId}:${transfer.tripIndex}`;
+      if (guaranteedDestinations.has(destinationKey)) continue;
+      transfers.push({
+        ...transfer,
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
+      });
+    }
+
+    return transfers;
+  }
+
+  /**
+   * Retrieves the sparse set of exact source-trip stops with qualified
+   * outgoing transfers on a route.
+   */
+  getQualifiedTripTransferOrigins(
+    routeId: RouteId,
+  ): readonly QualifiedTripTransferOrigin[] {
+    return this.qualifiedTripTransferOriginsByRoute.get(routeId) ?? [];
+  }
+
+  private buildQualifiedTripTransferOriginsByRoute(): Map<
+    RouteId,
+    QualifiedTripTransferOrigin[]
+  > {
+    const originsByRoute = new Map<RouteId, QualifiedTripTransferOrigin[]>();
+    const sourceIds = new Set<TripStopId>();
+
+    for (const sourceId of this.guaranteedTripTransfers?.keys() ?? []) {
+      sourceIds.add(sourceId);
+    }
+    for (const sourceId of this.minimumTimeTripTransfers?.keys() ?? []) {
+      sourceIds.add(sourceId);
+    }
+
+    for (const sourceId of sourceIds) {
+      const [stopIndex, routeId, tripIndex] = decode(sourceId);
+      const destinations = this.getQualifiedTripTransfers(
+        stopIndex,
+        routeId,
+        tripIndex,
+      );
+      if (destinations.length === 0) continue;
+      const origins = originsByRoute.get(routeId) ?? [];
+      origins.push({ stopIndex, routeId, tripIndex, destinations });
+      originsByRoute.set(routeId, origins);
+    }
+
+    for (const origins of originsByRoute.values()) {
+      origins.sort(
+        (a, b) => a.tripIndex - b.tripIndex || a.stopIndex - b.stopIndex,
+      );
+    }
+    return originsByRoute;
+  }
+
+  getMinimumTimeTripTransfer(
+    fromTripStop: TripStop,
+    toTripStop: TripStop,
+  ): MinimumTimeTripTransferDestination | undefined {
+    return this.getMinimumTimeTripTransfers(
+      fromTripStop.stopIndex,
+      fromTripStop.routeId,
+      fromTripStop.tripIndex,
+    ).find(
+      (transfer) =>
+        transfer.stopIndex === toTripStop.stopIndex &&
+        transfer.routeId === toTripStop.routeId &&
+        transfer.tripIndex === toTripStop.tripIndex,
+    );
   }
 }
 

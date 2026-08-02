@@ -6,6 +6,7 @@ import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import {
+  MinimumTimeTripTransfers,
   RouteTypes,
   ServiceRoute,
   StopAdjacency,
@@ -1042,6 +1043,340 @@ describe('PlainRouter', () => {
       // Should arrive at 08:40 because the guaranteed transfer allows catching
       // the 08:21 departure despite only having 1 minute of transfer time
       assert.strictEqual(result.arrivalAt(2)?.arrival, timeFromHM(8, 40));
+    });
+  });
+
+  describe('with cross-stop qualified trip transfers', () => {
+    const buildRouter = (
+      guaranteedTripTransfers?: TripTransfers,
+      minimumTimeTripTransfers?: MinimumTimeTripTransfers,
+      includeEarlierSourceTrip: boolean = false,
+    ): PlainRouter => {
+      const routesAdjacency = [
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            ...(includeEarlierSourceTrip
+              ? [
+                  {
+                    stops: [
+                      {
+                        id: 0,
+                        arrivalTime: timeFromHM(8, 0),
+                        departureTime: timeFromHM(8, 5),
+                      },
+                      {
+                        id: 1,
+                        arrivalTime: timeFromHM(8, 18),
+                        departureTime: timeFromHM(8, 18),
+                      },
+                    ],
+                  },
+                ]
+              : []),
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
+                },
+                {
+                  id: 1,
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 20),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 2,
+                  arrivalTime: timeFromHM(8, 21),
+                  departureTime: timeFromHM(8, 22),
+                },
+                {
+                  id: 3,
+                  arrivalTime: timeFromHM(8, 40),
+                  departureTime: timeFromHM(8, 40),
+                },
+              ],
+            },
+          ],
+        }),
+      ];
+      const timetable = new Timetable(
+        [{ routes: [0] }, { routes: [0] }, { routes: [1] }, { routes: [1] }],
+        routesAdjacency,
+        [
+          { type: RouteTypes.BUS, name: 'Feeder', routes: [0] },
+          { type: RouteTypes.BUS, name: 'Connection', routes: [1] },
+        ],
+        undefined,
+        guaranteedTripTransfers,
+        minimumTimeTripTransfers,
+      );
+      const stopsIndex = new StopsIndex(
+        ['Origin', 'Alight', 'Board', 'Destination'].map((name, id) => ({
+          id,
+          sourceStopId: `stop-${id}`,
+          name,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM' as const,
+        })),
+      );
+      return new PlainRouter(
+        timetable,
+        stopsIndex,
+        new AccessFinder(timetable, stopsIndex),
+        new Raptor(timetable),
+      );
+    };
+
+    it('discovers and reconstructs a guaranteed transfer to another stop', () => {
+      const router = buildRouter(
+        new Map([
+          [encode(1, 0, 0), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]],
+        ]),
+      );
+      const result = router.route(
+        new Query.Builder()
+          .from(0)
+          .to(3)
+          .departureTime(timeFromHM(8, 0))
+          .minTransferTime(durationFromSeconds(300))
+          .build(),
+      );
+
+      const bestRoute = result.bestRoute();
+      assert.ok(bestRoute);
+      assert.strictEqual(bestRoute.legs.length, 3);
+      const transfer = bestRoute.legs[1];
+      assert.ok(transfer && 'type' in transfer);
+      assert.strictEqual(transfer.type, 'GUARANTEED');
+      assert.strictEqual(transfer.from.id, 1);
+      assert.strictEqual(transfer.to.id, 2);
+      assert.strictEqual(result.arrivalAt(3)?.arrival, timeFromHM(8, 40));
+    });
+
+    it('keeps a guarantee from a later source trip that loses stop dominance', () => {
+      const router = buildRouter(
+        new Map([
+          [encode(1, 0, 1), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]],
+        ]),
+        undefined,
+        true,
+      );
+      const result = router.route(
+        new Query.Builder()
+          .from(0)
+          .to(3)
+          .departureTime(timeFromHM(8, 0))
+          .minTransferTime(durationFromSeconds(300))
+          .build(),
+      );
+
+      const bestRoute = result.bestRoute();
+      assert.ok(bestRoute);
+      assert.strictEqual(bestRoute.legs.length, 3);
+      const firstVehicle = bestRoute.legs[0];
+      assert.ok(firstVehicle && 'route' in firstVehicle);
+      assert.strictEqual(firstVehicle.departureTime, timeFromHM(8, 10));
+      const transfer = bestRoute.legs[1];
+      assert.ok(transfer && 'type' in transfer);
+      assert.strictEqual(transfer.type, 'GUARANTEED');
+      assert.strictEqual(result.arrivalAt(3)?.arrival, timeFromHM(8, 40));
+    });
+
+    it('chains qualified transfers without requiring intermediate dominance', () => {
+      const routesAdjacency = [
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 5),
+                },
+                {
+                  id: 1,
+                  arrivalTime: timeFromHM(8, 15),
+                  departureTime: timeFromHM(8, 15),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 2,
+                  arrivalTime: timeFromHM(8, 16),
+                  departureTime: timeFromHM(8, 16),
+                },
+                {
+                  id: 3,
+                  arrivalTime: timeFromHM(8, 25),
+                  departureTime: timeFromHM(8, 25),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 2,
+          serviceRouteId: 2,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 4,
+                  arrivalTime: timeFromHM(8, 26),
+                  departureTime: timeFromHM(8, 26),
+                },
+                {
+                  id: 5,
+                  arrivalTime: timeFromHM(8, 40),
+                  departureTime: timeFromHM(8, 40),
+                },
+              ],
+            },
+          ],
+        }),
+      ];
+      const guaranteedTripTransfers: TripTransfers = new Map([
+        [encode(1, 0, 0), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]],
+        [encode(1, 1, 0), [{ stopIndex: 0, routeId: 2, tripIndex: 0 }]],
+      ]);
+      const timetable = new Timetable(
+        [
+          { routes: [0] },
+          { routes: [0] },
+          { routes: [1] },
+          { routes: [1] },
+          { routes: [2] },
+          { routes: [2] },
+        ],
+        routesAdjacency,
+        [
+          { type: RouteTypes.BUS, name: 'First', routes: [0] },
+          { type: RouteTypes.BUS, name: 'Second', routes: [1] },
+          { type: RouteTypes.BUS, name: 'Third', routes: [2] },
+        ],
+        undefined,
+        guaranteedTripTransfers,
+      );
+      const stopsIndex = new StopsIndex(
+        Array.from({ length: 6 }, (_, id) => ({
+          id,
+          sourceStopId: `chain-${id}`,
+          name: `Chain ${id}`,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM' as const,
+        })),
+      );
+      const router = new PlainRouter(
+        timetable,
+        stopsIndex,
+        new AccessFinder(timetable, stopsIndex),
+        new Raptor(timetable),
+      );
+      const result = router.route(
+        new Query.Builder()
+          .from(0)
+          .to(5)
+          .departureTime(timeFromHM(8, 0))
+          .minTransferTime(durationFromSeconds(300))
+          .build(),
+      );
+
+      const bestRoute = result.bestRoute();
+      assert.ok(bestRoute);
+      assert.strictEqual(bestRoute.legs.length, 5);
+      assert.deepStrictEqual(
+        bestRoute.legs
+          .filter((leg) => 'type' in leg)
+          .map((leg) => ('type' in leg ? leg.type : undefined)),
+        ['GUARANTEED', 'GUARANTEED'],
+      );
+      assert.strictEqual(result.arrivalAt(5)?.arrival, timeFromHM(8, 40));
+    });
+
+    it('uses the exact minimum once when boarding at another stop', () => {
+      const router = buildRouter(
+        undefined,
+        new Map([
+          [
+            encode(1, 0, 0),
+            [
+              {
+                stopIndex: 0,
+                routeId: 1,
+                tripIndex: 0,
+                minTransferTime: durationFromSeconds(120),
+              },
+            ],
+          ],
+        ]),
+      );
+      const result = router.route(
+        new Query.Builder()
+          .from(0)
+          .to(3)
+          .departureTime(timeFromHM(8, 0))
+          .minTransferTime(durationFromSeconds(300))
+          .build(),
+      );
+
+      const bestRoute = result.bestRoute();
+      assert.ok(bestRoute);
+      const transfer = bestRoute.legs[1];
+      assert.ok(transfer && 'type' in transfer);
+      assert.strictEqual(transfer.type, 'REQUIRES_MINIMAL_TIME');
+      assert.strictEqual(transfer.minTransferTime, durationFromSeconds(120));
+      assert.strictEqual(result.arrivalAt(3)?.arrival, timeFromHM(8, 40));
+    });
+
+    it('rejects a qualified transfer whose exact minimum is not met', () => {
+      const router = buildRouter(
+        undefined,
+        new Map([
+          [
+            encode(1, 0, 0),
+            [
+              {
+                stopIndex: 0,
+                routeId: 1,
+                tripIndex: 0,
+                minTransferTime: durationFromSeconds(180),
+              },
+            ],
+          ],
+        ]),
+      );
+      const result = router.route(
+        new Query.Builder()
+          .from(0)
+          .to(3)
+          .departureTime(timeFromHM(8, 0))
+          .build(),
+      );
+
+      assert.strictEqual(result.bestRoute(), undefined);
     });
   });
 

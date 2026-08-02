@@ -1,4 +1,5 @@
 import {
+  MinimumTimeTripTransferEntry as ProtoMinimumTimeTripTransferEntry,
   Route as ProtoRoute,
   RouteType as ProtoRouteType,
   ServiceRoute as ProtoServiceRoute,
@@ -8,6 +9,8 @@ import {
 } from './proto/v1/timetable.js';
 import { Route } from './route.js';
 import {
+  MinimumTimeTripTransferDestination,
+  MinimumTimeTripTransfers,
   RouteType,
   RouteTypes,
   ServiceRoute,
@@ -388,5 +391,54 @@ export const deserializeTripTransfers = (
     result.set(tripBoardingId, destinations);
   }
 
+  return result;
+};
+
+export const serializeMinimumTimeTripTransfers = (
+  tripTransfers: MinimumTimeTripTransfers,
+): ProtoMinimumTimeTripTransferEntry[] => {
+  const result: ProtoMinimumTimeTripTransferEntry[] = [];
+  for (const [tripBoardingId, destinations] of tripTransfers) {
+    const [stopIndex, routeId, tripIndex] = decode(tripBoardingId);
+    result.push({
+      origin: { stopIndex, routeId, tripIndex },
+      destinations: destinations.map((destination) => ({
+        tripStop: {
+          stopIndex: destination.stopIndex,
+          routeId: destination.routeId,
+          tripIndex: destination.tripIndex,
+        },
+        minTransferTime: destination.minTransferTime,
+      })),
+    });
+  }
+  return result;
+};
+
+export const deserializeMinimumTimeTripTransfers = (
+  entries: ProtoMinimumTimeTripTransferEntry[],
+): MinimumTimeTripTransfers => {
+  const result: MinimumTimeTripTransfers = new Map();
+  for (const entry of entries) {
+    if (!entry.origin) continue;
+    const destinations: MinimumTimeTripTransferDestination[] = [];
+    for (const destination of entry.destinations) {
+      if (!destination.tripStop) continue;
+      destinations.push({
+        stopIndex: destination.tripStop.stopIndex,
+        routeId: destination.tripStop.routeId,
+        tripIndex: destination.tripStop.tripIndex,
+        minTransferTime: destination.minTransferTime,
+      });
+    }
+    result.set(
+      encode(
+        entry.origin.stopIndex,
+        entry.origin.routeId,
+        entry.origin.tripIndex,
+      ),
+      destinations,
+    );
+  }
   return result;
 };

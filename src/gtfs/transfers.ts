@@ -4,6 +4,7 @@ import { SourceStopId, StopId } from '../stops/stops.js';
 import { Route } from '../timetable/route.js';
 import { durationFromSeconds } from '../timetable/time.js';
 import {
+  MinimumTimeTripTransfers,
   ServiceRouteId,
   Timetable,
   Transfer,
@@ -13,9 +14,10 @@ import {
   TripTransfers as TripTransfers,
 } from '../timetable/timetable.js';
 import { encode } from '../timetable/tripStopId.js';
+import { GtfsRouteId } from './routes.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
-import { GtfsTripId, TripsMapping } from './trips.js';
+import { GtfsTripId, GtfsTripIdsMap, TripsMapping } from './trips.js';
 import { parseCsv } from './utils.js';
 
 export type GtfsTransferType =
@@ -44,13 +46,25 @@ export type GtfsTripTransfer = {
   toTrip: GtfsTripId;
 };
 
+export type GtfsMinimumTimeTripTransfer = GtfsTripTransfer & {
+  fromRoute?: GtfsRouteId;
+  toRoute?: GtfsRouteId;
+  minTransferTime?: number;
+};
+
+export type QualifiedMinimumTimeTripTransfer = GtfsTripTransfer & {
+  fromRoute?: ServiceRouteId;
+  toRoute?: ServiceRouteId;
+  minTransferTime?: number;
+};
+
 export type TransferEntry = {
   from_stop_id?: SourceStopId;
   to_stop_id?: SourceStopId;
   from_trip_id?: GtfsTripId;
   to_trip_id?: GtfsTripId;
-  from_route_id?: ServiceRouteId;
-  to_route_id?: ServiceRouteId;
+  from_route_id?: GtfsRouteId;
+  to_route_id?: GtfsRouteId;
   service_id?: ServiceId;
   transfer_type: GtfsTransferType;
   min_transfer_time?: number;
@@ -112,6 +126,44 @@ const processGuaranteedTripTransfer = (
     toTrip: transferEntry.to_trip_id,
   };
   guaranteedTripTransfers.push(guaranteedTripTransferEntry);
+};
+
+const processMinimumTimeTripTransfer = (
+  transferEntry: TransferEntry,
+  fromStop: StopId,
+  toStop: StopId,
+  minimumTimeTripTransfers: GtfsMinimumTimeTripTransfer[],
+): void => {
+  const fromTrip = transferEntry.from_trip_id;
+  const toTrip = transferEntry.to_trip_id;
+  if (!fromTrip || !toTrip) {
+    log.warn(
+      `Unsupported partially qualified transfer of type 2 between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
+    );
+    return;
+  }
+
+  if (transferEntry.min_transfer_time === undefined) {
+    log.warn(
+      `Missing minimum transfer time between trips ${transferEntry.from_trip_id} and ${transferEntry.to_trip_id}.`,
+    );
+  }
+
+  minimumTimeTripTransfers.push({
+    fromStop,
+    fromTrip,
+    toStop,
+    toTrip,
+    ...(transferEntry.from_route_id && {
+      fromRoute: transferEntry.from_route_id,
+    }),
+    ...(transferEntry.to_route_id && {
+      toRoute: transferEntry.to_route_id,
+    }),
+    ...(transferEntry.min_transfer_time !== undefined && {
+      minTransferTime: durationFromSeconds(transferEntry.min_transfer_time),
+    }),
+  });
 };
 
 /**
@@ -205,11 +257,13 @@ export const parseTransfers = async (
   forbiddenTransfers: ForbiddenTransfersMap;
   tripContinuations: GtfsTripTransfer[];
   guaranteedTripTransfers: GtfsTripTransfer[];
+  minimumTimeTripTransfers: GtfsMinimumTimeTripTransfer[];
 }> => {
   const transfers: TransfersMap = new Map();
   const forbiddenTransfers: ForbiddenTransfersMap = new Map();
   const tripContinuations: GtfsTripTransfer[] = [];
   const guaranteedTripTransfers: GtfsTripTransfer[] = [];
+  const minimumTimeTripTransfers: GtfsMinimumTimeTripTransfer[] = [];
 
   for await (const rawLine of parseCsv(transfersStream, [
     'transfer_type',
@@ -295,8 +349,24 @@ export const parseTransfers = async (
         forbiddenTransfers.set(fromStop.id, forbiddenDestinations);
         break;
       }
-      case 0: // Recommended transfer
       case 2: // Requires minimal time
+        if (transferEntry.from_trip_id || transferEntry.to_trip_id) {
+          processMinimumTimeTripTransfer(
+            transferEntry,
+            fromStop.id,
+            toStop.id,
+            minimumTimeTripTransfers,
+          );
+        } else {
+          processStopToStopTransfer(
+            transferEntry,
+            fromStop.id,
+            toStop.id,
+            transfers,
+          );
+        }
+        break;
+      case 0: // Recommended transfer
       default:
         processStopToStopTransfer(
           transferEntry,
@@ -313,7 +383,89 @@ export const parseTransfers = async (
     forbiddenTransfers,
     tripContinuations,
     guaranteedTripTransfers,
+    minimumTimeTripTransfers,
   };
+};
+
+/**
+ * Resolves and validates exact type-2 transfer qualifiers against the active
+ * service routes and the concrete internal trips built for the requested day.
+ */
+export const resolveMinimumTimeTripTransfers = (
+  transfers: GtfsMinimumTimeTripTransfer[],
+  gtfsTrips: GtfsTripIdsMap,
+  serviceRoutesMap: ReadonlyMap<GtfsRouteId, ServiceRouteId>,
+  tripsMapping: TripsMapping,
+  timetable: Timetable,
+): QualifiedMinimumTimeTripTransfer[] => {
+  const resolved: QualifiedMinimumTimeTripTransfer[] = [];
+
+  for (const transfer of transfers) {
+    const fromGtfsRoute = gtfsTrips.get(transfer.fromTrip);
+    const toGtfsRoute = gtfsTrips.get(transfer.toTrip);
+    if (!fromGtfsRoute || !toGtfsRoute) {
+      log.warn(
+        `Transfer references unknown trip(s): from_trip_id=${transfer.fromTrip}, to_trip_id=${transfer.toTrip}.`,
+      );
+      continue;
+    }
+    if (
+      (transfer.fromRoute && transfer.fromRoute !== fromGtfsRoute) ||
+      (transfer.toRoute && transfer.toRoute !== toGtfsRoute)
+    ) {
+      log.warn(
+        `Transfer trip/route qualifier mismatch: from_trip_id=${transfer.fromTrip}, from_route_id=${transfer.fromRoute}, to_trip_id=${transfer.toTrip}, to_route_id=${transfer.toRoute}.`,
+      );
+      continue;
+    }
+
+    const fromRouteQualifier = transfer.fromRoute ?? fromGtfsRoute;
+    const toRouteQualifier = transfer.toRoute ?? toGtfsRoute;
+    const fromServiceRoute = serviceRoutesMap.get(fromRouteQualifier);
+    const toServiceRoute = serviceRoutesMap.get(toRouteQualifier);
+    if (fromServiceRoute === undefined || toServiceRoute === undefined) {
+      log.warn(
+        `Transfer references route(s) without an active service route: from_route_id=${fromRouteQualifier}, to_route_id=${toRouteQualifier}.`,
+      );
+      continue;
+    }
+
+    const fromTrip = tripsMapping.get(transfer.fromTrip);
+    const toTrip = tripsMapping.get(transfer.toTrip);
+    if (!fromTrip || !toTrip) {
+      log.warn(
+        `Transfer references trip(s) without an active internal trip: from_trip_id=${transfer.fromTrip}, to_trip_id=${transfer.toTrip}.`,
+      );
+      continue;
+    }
+    const fromInternalRoute = timetable.getRoute(fromTrip.routeId);
+    const toInternalRoute = timetable.getRoute(toTrip.routeId);
+    if (
+      !fromInternalRoute ||
+      !toInternalRoute ||
+      fromInternalRoute.serviceRoute() !== fromServiceRoute ||
+      toInternalRoute.serviceRoute() !== toServiceRoute
+    ) {
+      log.warn(
+        `Transfer trip/service-route mismatch: from_trip_id=${transfer.fromTrip}, to_trip_id=${transfer.toTrip}.`,
+      );
+      continue;
+    }
+
+    resolved.push({
+      fromStop: transfer.fromStop,
+      fromTrip: transfer.fromTrip,
+      toStop: transfer.toStop,
+      toTrip: transfer.toTrip,
+      ...(transfer.fromRoute !== undefined && { fromRoute: fromServiceRoute }),
+      ...(transfer.toRoute !== undefined && { toRoute: toServiceRoute }),
+      ...(transfer.minTransferTime !== undefined && {
+        minTransferTime: transfer.minTransferTime,
+      }),
+    });
+  }
+
+  return resolved;
 };
 
 /**
@@ -479,13 +631,17 @@ const disambiguateTransferStopsIndices = (
  * @param activeStopIds Set of stop IDs that are active/enabled in the system
  * @returns A map from trip boarding IDs to arrays of continuation boarding options
  */
-export const buildTripTransfers = (
+const buildResolvedTripTransfers = <
+  T extends GtfsTripTransfer,
+  D extends TripStop,
+>(
   tripsMapping: TripsMapping,
-  gtfsTripTransfers: GtfsTripTransfer[],
+  gtfsTripTransfers: T[],
   timetable: Timetable,
   activeStopIds: Set<StopId>,
-): TripTransfers => {
-  const continuations: TripTransfers = new Map();
+  buildDestination: (tripStop: TripStop, transfer: T) => D,
+): Map<ReturnType<typeof encode>, D[]> => {
+  const continuations = new Map<ReturnType<typeof encode>, D[]>();
 
   for (const gtfsContinuation of gtfsTripTransfers) {
     if (
@@ -527,11 +683,14 @@ export const buildTripTransfers = (
       fromTripMapping.tripRouteIndex,
     );
 
-    const continuationBoarding: TripStop = {
-      stopIndex: bestStopIndices.toStopIndex,
-      routeId: toTripMapping.routeId,
-      tripIndex: toTripMapping.tripRouteIndex,
-    };
+    const continuationBoarding = buildDestination(
+      {
+        stopIndex: bestStopIndices.toStopIndex,
+        routeId: toTripMapping.routeId,
+        tripIndex: toTripMapping.tripRouteIndex,
+      },
+      gtfsContinuation,
+    );
 
     const existingContinuations = continuations.get(tripStopId) || [];
     existingContinuations.push(continuationBoarding);
@@ -540,6 +699,39 @@ export const buildTripTransfers = (
 
   return continuations;
 };
+
+export const buildTripTransfers = (
+  tripsMapping: TripsMapping,
+  gtfsTripTransfers: GtfsTripTransfer[],
+  timetable: Timetable,
+  activeStopIds: Set<StopId>,
+): TripTransfers =>
+  buildResolvedTripTransfers(
+    tripsMapping,
+    gtfsTripTransfers,
+    timetable,
+    activeStopIds,
+    (tripStop) => tripStop,
+  );
+
+export const buildMinimumTimeTripTransfers = (
+  tripsMapping: TripsMapping,
+  gtfsTripTransfers: QualifiedMinimumTimeTripTransfer[],
+  timetable: Timetable,
+  activeStopIds: Set<StopId>,
+): MinimumTimeTripTransfers =>
+  buildResolvedTripTransfers(
+    tripsMapping,
+    gtfsTripTransfers,
+    timetable,
+    activeStopIds,
+    (tripStop, transfer) => ({
+      ...tripStop,
+      ...(transfer.minTransferTime !== undefined && {
+        minTransferTime: transfer.minTransferTime,
+      }),
+    }),
+  );
 
 const parseGtfsTransferType = (
   gtfsTransferType: GtfsTransferType,

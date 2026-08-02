@@ -11,7 +11,9 @@ import {
   StopAdjacency,
   Timetable,
   TransferTypes,
+  TripTransfers,
 } from '../../timetable/timetable.js';
+import { encode } from '../../timetable/tripStopId.js';
 import { AccessFinder } from '../access.js';
 import { RangeQuery } from '../query.js';
 import { RangeResult } from '../rangeResult.js';
@@ -19,6 +21,113 @@ import { RangeRouter } from '../rangeRouter.js';
 import { Raptor } from '../raptor.js';
 
 describe('RangeRouter', () => {
+  describe('with a dominated qualified-transfer source trip', () => {
+    it('keeps the constrained journey on the range Pareto frontier', () => {
+      const guaranteedTripTransfers: TripTransfers = new Map([
+        [encode(1, 0, 1), [{ stopIndex: 0, routeId: 1, tripIndex: 0 }]],
+      ]);
+      const routesAdjacency = [
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
+                },
+                {
+                  id: 1,
+                  arrivalTime: timeFromHM(8, 18),
+                  departureTime: timeFromHM(8, 18),
+                },
+              ],
+            },
+            {
+              stops: [
+                {
+                  id: 0,
+                  arrivalTime: timeFromHM(8, 0),
+                  departureTime: timeFromHM(8, 10),
+                },
+                {
+                  id: 1,
+                  arrivalTime: timeFromHM(8, 20),
+                  departureTime: timeFromHM(8, 20),
+                },
+              ],
+            },
+          ],
+        }),
+        Route.of({
+          id: 1,
+          serviceRouteId: 1,
+          trips: [
+            {
+              stops: [
+                {
+                  id: 2,
+                  arrivalTime: timeFromHM(8, 21),
+                  departureTime: timeFromHM(8, 22),
+                },
+                {
+                  id: 3,
+                  arrivalTime: timeFromHM(8, 40),
+                  departureTime: timeFromHM(8, 40),
+                },
+              ],
+            },
+          ],
+        }),
+      ];
+      const timetable = new Timetable(
+        [{ routes: [0] }, { routes: [0] }, { routes: [1] }, { routes: [1] }],
+        routesAdjacency,
+        [
+          { type: RouteTypes.BUS, name: 'Source', routes: [0] },
+          { type: RouteTypes.BUS, name: 'Target', routes: [1] },
+        ],
+        undefined,
+        guaranteedTripTransfers,
+      );
+      const stopsIndex = new StopsIndex(
+        ['Origin', 'Alight', 'Board', 'Destination'].map((name, id) => ({
+          id,
+          sourceStopId: `qualified-${id}`,
+          name,
+          children: [],
+          locationType: 'SIMPLE_STOP_OR_PLATFORM' as const,
+        })),
+      );
+      const router = new RangeRouter(
+        timetable,
+        stopsIndex,
+        new AccessFinder(timetable, stopsIndex),
+        new Raptor(timetable),
+      );
+      const result = router.rangeRoute(
+        new RangeQuery.Builder()
+          .from(0)
+          .to(3)
+          .departureTime(timeFromHM(8, 10))
+          .lastDepartureTime(timeFromHM(8, 10))
+          .minTransferTime(durationFromSeconds(300))
+          .rangeOptions({ optimizeBeyondLatestDeparture: false })
+          .build(),
+      );
+
+      const route = result.bestRoute();
+      assert.ok(route);
+      assert.strictEqual(route.arrivalTime(), timeFromHM(8, 40));
+      assert.strictEqual(route.legs.length, 3);
+      const transfer = route.legs[1];
+      assert.ok(transfer && 'type' in transfer);
+      assert.strictEqual(transfer.type, 'GUARANTEED');
+    });
+  });
+
   describe('with initial walking access', () => {
     let router: RangeRouter;
 

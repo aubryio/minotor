@@ -27,6 +27,8 @@ export type VehicleEdge = TripStop & {
   hopOffStopIndex: StopRouteIndex;
   /** modeling in-seat transfer */
   continuationOf?: VehicleEdge;
+  /** Exact trip-qualified transfer used to board this vehicle. */
+  boardingTransfer?: BoardingTransferEdge;
 };
 
 /** A walking or guaranteed connection between two stops. */
@@ -36,6 +38,11 @@ export type TransferEdge = {
   to: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+};
+
+/** A qualified transfer plus its exact incoming vehicle path. */
+export type BoardingTransferEdge = TransferEdge & {
+  previousEdge: VehicleEdge;
 };
 
 export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;

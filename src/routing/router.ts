@@ -13,6 +13,7 @@ export { RangeResult } from './rangeResult.js';
 export type {
   AccessEdge,
   Arrival,
+  BoardingTransferEdge,
   OriginNode,
   RoutingEdge,
   TransferEdge,

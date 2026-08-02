@@ -52,6 +52,16 @@ message TripTransferEntry {
   repeated TripStop destinations = 2;
 }
 
+message MinimumTimeTripTransferDestination {
+  TripStop trip_stop = 1;
+  optional uint32 min_transfer_time = 2;
+}
+
+message MinimumTimeTripTransferEntry {
+  TripStop origin = 1;
+  repeated MinimumTimeTripTransferDestination destinations = 2;
+}
+
 message StopAdjacency {
   repeated uint32 routes = 1;
   repeated Transfer transfers = 2;
@@ -83,4 +93,5 @@ message Timetable {
   repeated ServiceRoute service_routes = 3;
   repeated TripTransferEntry trip_continuations = 4;
   repeated TripTransferEntry guaranteed_trip_transfers = 5;
+  repeated MinimumTimeTripTransferEntry minimum_time_trip_transfers = 6;
 }

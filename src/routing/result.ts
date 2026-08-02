@@ -151,9 +151,12 @@ export class Result {
     let currentStop = fastestDestination;
     let round = fastestLegNumber;
     let previousVehicleEdge: VehicleEdge | undefined;
+    let edgeOverride: VehicleEdge | undefined;
 
     while (round >= 0) {
-      const edge = this.routingState.graph[round]?.[currentStop];
+      const edge =
+        edgeOverride ?? this.routingState.graph[round]?.[currentStop];
+      edgeOverride = undefined;
       if (!edge) {
         if (round === 0) break;
         throw new Error(
@@ -179,6 +182,38 @@ export class Result {
           vehicleLeg = this.buildVehicleLeg(chainedEdges);
         }
         leg = vehicleLeg;
+
+        if (boardingEdge.boardingTransfer) {
+          if (
+            previousVehicleEdge &&
+            this.timetable.isTripTransferGuaranteed(
+              {
+                stopIndex: boardingEdge.hopOffStopIndex,
+                routeId: boardingEdge.routeId,
+                tripIndex: boardingEdge.tripIndex,
+              },
+              {
+                stopIndex: previousVehicleEdge.stopIndex,
+                routeId: previousVehicleEdge.routeId,
+                tripIndex: previousVehicleEdge.tripIndex,
+              },
+            )
+          ) {
+            route.push(
+              this.buildGuaranteedTransferLeg(
+                boardingEdge,
+                previousVehicleEdge,
+              ),
+            );
+          }
+          route.push(vehicleLeg);
+          route.push(this.buildTransferLeg(boardingEdge.boardingTransfer));
+          previousVehicleEdge = undefined;
+          currentStop = boardingEdge.boardingTransfer.from;
+          edgeOverride = boardingEdge.boardingTransfer.previousEdge;
+          round -= 1;
+          continue;
+        }
 
         // Insert a guaranteed transfer leg between consecutive vehicle legs if
         // applicable. Because we are building the array in reverse, the

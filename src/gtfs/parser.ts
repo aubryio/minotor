@@ -14,10 +14,13 @@ import { parseStops } from './stops.js';
 import {
   addGeneratedTransfers,
   addMissingSiblingTransfers,
+  buildMinimumTimeTripTransfers,
   buildTripTransfers,
   ForbiddenTransfersMap,
+  GtfsMinimumTimeTripTransfer,
   GtfsTripTransfer,
   parseTransfers,
+  resolveMinimumTimeTripTransfers,
   TransfersMap,
 } from './transfers.js';
 import {
@@ -134,6 +137,7 @@ export class GtfsParser {
     let forbiddenTransfers: ForbiddenTransfersMap = new Map();
     let tripContinuationsList: GtfsTripTransfer[] = [];
     let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
+    let minimumTimeTripTransfersList: GtfsMinimumTimeTripTransfer[] = [];
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
@@ -143,11 +147,13 @@ export class GtfsParser {
         forbiddenTransfers: parsedForbiddenTransfers,
         tripContinuations: parsedTripContinuations,
         guaranteedTripTransfers: parsedGuaranteedTripTransfers,
+        minimumTimeTripTransfers: parsedMinimumTimeTripTransfers,
       } = await parseTransfers(transfersStream, parsedStops, activeServiceIds);
       transfers = parsedTransfers;
       forbiddenTransfers = parsedForbiddenTransfers;
       tripContinuationsList = parsedTripContinuations;
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
+      minimumTimeTripTransfersList = parsedMinimumTimeTripTransfers;
       const transfersEnd = performance.now();
       log.info(
         `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${guaranteedTripTransfersList.length} guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
@@ -271,6 +277,19 @@ export class GtfsParser {
     log.info(
       `${guaranteedTripTransfers.size} guaranteed trip transfers origins created. (${(guaranteedTripTransfersEnd - guaranteedTripTransfersStart).toFixed(2)}ms)`,
     );
+    const qualifiedMinimumTimeTripTransfers = resolveMinimumTimeTripTransfers(
+      minimumTimeTripTransfersList,
+      trips,
+      serviceRoutesMap,
+      tripsMapping,
+      timetable,
+    );
+    const minimumTimeTripTransfers = buildMinimumTimeTripTransfers(
+      tripsMapping,
+      qualifiedMinimumTimeTripTransfers,
+      timetable,
+      activeStopIds,
+    );
     log.info('Parsing complete.');
 
     return new Timetable(
@@ -279,6 +298,7 @@ export class GtfsParser {
       serviceRoutes,
       tripContinuations,
       guaranteedTripTransfers,
+      minimumTimeTripTransfers.size > 0 ? minimumTimeTripTransfers : undefined,
     );
   }
 
