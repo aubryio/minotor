@@ -161,9 +161,9 @@ export class RangeResult {
    * the shortest travel duration (arrival time − origin departure time) across
    * all Pareto-optimal runs.
    *
-   * Unlike {@link bestRoute}, which returns the route that departs as late as
-   * possible while still arriving early, this method minimizes total time
-   * spent traveling.
+   * When durations tie, the earliest departure is preferred.
+   * Unlike {@link bestRoute}, which minimizes arrival time, this method
+   * minimizes total time spent traveling.
    *
    * Defaults to this result's own destination stop(s) when `to` is omitted.
    * Always pass an explicit `to` stop when operating in full-network mode
@@ -184,7 +184,12 @@ export class RangeResult {
         const arrival = run.result.arrivalAt(stopId);
         if (arrival === undefined) continue;
         const duration = arrival.arrival - run.departureTime;
-        if (duration < shortestDuration) {
+        if (
+          duration < shortestDuration ||
+          (duration === shortestDuration &&
+            fastestRun !== undefined &&
+            run.departureTime < fastestRun.departureTime)
+        ) {
           shortestDuration = duration;
           fastestRun = run;
         }
