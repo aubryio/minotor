@@ -140,7 +140,7 @@ export class StopsIndex {
       maxResults,
       radius,
     ).map((id) => {
-      const stopPoint = this.stopPoints[id as number] as StopPoint;
+      const stopPoint = this.stopPoints[id] as StopPoint;
       return this.stops[stopPoint.id] as Stop;
     });
     return nearestStops;

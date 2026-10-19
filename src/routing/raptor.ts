@@ -9,7 +9,7 @@ import {
 import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
 import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
 import { QueryOptions } from './query.js';
-import { RoutingEdge, TransferEdge, VehicleEdge } from './state.js';
+import { RoutingEdge, VehicleEdge } from './state.js';
 
 /**
  * Common interface for all variants of RAPTOR routing.
@@ -411,7 +411,7 @@ export class Raptor {
             to: transfer.destination, // TODO needed?
             minTransferTime: transferTime || undefined,
             type: transfer.type,
-          } as TransferEdge;
+          };
           state.updateArrival(
             transfer.destination,
             arrivalAfterTransfer,
