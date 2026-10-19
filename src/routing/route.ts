@@ -5,7 +5,6 @@ import {
   DURATION_ZERO,
   durationToString,
   Time,
-  TIME_ORIGIN,
   timeToString,
 } from '../timetable/time.js';
 import type {
@@ -81,7 +80,6 @@ export class Route {
    * @throws If no vehicle leg is found in the route.
    */
   arrivalTime(): Time {
-    let lastVehicleArrivalTime: Time = TIME_ORIGIN;
     let totalTransferTime: Duration = DURATION_ZERO;
 
     // Find the last vehicle leg and sum transfer times that come after it
@@ -90,8 +88,7 @@ export class Route {
       const leg = this.legs[i]!;
 
       if ('arrivalTime' in leg) {
-        lastVehicleArrivalTime = leg.arrivalTime;
-        return lastVehicleArrivalTime + totalTransferTime;
+        return leg.arrivalTime + totalTransferTime;
       } else if ('minTransferTime' in leg && leg.minTransferTime) {
         totalTransferTime += leg.minTransferTime;
       }
