@@ -236,6 +236,25 @@ describe('RangeRouter', () => {
       assert.strictEqual(best.departureTime(), timeFromHM(8, 0));
     });
 
+    it('fastestRoute prefers the earliest departure when durations tie', () => {
+      const query = new RangeQuery.Builder()
+        .from(0)
+        .to(1)
+        .departureTime(timeFromHM(8, 0))
+        .lastDepartureTime(timeFromHM(8, 30))
+        .build();
+
+      const result = router.rangeRoute(query);
+      assert.strictEqual(result.size, 2);
+      for (const target of [undefined, 1, new Set([1])]) {
+        const fastest = result.fastestRoute(target);
+        assert(fastest);
+        assert.strictEqual(fastest.totalDuration(), 30);
+        assert.strictEqual(fastest.departureTime(), timeFromHM(8, 0));
+        assert.strictEqual(fastest.arrivalTime(), timeFromHM(8, 30));
+      }
+    });
+
     it('excludes a departure dominated by a later trip', () => {
       // Rebuild with a timetable where:
       //   trip 0: departs 08:00 → arrives 09:00 (slower)
