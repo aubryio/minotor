@@ -1,12 +1,12 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { PickUpDropOffTypes, RouteType, RouteTypes } from '../../router.js';
 import { Stop } from '../../stops/stops.js';
 import { StopsIndex } from '../../stops/stopsIndex.js';
 import { Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
-  RouteTypes,
   ServiceRoute,
   StopAdjacency,
   Timetable,
@@ -27,11 +27,13 @@ const routesAdjacency = [
         stops: [
           {
             id: 0,
+            pickUpType: PickUpDropOffTypes.MUST_PHONE_AGENCY,
             arrivalTime: timeFromHM(8, 0),
             departureTime: timeFromHM(8, 10),
           },
           {
             id: 1,
+            dropOffType: PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER,
             arrivalTime: timeFromHM(8, 30),
             departureTime: timeFromHM(8, 30),
           },
@@ -72,10 +74,19 @@ describe('Router', () => {
     const query = new Query.Builder()
       .from(0)
       .to(1)
+      .transportModes(new Set<RouteType>([RouteTypes.BUS]))
       .departureTime(timeFromHM(8, 0))
       .build();
     const result = router.route(query);
     assert(result instanceof Result);
+    const leg = result.bestRoute()?.legs[0];
+    assert(leg && 'route' in leg);
+    assert.strictEqual(leg.route.type, RouteTypes.BUS);
+    assert.strictEqual(leg.pickUpType, PickUpDropOffTypes.MUST_PHONE_AGENCY);
+    assert.strictEqual(
+      leg.dropOffType,
+      PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER,
+    );
     assert.strictEqual(result.arrivalAt(1)?.arrival, timeFromHM(8, 30));
   });
 
@@ -83,11 +94,20 @@ describe('Router', () => {
     const query = new RangeQuery.Builder()
       .from(0)
       .to(1)
+      .transportModes(new Set<RouteType>([RouteTypes.BUS]))
       .departureTime(timeFromHM(8, 0))
       .lastDepartureTime(timeFromHM(9, 0))
       .build();
     const result = router.rangeRoute(query);
     assert(result instanceof RangeResult);
+    const leg = result.bestRoute()?.legs[0];
+    assert(leg && 'route' in leg);
+    assert.strictEqual(leg.route.type, RouteTypes.BUS);
+    assert.strictEqual(leg.pickUpType, PickUpDropOffTypes.MUST_PHONE_AGENCY);
+    assert.strictEqual(
+      leg.dropOffType,
+      PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER,
+    );
     assert.strictEqual(result.size, 1);
     assert.strictEqual(result.bestRoute()?.arrivalTime(), timeFromHM(8, 30));
   });

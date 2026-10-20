@@ -3,18 +3,17 @@ import { describe, it } from 'node:test';
 
 import fs from 'fs';
 
-import type {
-  ServiceRouteInfo,
-  TransferType as TransferTypeString,
-} from '../router.js';
+import type { ServiceRouteInfo, TransferType } from '../router.js';
 import {
   Query,
   RangeQuery,
   Route,
   Router,
+  RouteTypes,
   Stop,
   StopsIndex,
   Timetable,
+  TransferTypes,
 } from '../router.js';
 import { timeFromString, timeToString } from '../timetable/time.js';
 
@@ -31,7 +30,7 @@ type ExpectedVehicleLeg = {
 type ExpectedTransferLeg = {
   from: StopRef;
   to: StopRef;
-  type: TransferTypeString;
+  type: TransferType;
   minTransferTime?: number;
 };
 
@@ -121,12 +120,12 @@ const pointRoutes: {
         to: { name: 'Bulle', platform: '2' },
         departure: '08:34',
         arrival: '09:10',
-        route: { type: 'RAIL', name: 'RE2' },
+        route: { type: RouteTypes.RAIL, name: 'RE2' },
       },
       {
         from: { name: 'Bulle', platform: '2' },
         to: { name: 'Bulle', platform: '4' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 3,
       },
       {
@@ -134,12 +133,12 @@ const pointRoutes: {
         to: { name: 'Gruyères', platform: '1' },
         departure: '09:20',
         arrival: '09:28',
-        route: { type: 'RAIL', name: 'S51' },
+        route: { type: RouteTypes.RAIL, name: 'S51' },
       },
       {
         from: { name: 'Gruyères', platform: '1' },
         to: { name: 'Gruyères, gare', platform: 'B' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 2,
       },
       {
@@ -147,7 +146,7 @@ const pointRoutes: {
         to: { name: 'Moléson-sur-Gruyères' },
         departure: '09:33',
         arrival: '09:44',
-        route: { type: 'BUS', name: '263' },
+        route: { type: RouteTypes.BUS, name: '263' },
       },
     ],
   },
@@ -161,12 +160,12 @@ const pointRoutes: {
         to: { name: 'Zürich HB', platform: '33' },
         departure: '12:31',
         arrival: '13:28',
-        route: { type: 'RAIL', name: 'IC1' },
+        route: { type: RouteTypes.RAIL, name: 'IC1' },
       },
       {
         from: { name: 'Zürich HB', platform: '33' },
         to: { name: 'Zürich HB', platform: '6' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 7,
       },
       {
@@ -174,12 +173,12 @@ const pointRoutes: {
         to: { name: 'Chur', platform: '9' },
         departure: '13:38',
         arrival: '14:52',
-        route: { type: 'RAIL', name: 'IC3' },
+        route: { type: RouteTypes.RAIL, name: 'IC3' },
       },
       {
         from: { name: 'Chur', platform: '9' },
         to: { name: 'Chur', platform: '10' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 3,
       },
       {
@@ -187,7 +186,7 @@ const pointRoutes: {
         to: { name: 'St. Moritz', platform: '1' },
         departure: '14:58',
         arrival: '16:55',
-        route: { type: 'RAIL', name: 'IR38' },
+        route: { type: RouteTypes.RAIL, name: 'IR38' },
       },
     ],
   },
@@ -201,14 +200,14 @@ const pointRoutes: {
         to: { name: 'Saint-Louis (Haut-Rhin)' },
         departure: '17:08',
         arrival: '17:16',
-        route: { type: 'RAIL', name: 'TER' },
+        route: { type: RouteTypes.RAIL, name: 'TER' },
       },
       {
         from: { name: 'Saint-Louis (Haut-Rhin)' },
         to: { name: 'Strasbourg' },
         departure: '17:30',
         arrival: '18:39',
-        route: { type: 'RAIL', name: 'K200' },
+        route: { type: RouteTypes.RAIL, name: 'K200' },
       },
     ],
   },
@@ -222,12 +221,12 @@ const pointRoutes: {
         to: { name: 'Bern', platform: '10' },
         departure: '08:33',
         arrival: '08:56',
-        route: { type: 'RAIL', name: 'IR15' },
+        route: { type: RouteTypes.RAIL, name: 'IR15' },
       },
       {
         from: { name: 'Bern', platform: '10' },
         to: { name: 'Bern', platform: '2' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 6,
       },
       {
@@ -235,12 +234,12 @@ const pointRoutes: {
         to: { name: 'Zürich HB', platform: '34' },
         departure: '09:02',
         arrival: '09:58',
-        route: { type: 'RAIL', name: 'IC81' },
+        route: { type: RouteTypes.RAIL, name: 'IC81' },
       },
       {
         from: { name: 'Zürich HB', platform: '34' },
         to: { name: 'Zürich HB', platform: '10' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 7,
       },
       {
@@ -248,12 +247,12 @@ const pointRoutes: {
         to: { name: 'Landquart', platform: '2' },
         departure: '10:07',
         arrival: '11:11',
-        route: { type: 'RAIL', name: 'IC3' },
+        route: { type: RouteTypes.RAIL, name: 'IC3' },
       },
       {
         from: { name: 'Landquart', platform: '2' },
         to: { name: 'Landquart', platform: '6' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 4,
       },
       {
@@ -261,7 +260,7 @@ const pointRoutes: {
         to: { name: 'Davos Platz', platform: '2' },
         departure: '11:20',
         arrival: '12:27',
-        route: { type: 'RAIL', name: 'RE13' },
+        route: { type: RouteTypes.RAIL, name: 'RE13' },
       },
     ],
   },
@@ -275,12 +274,12 @@ const pointRoutes: {
         to: { name: 'Bulle', platform: '2' },
         departure: '09:04',
         arrival: '09:40',
-        route: { type: 'RAIL', name: 'RE3' },
+        route: { type: RouteTypes.RAIL, name: 'RE3' },
       },
       {
         from: { name: 'Bulle', platform: '2' },
         to: { name: 'Bulle', platform: '4' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 3,
       },
       {
@@ -288,12 +287,12 @@ const pointRoutes: {
         to: { name: 'Gruyères', platform: '2' },
         departure: '09:50',
         arrival: '09:57',
-        route: { type: 'RAIL', name: 'S50' },
+        route: { type: RouteTypes.RAIL, name: 'S50' },
       },
       {
         from: { name: 'Gruyères', platform: '2' },
         to: { name: 'Gruyères, gare', platform: 'B' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 2,
       },
       {
@@ -301,12 +300,12 @@ const pointRoutes: {
         to: { name: 'Moléson-sur-Gruyères' },
         departure: '10:33',
         arrival: '10:44',
-        route: { type: 'BUS', name: '263' },
+        route: { type: RouteTypes.BUS, name: '263' },
       },
       {
         from: { name: 'Moléson-sur-Gruyères' },
         to: { name: 'Moléson-sur-Gruyères (funi)' },
-        type: 'REQUIRES_MINIMAL_TIME',
+        type: TransferTypes.REQUIRES_MINIMAL_TIME,
         minTransferTime: 2,
       },
       {
@@ -314,7 +313,7 @@ const pointRoutes: {
         to: { name: 'Plan-Francey' },
         departure: '11:00',
         arrival: '11:05',
-        route: { type: 'FUNICULAR', name: 'FUN' },
+        route: { type: RouteTypes.FUNICULAR, name: 'FUN' },
       },
     ],
   },
@@ -342,12 +341,12 @@ const rangeRoutes: {
             to: { name: 'Bulle', platform: '2' },
             departure: '09:34',
             arrival: '10:10',
-            route: { type: 'RAIL', name: 'RE2' },
+            route: { type: RouteTypes.RAIL, name: 'RE2' },
           },
           {
             from: { name: 'Bulle', platform: '2' },
             to: { name: 'Bulle', platform: '4' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 3,
           },
           {
@@ -355,12 +354,12 @@ const rangeRoutes: {
             to: { name: 'Gruyères', platform: '1' },
             departure: '10:20',
             arrival: '10:28',
-            route: { type: 'RAIL', name: 'S51' },
+            route: { type: RouteTypes.RAIL, name: 'S51' },
           },
           {
             from: { name: 'Gruyères', platform: '1' },
             to: { name: 'Gruyères, gare', platform: 'B' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 2,
           },
           {
@@ -368,7 +367,7 @@ const rangeRoutes: {
             to: { name: 'Moléson-sur-Gruyères' },
             departure: '10:33',
             arrival: '10:44',
-            route: { type: 'BUS', name: '263' },
+            route: { type: RouteTypes.BUS, name: '263' },
           },
         ],
       },
@@ -380,12 +379,12 @@ const rangeRoutes: {
             to: { name: 'Bulle', platform: '2' },
             departure: '08:34',
             arrival: '09:10',
-            route: { type: 'RAIL', name: 'RE2' },
+            route: { type: RouteTypes.RAIL, name: 'RE2' },
           },
           {
             from: { name: 'Bulle', platform: '2' },
             to: { name: 'Bulle', platform: '4' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 3,
           },
           {
@@ -393,12 +392,12 @@ const rangeRoutes: {
             to: { name: 'Gruyères', platform: '1' },
             departure: '09:20',
             arrival: '09:28',
-            route: { type: 'RAIL', name: 'S51' },
+            route: { type: RouteTypes.RAIL, name: 'S51' },
           },
           {
             from: { name: 'Gruyères', platform: '1' },
             to: { name: 'Gruyères, gare', platform: 'B' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 2,
           },
           {
@@ -406,7 +405,7 @@ const rangeRoutes: {
             to: { name: 'Moléson-sur-Gruyères' },
             departure: '09:33',
             arrival: '09:44',
-            route: { type: 'BUS', name: '263' },
+            route: { type: RouteTypes.BUS, name: '263' },
           },
         ],
       },
@@ -426,7 +425,7 @@ const rangeRoutes: {
             to: { name: 'Strasbourg' },
             departure: '17:21',
             arrival: '18:39',
-            route: { type: 'RAIL', name: 'TER' },
+            route: { type: RouteTypes.RAIL, name: 'TER' },
           },
         ],
       },
@@ -438,14 +437,14 @@ const rangeRoutes: {
             to: { name: 'Saint-Louis (Haut-Rhin)' },
             departure: '16:38',
             arrival: '16:46',
-            route: { type: 'RAIL', name: 'TER' },
+            route: { type: RouteTypes.RAIL, name: 'TER' },
           },
           {
             from: { name: 'Saint-Louis (Haut-Rhin)' },
             to: { name: 'Strasbourg' },
             departure: '16:54',
             arrival: '18:09',
-            route: { type: 'RAIL', name: 'K200' },
+            route: { type: RouteTypes.RAIL, name: 'K200' },
           },
         ],
       },
@@ -465,12 +464,12 @@ const rangeRoutes: {
             to: { name: 'Bern', platform: '10' },
             departure: '08:33',
             arrival: '08:56',
-            route: { type: 'RAIL', name: 'IR15' },
+            route: { type: RouteTypes.RAIL, name: 'IR15' },
           },
           {
             from: { name: 'Bern', platform: '10' },
             to: { name: 'Bern', platform: '2' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 6,
           },
           {
@@ -478,12 +477,12 @@ const rangeRoutes: {
             to: { name: 'Zürich HB', platform: '34' },
             departure: '09:02',
             arrival: '09:58',
-            route: { type: 'RAIL', name: 'IC81' },
+            route: { type: RouteTypes.RAIL, name: 'IC81' },
           },
           {
             from: { name: 'Zürich HB', platform: '34' },
             to: { name: 'Zürich HB', platform: '10' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 7,
           },
           {
@@ -491,12 +490,12 @@ const rangeRoutes: {
             to: { name: 'Landquart', platform: '2' },
             departure: '10:07',
             arrival: '11:11',
-            route: { type: 'RAIL', name: 'IC3' },
+            route: { type: RouteTypes.RAIL, name: 'IC3' },
           },
           {
             from: { name: 'Landquart', platform: '2' },
             to: { name: 'Landquart', platform: '6' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 4,
           },
           {
@@ -504,7 +503,7 @@ const rangeRoutes: {
             to: { name: 'Davos Platz', platform: '2' },
             departure: '11:20',
             arrival: '12:27',
-            route: { type: 'RAIL', name: 'RE13' },
+            route: { type: RouteTypes.RAIL, name: 'RE13' },
           },
         ],
       },
@@ -516,12 +515,12 @@ const rangeRoutes: {
             to: { name: 'Zürich HB', platform: '33' },
             departure: '08:03',
             arrival: '09:28',
-            route: { type: 'RAIL', name: 'IC1' },
+            route: { type: RouteTypes.RAIL, name: 'IC1' },
           },
           {
             from: { name: 'Zürich HB', platform: '33' },
             to: { name: 'Zürich HB', platform: '4' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 7,
           },
           {
@@ -529,12 +528,12 @@ const rangeRoutes: {
             to: { name: 'Landquart', platform: '2' },
             departure: '09:38',
             arrival: '10:41',
-            route: { type: 'RAIL', name: 'IC3' },
+            route: { type: RouteTypes.RAIL, name: 'IC3' },
           },
           {
             from: { name: 'Landquart', platform: '2' },
             to: { name: 'Landquart', platform: '6' },
-            type: 'REQUIRES_MINIMAL_TIME',
+            type: TransferTypes.REQUIRES_MINIMAL_TIME,
             minTransferTime: 4,
           },
           {
@@ -542,7 +541,7 @@ const rangeRoutes: {
             to: { name: 'Davos Platz', platform: '1' },
             departure: '10:49',
             arrival: '12:03',
-            route: { type: 'RAIL', name: 'RE24' },
+            route: { type: RouteTypes.RAIL, name: 'RE24' },
           },
         ],
       },

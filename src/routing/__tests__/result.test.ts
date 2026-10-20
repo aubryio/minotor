@@ -635,7 +635,7 @@ describe('Result', () => {
       assert.strictEqual(transferLeg.to.id, 2);
       assert('type' in transferLeg);
       assert('minTransferTime' in transferLeg);
-      assert.strictEqual(transferLeg.type, 'RECOMMENDED');
+      assert.strictEqual(transferLeg.type, TransferTypes.RECOMMENDED);
 
       assert.strictEqual(thirdLeg.from.id, 2);
       assert.strictEqual(thirdLeg.to.id, 3);

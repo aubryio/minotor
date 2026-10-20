@@ -1,17 +1,9 @@
 import { Timetable } from '../router.js';
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import {
-  PickUpDropOffTypeString,
-  RawPickUpDropOffType,
-  Route as TimetableRoute,
-} from '../timetable/route.js';
+import { Route as TimetableRoute } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import {
-  routeTypeToString,
-  TransferTypes,
-  transferTypeToString,
-} from '../timetable/timetable.js';
+import { TransferTypes } from '../timetable/timetable.js';
 import {
   Access,
   Leg,
@@ -22,34 +14,6 @@ import {
 } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
 import { AccessEdge } from './state.js';
-
-/**
- * Details about the pickup and drop-off modalities at each stop in each trip of a route.
- */
-const pickUpDropOffTypeMap: PickUpDropOffTypeString[] = [
-  'REGULAR',
-  'NOT_AVAILABLE',
-  'MUST_PHONE_AGENCY',
-  'MUST_COORDINATE_WITH_DRIVER',
-];
-
-/**
- * Converts a numerical representation of a pick-up/drop-off type
- * into its corresponding string representation.
- *
- * @param numericalType - The numerical value representing the pick-up/drop-off type.
- * @returns The corresponding PickUpDropOffTypeString as a string.
- * @throws An error if the numerical type is invalid.
- */
-const toPickupDropOffType = (
-  rawType: RawPickUpDropOffType,
-): PickUpDropOffTypeString => {
-  const type = pickUpDropOffTypeMap[rawType];
-  if (!type) {
-    throw new Error(`Invalid pickup/drop-off type ${rawType}`);
-  }
-  return type;
-};
 
 export class Result {
   private readonly destinations: ReadonlySet<StopId>;
@@ -225,7 +189,7 @@ export class Result {
   private buildServiceRouteInfo(route: TimetableRoute): ServiceRouteInfo {
     const serviceRouteInfo = this.timetable.getServiceRouteInfo(route);
     return {
-      type: routeTypeToString(serviceRouteInfo.type),
+      type: serviceRouteInfo.type,
       name: serviceRouteInfo.name,
     };
   }
@@ -267,11 +231,13 @@ export class Result {
         firstEdge.tripIndex,
       ),
       arrivalTime: lastEdge.arrival,
-      pickUpType: toPickupDropOffType(
-        firstRoute.pickUpTypeFrom(firstEdge.stopIndex, firstEdge.tripIndex),
+      pickUpType: firstRoute.pickUpTypeFrom(
+        firstEdge.stopIndex,
+        firstEdge.tripIndex,
       ),
-      dropOffType: toPickupDropOffType(
-        lastRoute.dropOffTypeAt(lastEdge.hopOffStopIndex, lastEdge.tripIndex),
+      dropOffType: lastRoute.dropOffTypeAt(
+        lastEdge.hopOffStopIndex,
+        lastEdge.tripIndex,
       ),
     };
   }
@@ -289,7 +255,7 @@ export class Result {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       to: this.stopsIndex.findStopById(edge.to)!,
       minTransferTime: edge.minTransferTime,
-      type: transferTypeToString(edge.type),
+      type: edge.type,
     };
   }
 
@@ -332,7 +298,7 @@ export class Result {
       from: this.stopsIndex.findStopById(fromStopId)!,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       to: this.stopsIndex.findStopById(toStopId)!,
-      type: transferTypeToString(TransferTypes.GUARANTEED),
+      type: TransferTypes.GUARANTEED,
     };
   }
 
