@@ -4,9 +4,13 @@ import fs from 'fs';
 
 import { Query, RangeQuery, Router, StopsIndex, Timetable } from '../router.js';
 import type { Stop } from '../stops/stops.js';
-import type { RawPickUpDropOffType } from '../timetable/route.js';
+import type { PickUpDropOffType } from '../timetable/route.js';
 import { PickUpDropOffTypes, Route } from '../timetable/route.js';
 import { timeFromString, timeToString } from '../timetable/time.js';
+import {
+  routeTypeToString,
+  transferTypeToString,
+} from '../timetable/timetable.js';
 import { plotGraphToDotFile } from './utils.js';
 
 export const startRepl = (stopsPath: string, timetablePath: string) => {
@@ -298,7 +302,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
     },
   });
 
-  const formatPickupDropoffType = (type: RawPickUpDropOffType): string => {
+  const formatPickupDropoffType = (type: PickUpDropOffType): string => {
     switch (type) {
       case PickUpDropOffTypes.REGULAR:
         return 'R';
@@ -351,7 +355,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
         const serviceRouteInfo = timetable.getServiceRouteInfo(route);
         const routeName = serviceRouteInfo.name;
-        const routeType = serviceRouteInfo.type;
+        const routeType = routeTypeToString(serviceRouteInfo.type);
 
         console.log(`\n=== Route ${routeId} ===`);
         console.log(`Service Route: ${routeName}`);
@@ -450,7 +454,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
           routes.forEach((route, index) => {
             const serviceRouteInfo = timetable.getServiceRouteInfo(route);
             console.log(
-              `${index + 1}. Route ${route.id}: ${serviceRouteInfo.name} (${serviceRouteInfo.type})`,
+              `${index + 1}. Route ${route.id}: ${serviceRouteInfo.name} (${routeTypeToString(serviceRouteInfo.type)})`,
             );
           });
         }
@@ -469,7 +473,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
               ? ` (min: ${transfer.minTransferTime}min)`
               : '';
             console.log(
-              `${index + 1}. ${transfer.type} to ${destStop?.name ?? 'Unknown'}${platform} (${transfer.destination}, ${destStop?.sourceStopId ?? 'N/A'})${minTime}`,
+              `${index + 1}. ${transferTypeToString(transfer.type)} to ${destStop?.name ?? 'Unknown'}${platform} (${transfer.destination}, ${destStop?.sourceStopId ?? 'N/A'})${minTime}`,
             );
           });
         }

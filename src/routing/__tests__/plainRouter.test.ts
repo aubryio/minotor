@@ -1029,7 +1029,7 @@ describe('PlainRouter', () => {
 
       // Should find a route with 3 legs:
       // 1. Vehicle leg (route 0)
-      // 2. Guaranteed transfer leg (shown as type: 'GUARANTEED')
+      // 2. Guaranteed transfer leg (shown as type: TransferTypes.GUARANTEED)
       // 3. Vehicle leg (route 1)
       assert.ok(bestRoute);
       assert.strictEqual(bestRoute.legs.length, 3);
@@ -1037,7 +1037,7 @@ describe('PlainRouter', () => {
       // The middle leg should be the guaranteed transfer
       const transferLeg = bestRoute.legs[1];
       assert.ok(transferLeg && 'type' in transferLeg);
-      assert.strictEqual(transferLeg.type, 'GUARANTEED');
+      assert.strictEqual(transferLeg.type, TransferTypes.GUARANTEED);
 
       // Should arrive at 08:40 because the guaranteed transfer allows catching
       // the 08:21 departure despite only having 1 minute of transfer time

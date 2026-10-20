@@ -136,7 +136,7 @@ Query options:
 | `minTransferTime`       | `2 min`   | Fallback minimum transfer time                                         |
 | `maxDuration`           | unlimited | Maximum total journey duration from the query departure time           |
 | `maxInitialWaitingTime` | unlimited | Maximum wait for the first vehicle after arriving at the boarding stop |
-| `transportModes`        | all       | Restrict to a subset of GTFS route types                               |
+| `transportModes`        | all       | Restrict to a subset of `RouteTypes` values                            |
 
 #### Range query (browser or Node.js)
 

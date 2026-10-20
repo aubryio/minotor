@@ -1,5 +1,5 @@
 import { Stop } from '../stops/stops.js';
-import type { PickUpDropOffTypeString } from '../timetable/route.js';
+import type { PickUpDropOffType } from '../timetable/route.js';
 import {
   Duration,
   DURATION_ZERO,
@@ -7,15 +7,13 @@ import {
   Time,
   timeToString,
 } from '../timetable/time.js';
-import type {
-  RouteTypeString,
-  TransferTypeString,
+import type { ServiceRouteInfo, TransferType } from '../timetable/timetable.js';
+import {
+  routeTypeToString,
+  transferTypeToString,
 } from '../timetable/timetable.js';
 
-export type ServiceRouteInfo = {
-  type: RouteTypeString;
-  name: string;
-};
+export type { ServiceRouteInfo } from '../timetable/timetable.js';
 
 export type BaseLeg = {
   from: Stop;
@@ -28,15 +26,15 @@ export type Access = BaseLeg & {
 
 export type Transfer = BaseLeg & {
   minTransferTime?: Duration;
-  type: TransferTypeString;
+  type: TransferType;
 };
 
 export type VehicleLeg = BaseLeg & {
   route: ServiceRouteInfo;
   departureTime: Time;
   arrivalTime: Time;
-  pickUpType: PickUpDropOffTypeString;
-  dropOffType: PickUpDropOffTypeString;
+  pickUpType: PickUpDropOffType;
+  dropOffType: PickUpDropOffType;
 };
 
 export type Leg = Transfer | Access | VehicleLeg;
@@ -119,7 +117,7 @@ export class Route {
         const toStop = `To: ${leg.to.name}${leg.to.platform ? ` (Pl. ${leg.to.platform})` : ''}`;
         const transferDetails =
           'type' in leg && !('route' in leg)
-            ? `Transfer: ${leg.type}${leg.minTransferTime ? `, Minimum Transfer Time: ${durationToString(leg.minTransferTime)}` : ''}`
+            ? `Transfer: ${transferTypeToString(leg.type)}${leg.minTransferTime ? `, Minimum Transfer Time: ${durationToString(leg.minTransferTime)}` : ''}`
             : '';
         const accessDetails =
           'duration' in leg
@@ -127,7 +125,7 @@ export class Route {
             : '';
         const travelDetails =
           'route' in leg && 'departureTime' in leg && 'arrivalTime' in leg
-            ? `Route: ${leg.route.type} ${leg.route.name}, Departure: ${timeToString(leg.departureTime)}, Arrival: ${timeToString(leg.arrivalTime)}`
+            ? `Route: ${routeTypeToString(leg.route.type)} ${leg.route.name}, Departure: ${timeToString(leg.departureTime)}, Arrival: ${timeToString(leg.arrivalTime)}`
             : '';
 
         return [

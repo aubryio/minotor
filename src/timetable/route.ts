@@ -23,7 +23,21 @@ export type PickUpDropOffType =
 
 export type PickUpDropOffTypeString = keyof typeof PickUpDropOffTypes;
 
-export type RawPickUpDropOffType = PickUpDropOffType;
+/** Returns the identifier name for a pickup/drop-off type. */
+export const pickUpDropOffTypeToString = (
+  type: PickUpDropOffType,
+): PickUpDropOffTypeString => {
+  switch (type) {
+    case PickUpDropOffTypes.REGULAR:
+      return 'REGULAR';
+    case PickUpDropOffTypes.NOT_AVAILABLE:
+      return 'NOT_AVAILABLE';
+    case PickUpDropOffTypes.MUST_PHONE_AGENCY:
+      return 'MUST_PHONE_AGENCY';
+    case PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER:
+      return 'MUST_COORDINATE_WITH_DRIVER';
+  }
+};
 
 /*
  * A trip route index corresponds to the index of a given trip in a route.
@@ -323,7 +337,7 @@ export class Route {
   dropOffTypeAtOffset(
     stopIndex: StopRouteIndex,
     offset: number,
-  ): RawPickUpDropOffType {
+  ): PickUpDropOffType {
     const globalIndex = offset + stopIndex;
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const byte = this.pickupDropOffTypes[globalIndex >> 1]!;
@@ -331,7 +345,7 @@ export class Route {
     // First pair  → drop-off in lower 2 bits; second pair → drop-off in bits 4-5.
     return (
       globalIndex & 1 ? (byte >> 4) & 0x03 : byte & 0x03
-    ) as RawPickUpDropOffType;
+    ) as PickUpDropOffType;
   }
 
   /**
@@ -362,7 +376,7 @@ export class Route {
   pickUpTypeFrom(
     stopIndex: StopRouteIndex,
     tripIndex: TripRouteIndex,
-  ): RawPickUpDropOffType {
+  ): PickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + stopIndex;
     const byteIndex = globalIndex >> 1;
     const isSecondPair = (globalIndex & 1) === 1;
@@ -377,7 +391,7 @@ export class Route {
     const pickUpValue = isSecondPair
       ? (byte >> 6) & 0x03 // Upper 2 bits for second pair
       : (byte >> 2) & 0x03; // Bits 2-3 for first pair
-    return pickUpValue as RawPickUpDropOffType;
+    return pickUpValue as PickUpDropOffType;
   }
 
   /**
@@ -390,7 +404,7 @@ export class Route {
   dropOffTypeAt(
     stopIndex: StopRouteIndex,
     tripIndex: TripRouteIndex,
-  ): RawPickUpDropOffType {
+  ): PickUpDropOffType {
     const globalIndex = tripIndex * this.stops.length + stopIndex;
     const byteIndex = globalIndex >> 1;
     const isSecondPair = (globalIndex & 1) === 1;
@@ -405,7 +419,7 @@ export class Route {
     const dropOffValue = isSecondPair
       ? (byte >> 4) & 0x03 // Bits 4-5 for second pair
       : byte & 0x03; // Lower 2 bits for first pair
-    return dropOffValue as RawPickUpDropOffType;
+    return dropOffValue as PickUpDropOffType;
   }
 
   /**

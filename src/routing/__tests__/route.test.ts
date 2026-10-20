@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
+import { PickUpDropOffTypes, RouteTypes, TransferTypes } from '../../router.js';
 import { Stop } from '../../stops/stops.js';
 import { timeFromHMS } from '../../timetable/time.js';
 import { Route, ServiceRouteInfo, Transfer, VehicleLeg } from '../route.js';
@@ -39,12 +40,12 @@ describe('Route', () => {
   };
 
   const serviceRoute: ServiceRouteInfo = {
-    type: 'BUS',
+    type: RouteTypes.BUS,
     name: 'Route 1',
   };
 
   const serviceRoute2: ServiceRouteInfo = {
-    type: 'RAIL',
+    type: RouteTypes.RAIL,
     name: 'Route 2',
   };
 
@@ -54,14 +55,14 @@ describe('Route', () => {
     route: serviceRoute,
     departureTime: timeFromHMS(8, 0, 0),
     arrivalTime: timeFromHMS(8, 30, 0),
-    pickUpType: 'REGULAR',
-    dropOffType: 'REGULAR',
+    pickUpType: PickUpDropOffTypes.REGULAR,
+    dropOffType: PickUpDropOffTypes.REGULAR,
   };
 
   const transferLeg: Transfer = {
     from: stopB,
     to: stopC,
-    type: 'RECOMMENDED',
+    type: TransferTypes.RECOMMENDED,
     minTransferTime: 5,
   };
 
@@ -71,8 +72,8 @@ describe('Route', () => {
     route: serviceRoute2,
     departureTime: timeFromHMS(8, 40, 0),
     arrivalTime: timeFromHMS(9, 0, 0),
-    pickUpType: 'REGULAR',
-    dropOffType: 'REGULAR',
+    pickUpType: PickUpDropOffTypes.REGULAR,
+    dropOffType: PickUpDropOffTypes.REGULAR,
   };
 
   it('should calculate the correct departure time', () => {

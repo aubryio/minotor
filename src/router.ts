@@ -18,16 +18,25 @@ import { RangeResult, Router } from './routing/router.js';
 import type { LocationType, SourceStopId, StopId } from './stops/stops.js';
 import type { Stop } from './stops/stops.js';
 import { StopsIndex } from './stops/stopsIndex.js';
-import type { PickUpDropOffTypeString } from './timetable/route.js';
+import type { PickUpDropOffType } from './timetable/route.js';
+import {
+  PickUpDropOffTypes,
+  pickUpDropOffTypeToString,
+} from './timetable/route.js';
 import type { Duration, Time } from './timetable/time.js';
-import type {
-  RouteTypeString,
-  TransferTypeString,
+import type { RouteType, TransferType } from './timetable/timetable.js';
+import {
+  RouteTypes,
+  routeTypeToString,
+  Timetable,
+  TransferTypes,
+  transferTypeToString,
 } from './timetable/timetable.js';
-import { Timetable } from './timetable/timetable.js';
 
 export {
   Duration,
+  PickUpDropOffTypes,
+  pickUpDropOffTypeToString,
   Plotter,
   Query,
   RangeQuery,
@@ -35,9 +44,13 @@ export {
   Result,
   Route,
   Router,
+  RouteTypes,
+  routeTypeToString,
   StopsIndex,
   Time,
   Timetable,
+  TransferTypes,
+  transferTypeToString,
 };
 
 export type {
@@ -46,15 +59,15 @@ export type {
   Leg,
   LocationType,
   ParetoRun,
-  PickUpDropOffTypeString as PickUpDropOffType,
+  PickUpDropOffType,
   QueryOptions,
   RangeQueryOptions,
-  RouteTypeString as RouteType,
+  RouteType,
   ServiceRouteInfo,
   SourceStopId,
   Stop,
   StopId,
   Transfer,
-  TransferTypeString as TransferType,
+  TransferType,
   VehicleLeg,
 };
