@@ -138,67 +138,6 @@ Query options:
 | `maxInitialWaitingTime` | unlimited | Maximum wait for the first vehicle after arriving at the boarding stop |
 | `transportModes`        | all       | Restrict to a subset of `RouteTypes` values                            |
 
-Use the exported numeric route types for filtering and inspecting results:
-
-```ts
-import { Query, RouteTypes, type RouteType } from 'minotor';
-
-const transportModes = new Set<RouteType>([RouteTypes.RAIL, RouteTypes.BUS]);
-const query = new Query.Builder()
-  .from(origin.id)
-  .to(destination.id)
-  .departureTime(8 * 60 + 30)
-  .transportModes(transportModes)
-  .build();
-
-const route = router.route(query).bestRoute();
-const railLegs = route?.legs.filter(
-  (leg) => 'route' in leg && leg.route.type === RouteTypes.RAIL,
-);
-```
-
-`RouteType` and vehicle legs' `route.type` use numeric `RouteTypes` values,
-not strings such as `'RAIL'`. Human-readable route and graph output still uses names.
-
-Pickup/drop-off and transfer types follow the same pattern. Result fields
-`pickUpType`, `dropOffType`, and transfer `type` contain numeric values; migrate
-string comparisons such as `'REGULAR'` or `'GUARANTEED'` to their named constants.
-Use constants instead of assuming the values are GTFS codes.
-
-```ts
-import {
-  PickUpDropOffTypes,
-  pickUpDropOffTypeToString,
-  routeTypeToString,
-  TransferTypes,
-  transferTypeToString,
-  type TransferType,
-} from 'minotor';
-
-const requiresPhoneCall = route?.legs.some(
-  (leg) =>
-    'pickUpType' in leg &&
-    leg.pickUpType === PickUpDropOffTypes.MUST_PHONE_AGENCY,
-);
-
-Object.entries(TransferTypes); // Identifier names and numeric values
-routeTypeToString(RouteTypes.RAIL); // 'RAIL'
-pickUpDropOffTypeToString(PickUpDropOffTypes.REGULAR); // 'REGULAR'
-transferTypeToString(TransferTypes.GUARANTEED); // 'GUARANTEED'
-
-const labels = {
-  [TransferTypes.RECOMMENDED]: 'Recommended transfer',
-  [TransferTypes.GUARANTEED]: 'Guaranteed connection',
-  [TransferTypes.REQUIRES_MINIMAL_TIME]: 'Minimum transfer time required',
-  [TransferTypes.IN_SEAT]: 'Stay on board',
-} satisfies Record<TransferType, string>;
-```
-
-The name helpers accept typed values and return identifier names, not localized
-labels or validation results for arbitrary numbers. Applications can provide
-exhaustive label maps as above. `TransferTypes` also remains available from
-`minotor/parser`.
-
 #### Range query (browser or Node.js)
 
 Find all Pareto-optimal journeys within a departure-time window — no journey in the result is dominated by another (i.e. no journey departs later _and_ arrives earlier):
