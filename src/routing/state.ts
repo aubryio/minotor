@@ -111,8 +111,8 @@ export class RoutingState implements IRaptorState {
   private readonly maxDuration?: Duration;
 
   /**
-   * Every stop that has received an arrival improvement during the current run,
-   * in the order the improvements occurred.  Used by {@link resetFor} to clear
+   * Every stop reached during the current run, recorded once in first-reached
+   * order.  Used by {@link resetFor} to clear
    * only the touched entries instead of scanning the entire array.
    */
   private readonly reachedStops: StopId[] = [];
@@ -219,7 +219,9 @@ export class RoutingState implements IRaptorState {
    * @param leg  The round number (number of transit legs taken so far).
    */
   updateArrival(stop: StopId, time: Time, leg: number): void {
-    this.reachedStops.push(stop);
+    if (this.earliestArrivalTimes[stop] === UNREACHED_TIME) {
+      this.reachedStops.push(stop);
+    }
     this.earliestArrivalTimes[stop] = time;
     this.earliestArrivalLegs[stop] = leg;
     if (this.destinationSet.has(stop) && time < this._destinationBest) {
@@ -382,6 +384,12 @@ export class RoutingState implements IRaptorState {
       return arr;
     });
     state.graph.splice(0, state.graph.length, ...denseRounds);
+    state.reachedStops.length = 0;
+    const touched = new Set(arrivals.map(([stop]) => stop));
+    for (const round of graph) {
+      for (const [stop] of round) touched.add(stop);
+    }
+    state.reachedStops.push(...touched);
 
     return state;
   }

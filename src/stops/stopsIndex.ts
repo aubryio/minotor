@@ -8,8 +8,6 @@ import { deserializeStopsMap, serializeStopsMap } from './io.js';
 import { StopsMap as ProtoStopsMap } from './proto/v1/stops.js';
 import { SourceStopId, SourceStopsMap, Stop, StopId } from './stops.js';
 
-type StopPoint = { id: StopId; lat: number; lon: number };
-
 /**
  * The StopsIndex class provides functionality to search for public transport stops
  * by name or geographic location. It leverages text search and geospatial indexing
@@ -20,13 +18,13 @@ export class StopsIndex {
   private readonly sourceStopsMap: SourceStopsMap;
   private readonly textIndex;
   private readonly geoIndex: KDTree;
-  private readonly stopPoints: StopPoint[];
+  private readonly geoStopIds: StopId[];
 
   constructor(stops: Stop[]) {
     this.stops = stops;
     this.sourceStopsMap = new Map<SourceStopId, StopId>();
     const stopsSet = new Map<StopId, { id: StopId; name: string }>();
-    this.stopPoints = [];
+    this.geoStopIds = [];
     for (let id = 0; id < stops.length; id++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const stop = stops[id]!;
@@ -45,11 +43,7 @@ export class StopsIndex {
       }
 
       if (stop.lat && stop.lon) {
-        this.stopPoints.push({
-          id: id,
-          lat: stop.lat,
-          lon: stop.lon,
-        });
+        this.geoStopIds.push(id);
       }
     }
     this.textIndex = createIndex({
@@ -60,11 +54,12 @@ export class StopsIndex {
     });
     const stopsArray = Array.from(stopsSet.values());
     addAll(this.textIndex, stopsArray);
-    this.geoIndex = new KDTree(this.stopPoints.length);
-    for (let i = 0; i < this.stopPoints.length; i++) {
+    this.geoIndex = new KDTree(this.geoStopIds.length);
+    for (let i = 0; i < this.geoStopIds.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const { lat, lon } = this.stopPoints[i]!;
-      this.geoIndex.add(lon, lat);
+      const stop = this.stops[this.geoStopIds[i]!]!;
+      // Coordinates were checked when collecting geoStopIds.
+      this.geoIndex.add(stop.lon as number, stop.lat as number);
     }
     this.geoIndex.finish();
   }
@@ -112,10 +107,9 @@ export class StopsIndex {
    * @returns An array of Stop objects that match the search query.
    */
   findStopsByName(query: string, maxResults = 5): Stop[] {
-    const results = search(this.textIndex, query).map(
-      (result: SearchResult) => this.stops[result.id as number] as Stop,
-    );
-    return results.slice(0, maxResults);
+    return search(this.textIndex, query)
+      .slice(0, maxResults)
+      .map((result: SearchResult) => this.stops[result.id as number] as Stop);
   }
 
   /**
@@ -140,8 +134,8 @@ export class StopsIndex {
       maxResults,
       radius,
     ).map((id) => {
-      const stopPoint = this.stopPoints[id] as StopPoint;
-      return this.stops[stopPoint.id] as Stop;
+      const stopId = this.geoStopIds[id] as StopId;
+      return this.stops[stopId] as Stop;
     });
     return nearestStops;
   }

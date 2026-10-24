@@ -76,3 +76,32 @@ describe('RoutingState', () => {
     });
   });
 });
+
+describe('RoutingState reuse', () => {
+  it('resets repeated improvements and all rounds like a fresh state', () => {
+    const access = [{ fromStopId: 0, toStopId: 0, duration: 0 }];
+    const state = new RoutingState(100, [2], access, 4, 3, 60);
+    state.updateArrival(0, 99, 1);
+    state.updateArrival(1, 120, 1);
+    state.graph[1]![1] = { stopId: 1, arrival: 120 };
+    state.updateArrival(1, 110, 2);
+    state.graph[2]![1] = { stopId: 1, arrival: 110 };
+    state.updateArrival(2, 130, 3);
+    state.graph[3]![2] = { stopId: 2, arrival: 130 };
+    for (const departure of [90, 80]) {
+      state.resetFor(departure, access);
+      const fresh = new RoutingState(departure, [2], access, 4, 3, 60);
+      assert.deepStrictEqual([...state.arrivals()], [...fresh.arrivals()]);
+      assert.strictEqual(state.destinationBest, fresh.destinationBest);
+      assert.strictEqual(state.maxArrivalTime, fresh.maxArrivalTime);
+      for (let round = 0; round < state.graph.length; round++) {
+        assert.deepStrictEqual(
+          Array.from(state.graph[round]!),
+          Array.from(fresh.graph[round]!),
+        );
+      }
+      state.updateArrival(1, departure + 10, 1);
+      state.graph[1]![1] = { stopId: 1, arrival: departure + 10 };
+    }
+  });
+});

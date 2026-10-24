@@ -279,3 +279,33 @@ describe('Route', () => {
     });
   });
 });
+
+it('keeps first-index lookup and stable arrays consistent for unique and repeated stops', () => {
+  const route = Route.of({
+    id: 0,
+    serviceRouteId: 0,
+    trips: [
+      {
+        stops: [5, 7, 5, 9, 5].map((id, index) => ({
+          id,
+          arrivalTime: index,
+          departureTime: index,
+        })),
+      },
+    ],
+  });
+  assert.strictEqual(route.firstStopRouteIndex(5), 0);
+  assert.strictEqual(route.firstStopRouteIndex(7), 1);
+  assert.strictEqual(route.firstStopRouteIndex(99), undefined);
+  assert.deepStrictEqual(route.stopRouteIndices(99), []);
+  assert.deepStrictEqual(route.stopRouteIndices(5), [0, 2, 4]);
+  const unique = route.stopRouteIndices(7);
+  assert.deepStrictEqual(unique, [1]);
+  assert.strictEqual(route.stopRouteIndices(7), unique);
+  unique[0] = 3;
+  assert.strictEqual(route.firstStopRouteIndex(7), 3);
+  const repeated = route.stopRouteIndices(5);
+  assert.strictEqual(route.stopRouteIndices(5), repeated);
+  repeated.shift();
+  assert.strictEqual(route.firstStopRouteIndex(5), 2);
+});

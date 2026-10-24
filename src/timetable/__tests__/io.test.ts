@@ -169,3 +169,30 @@ describe('Timetable IO', () => {
     assert.deepStrictEqual(deserializedData, routes);
   });
 });
+
+it('owns compact pickup/drop-off bytes independently of input views', () => {
+  const input = Buffer.alloc(128);
+  input[17] = 0x12;
+  input[29] = 0x34;
+  const proto = [17, 29].map((offset) => ({
+    stopTimes: new Uint8Array(new Uint16Array([10, 11]).buffer),
+    pickupDropOffTypes: input.subarray(offset, offset + 1),
+    stops: new Uint8Array(new Uint32Array([0]).buffer),
+    serviceRouteId: 0,
+  }));
+  assert.ok(proto[0]);
+  proto.push({ ...proto[0], pickupDropOffTypes: input.subarray(40, 40) });
+  const routes = deserializeRoutesAdjacency(proto);
+  const [firstRoute, secondRoute, emptyRoute] = routes;
+  assert.ok(firstRoute && secondRoute && emptyRoute);
+  const first = firstRoute.serialize().pickupDropOffTypes;
+  const second = secondRoute.serialize().pickupDropOffTypes;
+  assert.notStrictEqual(first.buffer, input.buffer);
+  assert.strictEqual(first.buffer, second.buffer);
+  assert.strictEqual(first.buffer.byteLength, 2);
+  input.fill(0);
+  assert.deepStrictEqual([...first], [0x12]);
+  assert.deepStrictEqual([...second], [0x34]);
+  assert.strictEqual(emptyRoute.serialize().pickupDropOffTypes.length, 0);
+  assert.deepStrictEqual(deserializeRoutesAdjacency([]), []);
+});

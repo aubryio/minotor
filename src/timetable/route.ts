@@ -85,7 +85,7 @@ export class Route {
    *   ...
    * }
    */
-  private readonly stopIndices: Map<StopId, StopRouteIndex[]>;
+  private readonly stopIndices: Map<StopId, StopRouteIndex | StopRouteIndex[]>;
   /**
    * The identifier of the route as a service shown to users.
    */
@@ -115,15 +115,17 @@ export class Route {
     this.serviceRouteId = serviceRouteId;
     this.nbStops = stops.length;
     this.nbTrips = this.stopTimes.length / (this.stops.length * 2);
-    this.stopIndices = new Map<StopId, StopRouteIndex[]>();
+    this.stopIndices = new Map<StopId, StopRouteIndex | StopRouteIndex[]>();
     for (let i = 0; i < stops.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const stopId = stops[i]!;
       const existingIndices = this.stopIndices.get(stopId);
-      if (existingIndices) {
-        existingIndices.push(i);
+      if (existingIndices === undefined) {
+        this.stopIndices.set(stopId, i);
+      } else if (typeof existingIndices === 'number') {
+        this.stopIndices.set(stopId, [existingIndices, i]);
       } else {
-        this.stopIndices.set(stopId, [i]);
+        existingIndices.push(i);
       }
     }
   }
@@ -471,7 +473,19 @@ export class Route {
     if (stopIndex === undefined) {
       return [];
     }
+    if (typeof stopIndex === 'number') {
+      // Preserve stable, mutable array results for callers that request all indices.
+      const indices = [stopIndex];
+      this.stopIndices.set(stopId, indices);
+      return indices;
+    }
     return stopIndex;
+  }
+
+  /** Returns the first occurrence without allocating an array. */
+  public firstStopRouteIndex(stopId: StopId): StopRouteIndex | undefined {
+    const indices = this.stopIndices.get(stopId);
+    return typeof indices === 'number' ? indices : indices?.[0];
   }
 
   /**

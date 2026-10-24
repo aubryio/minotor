@@ -215,16 +215,30 @@ export const deserializeRoutesAdjacency = (
   protoRoutesAdjacency: ProtoRoute[],
 ): Route[] => {
   const routesAdjacency: Route[] = [];
+  // Own the compact payload so small protobuf views do not retain the input file.
+  const pickupDropOffStorage = new Uint8Array(
+    protoRoutesAdjacency.reduce(
+      (size, route) => size + route.pickupDropOffTypes.byteLength,
+      0,
+    ),
+  );
+  let pickupOffset = 0;
 
   for (let i = 0; i < protoRoutesAdjacency.length; i++) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const value = protoRoutesAdjacency[i]!;
     const stops = bytesToUint32Array(value.stops);
+    pickupDropOffStorage.set(value.pickupDropOffTypes, pickupOffset);
+    const pickupDropOffTypes = pickupDropOffStorage.subarray(
+      pickupOffset,
+      pickupOffset + value.pickupDropOffTypes.byteLength,
+    );
+    pickupOffset += value.pickupDropOffTypes.byteLength;
     routesAdjacency.push(
       new Route(
         i,
         bytesToUint16Array(value.stopTimes),
-        value.pickupDropOffTypes,
+        pickupDropOffTypes,
         stops,
         value.serviceRouteId,
       ),
