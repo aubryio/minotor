@@ -13,7 +13,68 @@ import { timeFromString, timeToString } from '../timetable/time.js';
 type PerformanceResult = {
   label: string;
   meanTimeUs: number;
-  meanMemoryMb: number;
+  meanHeapMiB: number;
+  meanArrayBuffersMiB: number;
+};
+
+// Keep operation results reachable until the ending memory sample has been taken.
+const retainedResults: unknown[] = [];
+
+/** Observed deltas, not peak memory or total allocations; GC can make them negative. */
+export const measurePerformance = (
+  operation: () => unknown,
+  iterations: number,
+): Omit<PerformanceResult, 'label'> => {
+  let totalTime = 0;
+  let totalHeap = 0;
+  let totalArrayBuffers = 0;
+  for (let i = 0; i < iterations; i++) {
+    global.gc?.();
+    const before = process.memoryUsage();
+    const start = performance.now();
+    const result = operation();
+    const end = performance.now();
+    retainedResults.push(result);
+    const after = process.memoryUsage();
+    retainedResults.pop();
+    totalTime += (end - start) * 1_000;
+    totalHeap += after.heapUsed - before.heapUsed;
+    totalArrayBuffers += after.arrayBuffers - before.arrayBuffers;
+  }
+  return {
+    meanTimeUs: totalTime / iterations,
+    meanHeapMiB: totalHeap / iterations / (1024 * 1024),
+    meanArrayBuffersMiB: totalArrayBuffers / iterations / (1024 * 1024),
+  };
+};
+
+/** Measure retained storage after collection, keeping only the returned value alive. */
+export const measureRetainedMemory = <T>(
+  operation: () => T,
+): {
+  value: T;
+  loadTimeMs: number;
+  retainedHeapMiB?: number;
+  retainedArrayBuffersMiB?: number;
+} => {
+  const gc = global.gc;
+  gc?.();
+  const before = gc ? process.memoryUsage() : undefined;
+  const start = performance.now();
+  const value = operation();
+  const loadTimeMs = performance.now() - start;
+  if (!gc || !before) return { value, loadTimeMs };
+  // A second collection lets backing storage released by finalization settle.
+  gc();
+  gc();
+  const after = process.memoryUsage();
+  return {
+    value,
+    loadTimeMs,
+    retainedHeapMiB: (after.heapUsed - before.heapUsed) / (1024 * 1024),
+    retainedArrayBuffersMiB:
+      (after.arrayBuffers - before.arrayBuffers) / (1024 * 1024),
+  };
 };
 
 type SerializedQuery = {
@@ -204,7 +265,7 @@ export const loadRangeQueriesFromJson = (
  *   yield a more stable mean at the cost of longer wall-clock time.
  * @param stopsIndex - Used to resolve stop names for result labels.
  * @returns An array of {@link PerformanceResult} objects, one per query, each
- *   containing the mean wall-clock time (µs) and mean heap delta (MB).
+ *   containing the mean wall-clock time (µs) and mean heap and ArrayBuffer deltas (MiB).
  */
 export const testRouterPerformance = (
   router: Router,
@@ -215,32 +276,9 @@ export const testRouterPerformance = (
   const results: PerformanceResult[] = [];
 
   for (const task of tasks) {
-    let totalTime = 0;
-    let totalMemory = 0;
-
-    for (let i = 0; i < iterations; i++) {
-      if (global.gc) {
-        global.gc();
-      }
-
-      const startMemory = process.memoryUsage().heapUsed;
-      const startTime = performance.now();
-
-      router.route(task);
-
-      const endTime = performance.now();
-      const endMemory = process.memoryUsage().heapUsed;
-
-      totalTime += (endTime - startTime) * 1_000;
-      if (endMemory >= startMemory) {
-        totalMemory += endMemory - startMemory;
-      }
-    }
-
     results.push({
       label: buildQueryLabel(task, stopsIndex),
-      meanTimeUs: totalTime / iterations,
-      meanMemoryMb: totalMemory / iterations / (1024 * 1024),
+      ...measurePerformance(() => router.route(task), iterations),
     });
   }
 
@@ -258,7 +296,7 @@ export const testRouterPerformance = (
  * @param iterations - Number of times `bestRoute` is called per query.
  * @param stopsIndex - Used to resolve stop names for result labels.
  * @returns An array of {@link PerformanceResult} objects, one per query, each
- *   containing the mean wall-clock time (µs) and mean heap delta (MB) for the
+ *   containing the mean wall-clock time (µs) and mean heap and ArrayBuffer deltas (MiB) for the
  *   `bestRoute` call alone.
  */
 export const testBestRoutePerformance = (
@@ -272,32 +310,9 @@ export const testBestRoutePerformance = (
   for (const task of tasks) {
     const result = router.route(task);
 
-    let totalTime = 0;
-    let totalMemory = 0;
-
-    for (let i = 0; i < iterations; i++) {
-      if (global.gc) {
-        global.gc();
-      }
-
-      const startMemory = process.memoryUsage().heapUsed;
-      const startTime = performance.now();
-
-      result.bestRoute();
-
-      const endTime = performance.now();
-      const endMemory = process.memoryUsage().heapUsed;
-
-      totalTime += (endTime - startTime) * 1_000;
-      if (endMemory >= startMemory) {
-        totalMemory += endMemory - startMemory;
-      }
-    }
-
     results.push({
       label: buildQueryLabel(task, stopsIndex),
-      meanTimeUs: totalTime / iterations,
-      meanMemoryMb: totalMemory / iterations / (1024 * 1024),
+      ...measurePerformance(() => result.bestRoute(), iterations),
     });
   }
 
@@ -313,7 +328,7 @@ export const testBestRoutePerformance = (
  * @param iterations - Number of times each query is repeated.
  * @param stopsIndex - Used to resolve stop names for result labels.
  * @returns An array of {@link PerformanceResult} objects, one per query, each
- *   containing the mean wall-clock time (µs) and mean heap delta (MB).
+ *   containing the mean wall-clock time (µs) and mean heap and ArrayBuffer deltas (MiB).
  */
 export const testRangeRouterPerformance = (
   router: Router,
@@ -324,32 +339,9 @@ export const testRangeRouterPerformance = (
   const results: PerformanceResult[] = [];
 
   for (const task of tasks) {
-    let totalTime = 0;
-    let totalMemory = 0;
-
-    for (let i = 0; i < iterations; i++) {
-      if (global.gc) {
-        global.gc();
-      }
-
-      const startMemory = process.memoryUsage().heapUsed;
-      const startTime = performance.now();
-
-      router.rangeRoute(task);
-
-      const endTime = performance.now();
-      const endMemory = process.memoryUsage().heapUsed;
-
-      totalTime += (endTime - startTime) * 1_000;
-      if (endMemory >= startMemory) {
-        totalMemory += endMemory - startMemory;
-      }
-    }
-
     results.push({
       label: buildQueryLabel(task, stopsIndex),
-      meanTimeUs: totalTime / iterations,
-      meanMemoryMb: totalMemory / iterations / (1024 * 1024),
+      ...measurePerformance(() => router.rangeRoute(task), iterations),
     });
   }
 
@@ -367,7 +359,7 @@ export const testRangeRouterPerformance = (
  * @param iterations - Number of times `getRoutes` is called per query.
  * @param stopsIndex - Used to resolve stop names for result labels.
  * @returns An array of {@link PerformanceResult} objects, one per query, each
- *   containing the mean wall-clock time (µs) and mean heap delta (MB) for the
+ *   containing the mean wall-clock time (µs) and mean heap and ArrayBuffer deltas (MiB) for the
  *   `getRoutes` call alone.
  */
 export const testRangeResultPerformance = (
@@ -381,39 +373,14 @@ export const testRangeResultPerformance = (
   for (const task of tasks) {
     const rangeResult: RangeResult = router.rangeRoute(task);
 
-    let totalTime = 0;
-    let totalMemory = 0;
-
-    for (let i = 0; i < iterations; i++) {
-      if (global.gc) {
-        global.gc();
-      }
-
-      const startMemory = process.memoryUsage().heapUsed;
-      const startTime = performance.now();
-
-      rangeResult.getRoutes();
-
-      const endTime = performance.now();
-      const endMemory = process.memoryUsage().heapUsed;
-
-      totalTime += (endTime - startTime) * 1_000;
-      if (endMemory >= startMemory) {
-        totalMemory += endMemory - startMemory;
-      }
-    }
-
     results.push({
       label: buildQueryLabel(task, stopsIndex),
-      meanTimeUs: totalTime / iterations,
-      meanMemoryMb: totalMemory / iterations / (1024 * 1024),
+      ...measurePerformance(() => rangeResult.getRoutes(), iterations),
     });
   }
 
   return results;
 };
-
-// ─── Output ───────────────────────────────────────────────────────────────────
 
 /**
  * Prints a table summary of performance results to stdout.
@@ -442,14 +409,19 @@ export const prettyPrintPerformanceResults = (
   const meanTime =
     results.reduce((s, r) => s + r.meanTimeUs, 0) / results.length;
   const meanMem =
-    results.reduce((s, r) => s + r.meanMemoryMb, 0) / results.length;
+    results.reduce((s, r) => s + r.meanHeapMiB, 0) / results.length;
+  const meanBuffers =
+    results.reduce((s, r) => s + r.meanArrayBuffersMiB, 0) / results.length;
 
   const queryHeader = 'Query';
   const timeHeader = 'Time (µs)';
-  const memHeader = 'Mem (MB)';
+  const memHeader = 'Heap Δ (MiB)';
+  const buffersHeader = 'ArrayBuffers Δ (MiB)';
 
   const timeVals = results.map((r) => fmtTime(r.meanTimeUs));
-  const memVals = results.map((r) => fmtMem(r.meanMemoryMb));
+  const memVals = results.map((r) => fmtMem(r.meanHeapMiB));
+  const bufferVals = results.map((r) => fmtMem(r.meanArrayBuffersMiB));
+  const meanBuffersStr = fmtMem(meanBuffers);
   const meanTimeStr = fmtTime(meanTime);
   const meanMemStr = fmtMem(meanMem);
 
@@ -473,14 +445,29 @@ export const prettyPrintPerformanceResults = (
     { header: queryHeader, width: queryWidth, align: 'left' },
     { header: timeHeader, width: timeWidth, align: 'right' },
     { header: memHeader, width: memWidth, align: 'right' },
+    {
+      header: buffersHeader,
+      width: Math.max(
+        buffersHeader.length,
+        meanBuffersStr.length,
+        ...bufferVals.map((v) => v.length),
+      ),
+      align: 'right',
+    },
   ];
 
   const rows = results.map((r, i) => [
     r.label,
     timeVals[i] ?? '',
     memVals[i] ?? '',
+    bufferVals[i] ?? '',
   ]);
-  const footer = ['mean', meanTimeStr, meanMemStr];
+  const footer = ['mean', meanTimeStr, meanMemStr, meanBuffersStr];
 
   console.log(renderTable(columns, rows, footer));
+  if (!global.gc) {
+    console.log(
+      'Explicit GC unavailable; use node --expose-gc for more consistent samples.',
+    );
+  }
 };

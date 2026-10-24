@@ -14,6 +14,7 @@ import { Router, StopsIndex, Timetable } from '../router.js';
 import {
   loadQueriesFromJson,
   loadRangeQueriesFromJson,
+  measureRetainedMemory,
   prettyPrintPerformanceResults,
   testBestRoutePerformance,
   testRangeResultPerformance,
@@ -175,9 +176,25 @@ program
       const stopsIndex = StopsIndex.fromData(
         fs.readFileSync(options.stopsPath),
       );
-      const timetable = Timetable.fromData(
-        fs.readFileSync(options.timetablePath),
+      const loading = measureRetainedMemory(() =>
+        Timetable.fromData(fs.readFileSync(options.timetablePath)),
       );
+      const timetable = loading.value;
+      console.log(
+        `Timetable load (read + decode): ${loading.loadTimeMs.toFixed(2)} ms`,
+      );
+      if (
+        loading.retainedHeapMiB !== undefined &&
+        loading.retainedArrayBuffersMiB !== undefined
+      ) {
+        console.log(
+          `Timetable retained after GC: heap ${loading.retainedHeapMiB.toFixed(2)} MiB; ArrayBuffers ${loading.retainedArrayBuffersMiB.toFixed(2)} MiB`,
+        );
+      } else {
+        console.log(
+          'Retained memory skipped: explicit GC unavailable; use node --expose-gc.',
+        );
+      }
       const router = new Router(timetable, stopsIndex);
 
       const queries = loadQueriesFromJson(routesPath, stopsIndex);

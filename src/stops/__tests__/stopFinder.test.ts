@@ -112,6 +112,19 @@ describe('Stop Finder', () => {
   });
 
   describe('findStopsByLocation', () => {
+    it('maps spatial IDs correctly when some stops have no coordinates', () => {
+      const stops = mockStops.map((stop, id) =>
+        id === 0 || id === 2
+          ? { ...stop, lat: undefined, lon: undefined }
+          : stop,
+      );
+      const index = new StopsIndex(stops);
+      assert.deepStrictEqual(
+        index.findStopsByLocation(46.8, 7.16, 10, 0.75).map((stop) => stop.id),
+        [1],
+      );
+    });
+
     it('should find stops by geographic location', () => {
       const results = stopFinder.findStopsByLocation(46.8061, 7.1614, 1);
       assert.strictEqual(results.length, 1);

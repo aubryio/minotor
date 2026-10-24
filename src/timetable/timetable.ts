@@ -300,7 +300,7 @@ export class Timetable {
           if (!serviceRoute || !transportModes.has(serviceRoute.type)) continue;
         }
 
-        const originStopIndex = route.stopRouteIndices(originStop)[0]!;
+        const originStopIndex = route.firstStopRouteIndex(originStop)!;
         const existingHopOnStopIndex = reachableRoutes.get(route);
         if (existingHopOnStopIndex !== undefined) {
           if (originStopIndex < existingHopOnStopIndex) {

@@ -65,7 +65,7 @@
     "format": "prettier --write .",
     "test": "tsx --test src/**/__tests__/*.test.ts",
     "e2e": "tsx --test src/__e2e__/*.test.ts",
-    "perf": "tsx src/cli/minotor perf -s src/__e2e__/timetable/stops.bin -t src/__e2e__/timetable/timetable.bin src/__e2e__/benchmark.json",
+    "perf": "node --expose-gc --import tsx src/cli/minotor perf -s src/__e2e__/timetable/stops.bin -t src/__e2e__/timetable/timetable.bin src/__e2e__/benchmark.json",
     "repl": "tsx src/cli/minotor repl -s src/__e2e__/timetable/stops.bin -t src/__e2e__/timetable/timetable.bin",
     "test:watch": "tsx --watch --test src/**/*.test.ts",
     "test:coverage": "c8 -x 'src/**/proto/**/*.ts' -x 'src/**/__tests__/*.ts' --check-coverage --lines=85 tsx --test src/**/__tests__/*.test.ts",
