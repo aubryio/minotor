@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
-import { Duration, Time } from '../timetable/time.js';
+import { Duration, Time, UINT16_TIME_LIMIT } from '../timetable/time.js';
 import { TransferType, TripStop } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
-import type { IRaptorState } from './raptor.js';
+import type { IRaptorState } from './raptorState.js';
 
 /**
  * Sentinel value used in the internal arrival-time array to mark stops not yet reached.
  * 0xFFFF = 65 535 minutes ≈ 45.5 days, safely beyond any realistic transit arrival time.
  */
-export const UNREACHED_TIME: Time = 0xffff;
+export const UNREACHED_TIME: Time = UINT16_TIME_LIMIT;
 
 export type OriginNode = { stopId: StopId; arrival: Time };
 
@@ -51,6 +51,7 @@ export type Arrival = {
 
 /**
  * Encapsulates all mutable state for a single RAPTOR routing query.
+ * Times and durations are normalized at query and data-ingestion boundaries.
  */
 export class RoutingState implements IRaptorState {
   /** Origin stop IDs for this query. */
@@ -64,16 +65,7 @@ export class RoutingState implements IRaptorState {
    * Indexed as graph[round][stopId]. Entries are undefined for stops not
    * reached in that particular round.
    */
-  // TODO do not expose
   readonly graph: (RoutingEdge | undefined)[][];
-  // TODO Can use typed arrays to represent the graph
-  // Uint32 [(alightStopId -> ? =index/to), boardingStopId (stopIndex,from),
-  // RouteId/TransferId, TripId (if not transfer), (previous_round, previous_stop
-  // -> allows to reconstruct transfers incl. continuous]
-  // TODO should try to reuse them in range raptor and use only one init
-
-  // TODO take out arrival times from Graph
-  // private arrivalTimes: Uint16Array[];
 
   /**
    * Earliest arrival time at each stop (minutes from midnight), indexed by stop ID.
@@ -83,7 +75,7 @@ export class RoutingState implements IRaptorState {
   private earliestArrivalTimes: Uint16Array;
 
   /**
-   * Round number (leg count) in which each stop was first reached, indexed by stop ID.
+   * Round number (leg count) of each stop’s current earliest arrival, indexed by stop ID.
    * Zero-initialized by the typed array; updated exclusively through updateArrival().
    * Not readonly so that fromTestData() can replace the arrays directly.
    */
@@ -153,18 +145,19 @@ export class RoutingState implements IRaptorState {
   private seedAccessPaths(depTime: Time, accessPaths: AccessPoint[]): void {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
-      const arrival = depTime + access.duration;
-      if (arrival > this.maxArrivalTime) {
+      const duration = access.duration;
+      const arrival = depTime + duration;
+      if (arrival >= UNREACHED_TIME || arrival > this.maxArrivalTime) {
         continue;
       }
       const edge: OriginNode | AccessEdge =
-        access.duration === 0
+        duration === 0
           ? { stopId: access.fromStopId, arrival: depTime }
           : {
               arrival,
               from: access.fromStopId,
               to: access.toStopId,
-              duration: access.duration,
+              duration,
             };
       const stop = access.toStopId;
       if (arrival < this.earliestArrivalTimes[stop]!) {
@@ -206,25 +199,12 @@ export class RoutingState implements IRaptorState {
     return this._destinationBest;
   }
 
-  /**
-   * In standard RAPTOR the improvement bound is simply the per-run earliest
-   * arrival; the `round` argument is ignored.
-   */
-  improvementBound(_round: number, stop: StopId): Time {
-    return this.arrivalTime(stop);
+  /** Publish an immutable predecessor and its aggregate arrival together. */
+  publishArrival(stop: StopId, edge: RoutingEdge, round: number): void {
+    this.graph[round]![stop] = edge;
+    this.updateArrival(stop, edge.arrival, round);
   }
 
-  /** No-op in standard RAPTOR — there are no shared cross-run labels to propagate. */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  initRound(_round: number): void {}
-
-  /**
-   * Records a new earliest arrival at a stop.
-   *
-   * @param stop The stop that was reached.
-   * @param time The arrival time in minutes from midnight.
-   * @param leg  The round number (number of transit legs taken so far).
-   */
   updateArrival(stop: StopId, time: Time, leg: number): void {
     if (this.earliestArrivalTimes[stop] === UNREACHED_TIME) {
       this.reachedStops.push(stop);

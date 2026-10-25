@@ -1,5 +1,10 @@
 import { StopId } from '../stops/stops.js';
-import { Duration, durationFromSeconds, Time } from '../timetable/time.js';
+import {
+  Duration,
+  durationFromSeconds,
+  normalizeMinutes,
+  Time,
+} from '../timetable/time.js';
 import { ALL_TRANSPORT_MODES, RouteType } from '../timetable/timetable.js';
 
 export type QueryOptions = {
@@ -25,6 +30,18 @@ export type QueryOptions = {
   maxInitialWaitingTime?: Duration;
 };
 
+/** Normalize a copy so callers' option objects remain unchanged. */
+const normalizeQueryOptions = (options: QueryOptions): QueryOptions => ({
+  ...options,
+  minTransferTime: normalizeMinutes(options.minTransferTime),
+  ...(options.maxDuration !== undefined && {
+    maxDuration: normalizeMinutes(options.maxDuration),
+  }),
+  ...(options.maxInitialWaitingTime !== undefined && {
+    maxInitialWaitingTime: normalizeMinutes(options.maxInitialWaitingTime),
+  }),
+});
+
 /**
  * A routing query for standard RAPTOR.
  *
@@ -41,8 +58,8 @@ export class Query {
   constructor(builder: typeof Query.Builder.prototype) {
     this.from = builder.fromValue;
     this.to = builder.toValue;
-    this.departureTime = builder.departureTimeValue;
-    this.options = builder.optionsValue;
+    this.departureTime = normalizeMinutes(builder.departureTimeValue);
+    this.options = normalizeQueryOptions(builder.optionsValue);
   }
 
   static Builder = class {
@@ -65,7 +82,9 @@ export class Query {
 
     /**
      * Sets the destination stop(s).
-     * Routing stops as soon as all provided stops have been reached.
+     * Routing seeks the earliest arrival at any provided destination, not all of
+     * them. A reached destination bounds further exploration, which continues
+     * while an earlier arrival remains possible. Other destinations may be omitted.
      */
     to(to: StopId | Set<StopId>): this {
       this.toValue = to instanceof Set ? to : new Set([to]);
@@ -181,7 +200,7 @@ export class RangeQuery extends Query {
 
   constructor(builder: typeof RangeQuery.Builder.prototype) {
     super(builder);
-    this.lastDepartureTime = builder.lastDepartureTimeValue;
+    this.lastDepartureTime = normalizeMinutes(builder.lastDepartureTimeValue);
     this.rangeOptions = builder.rangeOptionsValue;
   }
 

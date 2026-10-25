@@ -40,6 +40,8 @@ A more complete isochrone map showcase can be found on [isochrone.ch](https://is
 - **Range queries** — all Pareto-optimal journeys within a departure-time window
 - Isochrone computation — earliest arrival times / fastest routes to every reachable stop
 
+When a query specifies multiple destinations, routing seeks the earliest arrival at any of them. Reaching one destination bounds further exploration; the search continues while an earlier arrival is possible. Results for every destination are not guaranteed.
+
 ### Tested GTFS feeds
 
 | Feed                                                                                       | Parsing time | Timetable size for a day (compressed) |
@@ -64,7 +66,9 @@ const timetable = await parser.parseTimetable(new Date());
 const stopsIndex = await parser.parseStops();
 ```
 
-Times are represented at the minute level (16-bit integers). Parsing can take a few minutes for large feeds.
+Times are represented at the minute level using unsigned 16-bit integers. Fractional query inputs are rounded to the nearest minute; valid values are 0–65534, with 65535 reserved for unreachable times. Data supplied directly to `Timetable` or `Route` must already use normalized integer minutes. Parsing can take a few minutes for large feeds.
+
+The parser groups trips by stop sequence and drop-off pattern, then separates overtaking trips so arrivals and departures remain ordered at every stop. Reparse existing feeds to apply this grouping; existing binary timetable files remain readable.
 
 #### Trip-specific transfers
 
@@ -133,6 +137,20 @@ const route = result.bestRoute(); // Route | undefined
 // Earliest arrival at any individual stop (useful for isochrone computation)
 const arrival = result.arrivalAt(stop.id); // { arrival: Time, legNumber: number } | undefined
 ```
+
+For isochrones, iterate concrete reached stops without accessing mutable routing state:
+
+```ts
+for (const { stop, arrival, legNumber } of result.arrivals()) {
+  // Look up coordinates with stopsIndex.findStopById(stop).
+}
+```
+
+Migration: replace `result.routingState.arrivals()` with `result.arrivals()`.
+`routingState` is now private. Iteration preserves ascending stop-ID order and
+includes access-only arrivals (`legNumber === 0`), without expanding equivalent
+stops or building an intermediate collection. Each yielded record is independent.
+Use a query without destinations to compute full-network isochrones.
 
 Query options:
 
@@ -258,3 +276,21 @@ Releases are automatically published to npm on merge to `main` (stable) or `beta
 ## Roadmap and requests
 
 The project is under active development. Use GitHub issues for bug reports and feature requests. For custom development, consulting, integrations, or other inquiries, feel free to contact [the author](https://aubry.io/).
+
+### RAPTOR optimization benchmarks
+
+Run the focused routing benchmark with warmed batches and separate retained-memory measurements:
+
+```sh
+node --expose-gc --import tsx src/benchmarks/raptor.ts > /tmp/raptor-benchmark.json
+```
+
+Defaults are 20 warm-up queries and five batches of 100 measured queries per scenario. `BENCH_FILTER` selects scenario names by regular expression; `BENCH_ITERATIONS` and `BENCH_WARMUP` override the sample sizes for expensive workloads. For example:
+
+```sh
+BENCH_FILTER='^swiss' BENCH_ITERATIONS=5 BENCH_WARMUP=5 node --expose-gc --import tsx src/benchmarks/raptor.ts
+```
+
+An optional absolute path to a baseline repository root allows comparisons against the same inputs: `node --expose-gc --import tsx src/benchmarks/raptor.ts /tmp/minotor-baseline`. The harness loads that checkout’s router, timetable, and query implementations. Compare result fingerprints as well as median batch times; run engines sequentially with identical settings. Forced garbage collection occurs outside the timed batches. Retained-memory deltas describe the returned result, not peak allocations or total routing-engine storage.
+
+The benchmark also reports timetable load time and retained storage, plus process-wide peak RSS (including loading and fingerprinting, not isolated query peak allocations). Run comparisons with the same Node version; `BENCH_FILTER` also selects `special-point` and `special-range` workloads with dense trip-specific rules.

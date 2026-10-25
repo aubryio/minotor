@@ -2,6 +2,7 @@ import log from 'loglevel';
 
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { SerializedRoute } from '../timetable/io.js';
+import { writePickupDropOff } from '../timetable/pickupDropOff.js';
 import type { RouteId, TripRouteIndex } from '../timetable/route.js';
 import { PickUpDropOffTypes, Route } from '../timetable/route.js';
 import {
@@ -15,7 +16,7 @@ import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTime, toTime } from './time.js';
 import { TransfersMap } from './transfers.js';
-import { hashIds, parseCsv } from './utils.js';
+import { parseCsv } from './utils.js';
 
 export type GtfsTripId = string;
 
@@ -69,7 +70,7 @@ type RouteBuilder = {
 
 /**
  * Encodes pickup/drop-off types into a Uint8Array using 2 bits per value.
- * Layout per byte: [drop_off_1][pickup_1][drop_off_0][pickup_0] for stops 0 and 1
+ * Layout per byte: [pickup_1][drop_off_1][pickup_0][drop_off_0] for stops 0 and 1
  */
 export const encodePickUpDropOffTypes = (
   pickUpTypes: SerializedPickUpDropOffType[],
@@ -81,43 +82,45 @@ export const encodePickUpDropOffTypes = (
   const encoded = new Uint8Array(arraySize);
 
   for (let i = 0; i < stopsCount; i++) {
-    const byteIndex = Math.floor(i / 2);
-    const isSecondPair = i % 2 === 1;
-    const dropOffType = dropOffTypes[i];
-    const pickUpType = pickUpTypes[i];
-
-    if (
-      dropOffType !== undefined &&
-      pickUpType !== undefined &&
-      byteIndex < encoded.length
-    ) {
-      if (isSecondPair) {
-        // Second pair: upper 4 bits
-        const currentByte = encoded[byteIndex];
-        if (currentByte !== undefined) {
-          encoded[byteIndex] =
-            currentByte | (dropOffType << 4) | (pickUpType << 6);
-        }
-      } else {
-        // First pair: lower 4 bits
-        const currentByte = encoded[byteIndex];
-        if (currentByte !== undefined) {
-          encoded[byteIndex] = currentByte | dropOffType | (pickUpType << 2);
-        }
-      }
+    const pickup = pickUpTypes[i];
+    const dropOff = dropOffTypes[i];
+    if (pickup !== undefined && dropOff !== undefined) {
+      writePickupDropOff(encoded, i, pickup, dropOff);
     }
   }
   return encoded;
 };
 
-/**
- * Sorts trips by departure time and creates optimized typed arrays
- */
+/** Stable first-fit partition: each route can safely scan a single active trip. */
+const partitionNonOvertaking = (builder: RouteBuilder): RouteBuilder[] => {
+  builder.trips.sort((a, b) => a.firstDeparture - b.firstDeparture);
+  const groups: RouteBuilder[] = [];
+  for (const trip of builder.trips) {
+    const group = groups.find(({ trips }) => {
+      const last = trips[trips.length - 1];
+      if (!last) {
+        return false;
+      }
+      return trip.arrivalTimes.every(
+        (arrival, index) =>
+          arrival >= (last.arrivalTimes[index] ?? Infinity) &&
+          (trip.departureTimes[index] ?? -Infinity) >=
+            (last.departureTimes[index] ?? Infinity),
+      );
+    });
+    if (group) {
+      group.trips.push(trip);
+    } else {
+      groups.push({ ...builder, trips: [trip] });
+    }
+  }
+  return groups;
+};
+
+/** Creates optimized typed arrays from an already ordered, compatible group. */
 const finalizeRouteFromBuilder = (
   builder: RouteBuilder,
 ): [SerializedRoute, GtfsTripId[]] => {
-  builder.trips.sort((a, b) => a.firstDeparture - b.firstDeparture);
-
   const stopsCount = builder.stops.length;
   const tripsCount = builder.trips.length;
   const stopsArray = new Uint32Array(builder.stops);
@@ -265,7 +268,7 @@ export const buildStopsAdjacencyStructure = (
  *   When provided, trips listed in this map are expanded into one concrete
  *   trip per departure that fits within each frequency window, instead of
  *   being kept as a single template trip.
- * @returns A mapping of route IDs to route details. The routes returned correspond to the set of trips from GTFS that share the same stop list.
+ * @returns A mapping of route IDs to route details. Routes share a stop sequence and drop-off pattern, with nondecreasing times at every stop.
  */
 export const parseStopTimes = async (
   stopTimesStream: NodeJS.ReadableStream,
@@ -307,7 +310,7 @@ export const parseStopTimes = async (
       return;
     }
 
-    const routeId = `${gtfsRouteId}_${hashIds(stops)}`;
+    const routeId = JSON.stringify([gtfsRouteId, stops, dropOffTypes]);
     let routeBuilder = routeBuilders.get(routeId);
     if (!routeBuilder) {
       let serviceRouteId = serviceRoutesMap.get(gtfsRouteId);
@@ -436,7 +439,9 @@ export const parseStopTimes = async (
     GtfsTripId,
     { routeId: RouteId; tripRouteIndex: TripRouteIndex }
   >();
-  for (const [, routeBuilder] of routeBuilders) {
+  for (const routeBuilder of [...routeBuilders.values()].flatMap(
+    partitionNonOvertaking,
+  )) {
     const [routeData, gtfsTripIds] = finalizeRouteFromBuilder(routeBuilder);
     const routeId = routesAdjacency.length;
     routesAdjacency.push(

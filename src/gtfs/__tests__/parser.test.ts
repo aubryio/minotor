@@ -32,13 +32,19 @@ describe('GTFS parser', () => {
     const transfers = timetable.getTransfers(furCreekResId);
     assert.strictEqual(transfers.length, 0);
 
-    const route = timetable.getRoute(3);
-    assert(route);
-    assert.strictEqual(route.serviceRoute(), 2);
     const beattyAirportId =
       stopsIndex.findStopBySourceStopId('BEATTY_AIRPORT')?.id;
     const bullfrogId = stopsIndex.findStopBySourceStopId('BULLFROG')?.id;
     assert(beattyAirportId !== undefined && bullfrogId !== undefined);
+    // Internal route IDs change when incompatible trips are partitioned.
+    const route = timetable
+      .routesPassingThrough(beattyAirportId)
+      .find(
+        (candidate) =>
+          candidate.serviceRoute() === 2 &&
+          candidate.stops.includes(bullfrogId),
+      );
+    assert(route);
     assert.strictEqual(route.getNbStops(), 2);
 
     const beattyAirportStopIndex = route.stopRouteIndices(beattyAirportId)[0];

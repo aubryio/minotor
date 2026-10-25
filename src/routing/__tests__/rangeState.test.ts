@@ -1,241 +1,99 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-import assert from 'node:assert';
+import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { timeFromHM } from '../../timetable/time.js';
+import { tripKey } from '../../timetable/tripStopId.js';
 import { RangeRaptorState } from '../rangeState.js';
 import { RoutingState, UNREACHED_TIME } from '../state.js';
 
 const NB_STOPS = 4;
-const MAX_ROUNDS = 3;
+const emptyRun = () =>
+  RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [3] });
 
 describe('RangeRaptorState', () => {
-  describe('constructor', () => {
-    it('creates roundLabels of length maxRounds + 2', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
+  it('keeps normalized access times consistent in the destination bound', () => {
+    const state = new RangeRaptorState();
+    state.setCurrentRun(
+      new RoutingState(
+        80,
+        [3],
+        [{ fromStopId: 0, toStopId: 3, duration: 6 }],
         NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      assert.strictEqual(state.roundLabels.length, MAX_ROUNDS + 2);
-    });
-
-    it('initialized all roundLabels to UNREACHED_TIME', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      for (const round of state.roundLabels) {
-        for (const val of round) {
-          assert.strictEqual(val, UNREACHED_TIME);
-        }
-      }
-    });
-
-    it('stores latestDeparture', () => {
-      const latest = timeFromHM(11, 30);
-      const state = new RangeRaptorState(MAX_ROUNDS, NB_STOPS, latest);
-      assert.strictEqual(state.latestDeparture, latest);
-    });
+        3,
+      ),
+    );
+    assert.equal(state.destinationBest, 86);
+    assert.equal(state.arrivalTime(3), 86);
+    assert.equal(state.graph[0]?.[3]?.arrival, 86);
   });
 
-  describe('setCurrentRun', () => {
-    it('seeds round-0 shared labels from origin nodes', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({
-          nbStops: NB_STOPS,
-          origins: [1],
-          graph: [[[1, { stopId: 1, arrival: timeFromHM(9, 0) }]]],
-        }),
-      );
-      assert.strictEqual(state.roundLabels[0]![1], timeFromHM(9, 0));
-    });
-
-    it('skips an origin that has no edge in round 0', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({
-          nbStops: NB_STOPS,
-          origins: [1],
-          graph: [[]],
-        }),
-      );
-      assert.strictEqual(state.roundLabels[0]![1], UNREACHED_TIME);
-    });
-
-    it('delegates origins and graph getters to the active run', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      const run = RoutingState.fromTestData({
-        nbStops: NB_STOPS,
-        origins: [0, 2],
-        graph: [[]],
-      });
-      state.setCurrentRun(run);
-      assert.deepStrictEqual(state.origins, [0, 2]);
-      assert.strictEqual(state.graph, run.graph);
-    });
+  it('keeps the best destination arrival across runs, including access arrivals', () => {
+    const state = new RangeRaptorState();
+    state.setCurrentRun(emptyRun());
+    assert.equal(state.destinationBest, UNREACHED_TIME);
+    state.updateArrival(1, 50, 1);
+    assert.equal(state.destinationBest, UNREACHED_TIME);
+    state.updateArrival(3, 100, 2);
+    state.setCurrentRun(emptyRun());
+    assert.equal(state.arrivalTime(3), UNREACHED_TIME);
+    assert.equal(state.destinationBest, 100);
+    state.updateArrival(3, 110, 1);
+    assert.equal(state.destinationBest, 100);
+    const accessRun = new RoutingState(
+      80,
+      [3],
+      [{ fromStopId: 0, toStopId: 3, duration: 5 }],
+      NB_STOPS,
+      3,
+    );
+    state.setCurrentRun(accessRun);
+    assert.equal(state.destinationBest, 85);
+    assert.equal(state.arrivalTime(3), 85);
+    assert.equal(state.graph, accessRun.graph);
+    assert.deepEqual(state.origins, accessRun.origins);
+    state.setCurrentRun(emptyRun());
+    assert.equal(state.destinationBest, 85);
   });
 
-  describe('improvementBound', () => {
-    it('returns the cross-run shared label, tighter than the per-run arrival', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2] }),
-      );
-      state.updateArrival(2, timeFromHM(9, 30), 1);
-
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2] }),
-      );
-
-      assert.strictEqual(state.arrivalTime(2), UNREACHED_TIME);
-      assert.strictEqual(state.improvementBound(1, 2), timeFromHM(9, 30));
-    });
+  it('keeps boarding and walking eligibility separate from aggregate arrivals', () => {
+    const state = new RangeRaptorState();
+    state.setCurrentRun(emptyRun());
+    state.updateArrival(1, 50, 1);
+    assert.equal(state.improveOrdinaryLabel(2, 1, 100, false), true);
+    assert.equal(state.improveOrdinaryLabel(2, 1, 100, true), true);
+    state.setCurrentRun(emptyRun());
+    assert.equal(state.improveOrdinaryLabel(3, 1, 100, false), false);
+    assert.equal(state.improveOrdinaryLabel(3, 1, 101, true), false);
+    assert.equal(state.improveOrdinaryLabel(3, 1, 100, false), false);
+    assert.equal(state.improveOrdinaryLabel(3, 1, 100, true), false);
+    assert.equal(state.improveOrdinaryLabel(3, 1, 99, false), true);
+    assert.equal(state.improveOrdinaryLabel(3, 1, 99, true), true);
+    // An equal arrival with fewer legs is still useful.
+    assert.equal(state.improveOrdinaryLabel(1, 1, 100, false), true);
+    assert.equal(state.improveOrdinaryLabel(1, 1, 100, true), true);
+    assert.equal(state.improveOrdinaryLabel(2, 2, 100, false), true);
   });
 
-  describe('updateArrival', () => {
-    it('improves the shared roundLabel for the given round and stop', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2] }),
-      );
-      state.updateArrival(2, timeFromHM(9, 0), 1);
-      assert.strictEqual(state.roundLabels[1]![2], timeFromHM(9, 0));
-    });
-
-    it('does not worsen a shared roundLabel that is already tight', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2] }),
-      );
-      state.updateArrival(2, timeFromHM(9, 0), 1);
-      state.updateArrival(2, timeFromHM(9, 30), 1);
-      assert.strictEqual(state.roundLabels[1]![2], timeFromHM(9, 0));
-    });
-
-    it('updates destinationBest when a destination stop is first reached', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [3] }),
-      );
-      assert.strictEqual(state.destinationBest, UNREACHED_TIME);
-      state.updateArrival(3, timeFromHM(10, 0), 1);
-      assert.strictEqual(state.destinationBest, timeFromHM(10, 0));
-    });
-
-    it('destinationBest persists when the run is swapped', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [3] }),
-      );
-      state.updateArrival(3, timeFromHM(10, 0), 1);
-
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [3] }),
-      );
-      assert.strictEqual(state.destinationBest, timeFromHM(10, 0));
-    });
-  });
-
-  describe('initRound', () => {
-    it('propagates the round k-1 label into round k for changed stops', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2] }),
-      );
-      state.updateArrival(2, timeFromHM(9, 0), 1);
-      state.initRound(2);
-      assert.strictEqual(state.roundLabels[2]![2], timeFromHM(9, 0));
-    });
-
-    it('does not overwrite a tighter label already present in round k', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [2] }),
-      );
-      state.updateArrival(2, timeFromHM(8, 30), 2);
-      state.updateArrival(2, timeFromHM(9, 0), 1);
-      state.initRound(2);
-      assert.strictEqual(state.roundLabels[2]![2], timeFromHM(8, 30));
-    });
-
-    it('is a no-op when no stop changed in the previous round', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(RoutingState.fromTestData({ nbStops: NB_STOPS }));
-      state.initRound(1);
-      for (const val of state.roundLabels[1]!) {
-        assert.strictEqual(val, UNREACHED_TIME);
-      }
-    });
-
-    it('clears the changed-stop list so a subsequent call propagates nothing new', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(RoutingState.fromTestData({ nbStops: NB_STOPS }));
-      state.updateArrival(2, timeFromHM(9, 0), 0);
-      state.initRound(1);
-      state.initRound(2);
-      assert.strictEqual(state.roundLabels[2]![2], UNREACHED_TIME);
-    });
+  it('prunes only the same trip at a dominated position and leg count', () => {
+    const state = new RangeRaptorState();
+    const trip = tripKey(0, 0);
+    const otherTrip = tripKey(0, 1);
+    state.setCurrentRun(emptyRun());
+    assert.equal(state.tripBoardingBound(2, trip), Infinity);
+    assert.equal(state.improveTripBoarding(2, trip, 3), true);
+    state.setCurrentRun(emptyRun());
+    assert.equal(state.improveTripBoarding(3, trip, 3), false);
+    assert.equal(state.improveTripBoarding(3, trip, 4), false);
+    assert.equal(state.improveTripBoarding(3, trip, 2), true);
+    assert.equal(state.tripBoardingBound(2, trip), 3);
+    assert.equal(state.tripBoardingBound(3, trip), 2);
+    assert.equal(state.improveTripBoarding(1, trip, 3), true);
+    assert.equal(state.improveTripBoarding(3, otherTrip, 4), true);
   });
 
   describe('updateArrival aggregate overwrite behavior', () => {
     it('does not overwrite the current run aggregate with a later arrival from a higher round', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
+      const state = new RangeRaptorState();
       const run = RoutingState.fromTestData({
         nbStops: NB_STOPS,
         destinations: [2],
@@ -249,15 +107,10 @@ describe('RangeRaptorState', () => {
         arrival: timeFromHM(8, 30),
         legNumber: 1,
       });
-      assert.strictEqual(state.roundLabels[2]![2], timeFromHM(8, 45));
     });
 
     it('does not overwrite the current run aggregate with an equal-time arrival using more legs', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
+      const state = new RangeRaptorState();
       const run = RoutingState.fromTestData({
         nbStops: NB_STOPS,
         destinations: [2],
@@ -271,15 +124,10 @@ describe('RangeRaptorState', () => {
         arrival: timeFromHM(8, 30),
         legNumber: 2,
       });
-      assert.strictEqual(state.roundLabels[3]![2], timeFromHM(8, 30));
     });
 
     it('prefers fewer legs for the current run aggregate when arrival time is equal', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
+      const state = new RangeRaptorState();
       const run = RoutingState.fromTestData({
         nbStops: NB_STOPS,
         destinations: [2],
@@ -296,11 +144,7 @@ describe('RangeRaptorState', () => {
     });
 
     it('still updates the current run aggregate when the new arrival is earlier', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
+      const state = new RangeRaptorState();
       const run = RoutingState.fromTestData({
         nbStops: NB_STOPS,
         destinations: [2],
@@ -314,21 +158,6 @@ describe('RangeRaptorState', () => {
         arrival: timeFromHM(8, 30),
         legNumber: 3,
       });
-    });
-  });
-
-  describe('isDestination', () => {
-    it('delegates to the current run', () => {
-      const state = new RangeRaptorState(
-        MAX_ROUNDS,
-        NB_STOPS,
-        timeFromHM(12, 0),
-      );
-      state.setCurrentRun(
-        RoutingState.fromTestData({ nbStops: NB_STOPS, destinations: [3] }),
-      );
-      assert.strictEqual(state.isDestination(3), true);
-      assert.strictEqual(state.isDestination(0), false);
     });
   });
 });

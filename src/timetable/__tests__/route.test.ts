@@ -6,6 +6,40 @@ import { PickUpDropOffTypes, Route } from '../route.js';
 import { TIME_ORIGIN, timeFromHMS } from '../time.js';
 
 describe('Route', () => {
+  it('packs odd-length trips continuously across byte boundaries', () => {
+    const pickups = [0, 1, 2, 3, 0, 1] as const;
+    const dropOffs = [3, 2, 1, 0, 3, 2] as const;
+    const route = Route.of({
+      id: 0,
+      serviceRouteId: 0,
+      trips: [0, 1].map((trip) => ({
+        stops: [0, 1, 2].map((id) => ({
+          id,
+          arrivalTime: 100 + trip * 10 + id,
+          departureTime: 100 + trip * 10 + id,
+          pickUpType: pickups[trip * 3 + id],
+          dropOffType: dropOffs[trip * 3 + id],
+        })),
+      })),
+    });
+    const expected = new Uint8Array([0x63, 0xc9, 0x63]);
+    assert.deepStrictEqual(route.serialize().pickupDropOffTypes, expected);
+    assert.deepStrictEqual(
+      encodePickUpDropOffTypes([...pickups], [...dropOffs]),
+      expected,
+    );
+    for (let index = 0; index < 6; index++) {
+      assert.equal(
+        route.pickUpTypeFrom(index % 3, Math.floor(index / 3)),
+        pickups[index],
+      );
+      assert.equal(
+        route.dropOffTypeAt(index % 3, Math.floor(index / 3)),
+        dropOffs[index],
+      );
+    }
+  });
+
   const stopTimes = new Uint16Array([
     // Trip 0: Stop 1 -> Stop 2
     timeFromHMS(8, 0, 0),

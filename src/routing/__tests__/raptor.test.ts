@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { Route } from '../../timetable/route.js';
+import { PickUpDropOffTypes, Route } from '../../timetable/route.js';
 import { timeFromHM } from '../../timetable/time.js';
 import {
   ALL_TRANSPORT_MODES,
@@ -153,6 +153,53 @@ const tripContinuations: TripTransfers = new Map([
 
 describe('Raptor', () => {
   describe('route scanning', () => {
+    it('keeps pickup and drop-off restrictions when scanning a later trip', () => {
+      const route = Route.of({
+        id: 0,
+        serviceRouteId: 0,
+        trips: [0, 1].map((trip) => ({
+          stops: [0, 1, 2].map((id) => ({
+            id,
+            arrivalTime: 10 + id * 10 + trip,
+            departureTime: 10 + id * 10 + trip,
+            pickUpType:
+              trip === 0 && id === 0
+                ? PickUpDropOffTypes.NOT_AVAILABLE
+                : PickUpDropOffTypes.REGULAR,
+            dropOffType:
+              trip === 1 && id === 1
+                ? PickUpDropOffTypes.NOT_AVAILABLE
+                : PickUpDropOffTypes.REGULAR,
+          })),
+        })),
+      });
+      const timetable = new Timetable(
+        [{ routes: [0] }, { routes: [0] }, { routes: [0] }],
+        [route],
+        [{ type: RouteTypes.BUS, name: 'Restricted', routes: [0] }],
+      );
+      const state = new RoutingState(
+        9,
+        [2],
+        [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+        3,
+        1,
+      );
+      new Raptor(timetable).run(
+        {
+          maxTransfers: 0,
+          minTransferTime: 2,
+          transportModes: ALL_TRANSPORT_MODES,
+        },
+        state,
+      );
+      assert.strictEqual(state.getArrival(1), undefined);
+      assert.deepStrictEqual(state.getArrival(2), {
+        arrival: 31,
+        legNumber: 1,
+      });
+    });
+
     it('marks the destination with the correct arrival time', () => {
       const timetable = new Timetable(
         stopsAdjacency,
@@ -510,5 +557,89 @@ describe('Raptor', () => {
       assert.strictEqual(state.getArrival(2)?.arrival, timeFromHM(8, 50));
       assert.strictEqual(state.getArrival(2)?.legNumber, 1);
     });
+  });
+});
+
+describe('Raptor run isolation', () => {
+  const options: QueryOptions = {
+    maxTransfers: 5,
+    minTransferTime: 2,
+    transportModes: ALL_TRANSPORT_MODES,
+  };
+  const makeState = (departure = timeFromHM(8, 0), origin = 0) =>
+    new RoutingState(
+      departure,
+      [2],
+      [{ fromStopId: origin, toStopId: origin, duration: 0 }],
+      3,
+      6,
+    );
+  const makeTimetable = () =>
+    new Timetable(stopsAdjacency, [route0, route1], serviceRoutes);
+
+  it('preserves earlier paths across queries with different round limits', () => {
+    const raptor = new Raptor(makeTimetable());
+    const first = makeState();
+    raptor.run(options, first);
+    const originalGraph = JSON.stringify(first.graph);
+    assert.strictEqual(first.getArrival(2)?.arrival, timeFromHM(8, 50));
+    const limited = makeState();
+    raptor.run({ ...options, maxTransfers: 0 }, limited);
+    assert.strictEqual(limited.getArrival(2), undefined);
+    const late = makeState(timeFromHM(9, 0));
+    raptor.run(options, late);
+    assert.strictEqual(late.getArrival(1), undefined);
+    assert.strictEqual(late.getArrival(2), undefined);
+    const repeated = makeState();
+    raptor.run(options, repeated);
+    assert.deepStrictEqual(repeated.graph, first.graph);
+    assert.strictEqual(JSON.stringify(first.graph), originalGraph);
+  });
+
+  it('can run again after an exception', (context) => {
+    const timetable = makeTimetable();
+    const raptor = new Raptor(timetable);
+    const failure = context.mock.method(timetable, 'getTransfers', () => {
+      throw new Error('transfer lookup failed');
+    });
+    assert.throws(() => {
+      raptor.run(options, makeState());
+    }, /transfer lookup failed/);
+    failure.mock.restore();
+    const repeated = makeState();
+    raptor.run(options, repeated);
+    assert.strictEqual(repeated.getArrival(2)?.arrival, timeFromHM(8, 50));
+  });
+
+  it('keeps a reentrant query independent of the outer run', (context) => {
+    const timetable = makeTimetable();
+    const raptor = new Raptor(timetable);
+    const findRoutes = timetable.findReachableRoutes.bind(timetable);
+    const nested = makeState(timeFromHM(8, 31), 1);
+    let entered = false;
+    context.mock.method(
+      timetable,
+      'findReachableRoutes',
+      (...args: Parameters<typeof findRoutes>) => {
+        if (!entered) {
+          entered = true;
+          raptor.run(options, nested);
+        }
+        return findRoutes(...args);
+      },
+    );
+    const outer = makeState();
+    raptor.run(options, outer);
+    assert.deepStrictEqual(nested.getArrival(2), {
+      arrival: timeFromHM(8, 50),
+      legNumber: 1,
+    });
+    assert.deepStrictEqual(outer.getArrival(2), {
+      arrival: timeFromHM(8, 50),
+      legNumber: 2,
+    });
+    const nestedGraph = JSON.stringify(nested.graph);
+    raptor.run(options, makeState());
+    assert.strictEqual(JSON.stringify(nested.graph), nestedGraph);
   });
 });

@@ -285,11 +285,7 @@ export class RangeResult {
   allShortestDurations(): Map<StopId, ArrivalWithDuration> {
     const durations = new Map<StopId, ArrivalWithDuration>();
     for (const { departureTime, result } of this._runs) {
-      for (const {
-        stop,
-        arrival,
-        legNumber,
-      } of result.routingState.arrivals()) {
+      for (const { stop, arrival, legNumber } of result.arrivals()) {
         const duration = arrival - departureTime;
         const existing = durations.get(stop);
         if (existing === undefined || duration < existing.duration) {
@@ -307,11 +303,7 @@ export class RangeResult {
   allEarliestArrivals(): Map<StopId, Arrival> {
     const arrivals = new Map<StopId, Arrival>();
     for (const { result } of this._runs) {
-      for (const {
-        stop,
-        arrival,
-        legNumber,
-      } of result.routingState.arrivals()) {
+      for (const { stop, arrival, legNumber } of result.arrivals()) {
         const existing = arrivals.get(stop);
         if (existing === undefined || arrival < existing.arrival) {
           arrivals.set(stop, { arrival, legNumber });

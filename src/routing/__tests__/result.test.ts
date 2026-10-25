@@ -14,7 +14,7 @@ import {
 } from '../../timetable/timetable.js';
 import { Query } from '../query.js';
 import { Result } from '../result.js';
-import { RoutingState, TransferEdge, VehicleEdge } from '../router.js';
+import { Router, RoutingState, TransferEdge, VehicleEdge } from '../router.js';
 
 const NB_STOPS = 7;
 
@@ -180,6 +180,49 @@ describe('Result', () => {
     .to(new Set([2, 3]))
     .departureTime(timeFromHMS(8, 0, 0))
     .build();
+
+  describe('arrivals', () => {
+    it('streams concrete stops in ID order without exposing state or expanding parents', () => {
+      const state = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        arrivals: [
+          [5, 610, 2],
+          [0, 480, 0],
+          [2, 540, 1],
+        ],
+      });
+      const result = new Result(
+        new Set(),
+        state,
+        mockStopsIndex,
+        mockTimetable,
+      );
+      const expected = [
+        { stop: 0, arrival: 480, legNumber: 0 },
+        { stop: 2, arrival: 540, legNumber: 1 },
+        { stop: 5, arrival: 610, legNumber: 2 },
+      ];
+      const records = Array.from(result.arrivals());
+      assert.deepStrictEqual(records, expected);
+      assert.deepStrictEqual(records, Array.from(state.arrivals()));
+      assert.notStrictEqual(records[0], records[1]);
+      Object.assign(records[0] ?? {}, { arrival: 123 });
+      assert.deepStrictEqual(Array.from(result.arrivals()), expected);
+    });
+
+    it('retains arrivals and reconstructed journeys across later queries', () => {
+      const router = new Router(mockTimetable, mockStopsIndex);
+      const query = new Query.Builder().from(0).departureTime(480).build();
+      const first = router.route(query);
+      const arrivals = Array.from(first.arrivals());
+      const route = first.bestRoute(3);
+      assert.ok(route);
+      router.route(new Query.Builder().from(2).departureTime(600).build());
+      assert.deepStrictEqual(Array.from(first.arrivals()), arrivals);
+      assert.deepStrictEqual(first.bestRoute(3), route);
+      assert.ok(arrivals.some((a) => a.stop === 0 && a.legNumber === 0));
+    });
+  });
 
   describe('bestRoute', () => {
     it('should return undefined when no route exists', () => {

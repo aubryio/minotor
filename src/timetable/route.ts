@@ -1,5 +1,6 @@
 import { StopId } from '../stops/stops.js';
 import { SerializedRoute } from './io.js';
+import { writePickupDropOff } from './pickupDropOff.js';
 import { Time, TIME_ORIGIN } from './time.js';
 import { ServiceRouteId } from './timetable.js';
 
@@ -50,7 +51,10 @@ export type TripRouteIndex = number;
 export type StopRouteIndex = number;
 
 /**
- * A route identifies all trips of a given service route sharing the same list of stops.
+ * A route groups trips with the same service, stop sequence, and drop-off pattern.
+ * Trips must be ordered with nondecreasing arrivals and departures at every stop.
+ * Times must already be normalized to integer minutes below 65535.
+ * GTFS ingestion establishes these invariants; manual callers must preserve them.
  */
 export class Route {
   public readonly id: RouteId;
@@ -207,18 +211,7 @@ export class Route {
         const globalIndex = tripIndex * numStops + stopIndex;
         const pickUp = stop.pickUpType ?? PickUpDropOffTypes.REGULAR;
         const dropOff = stop.dropOffType ?? PickUpDropOffTypes.REGULAR;
-        const byteIndex = Math.floor(globalIndex / 2);
-        const isSecondPair = globalIndex % 2 === 1;
-
-        if (isSecondPair) {
-          // Second pair: pickup in upper 2 bits, dropOff in bits 4-5
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          pickupDropOffTypes[byteIndex]! |= (pickUp << 6) | (dropOff << 4);
-        } else {
-          // First pair: pickup in bits 2-3, dropOff in lower 2 bits
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          pickupDropOffTypes[byteIndex]! |= (pickUp << 2) | dropOff;
-        }
+        writePickupDropOff(pickupDropOffTypes, globalIndex, pickUp, dropOff);
       }
     }
 

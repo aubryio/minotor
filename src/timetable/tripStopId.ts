@@ -88,3 +88,10 @@ export const getRouteId = (tripStopId: TripStopId): RouteId => {
 export const getTripIndex = (tripStopId: TripStopId): TripRouteIndex => {
   return Number((tripStopId >> TRIP_INDEX_SHIFT) & VALUE_MASK);
 };
+
+/** A whole scheduled trip, distinct from a particular stop visit. */
+declare const tripKeyBrand: unique symbol;
+export type TripKey = bigint & { readonly [tripKeyBrand]: true };
+
+export const tripKey = (routeId: RouteId, tripIndex: TripRouteIndex): TripKey =>
+  encode(0, routeId, tripIndex) as TripKey;

@@ -63,11 +63,7 @@ export class RangeRouter {
 
     const maxRounds = query.options.maxTransfers + 1;
 
-    const rangeState = new RangeRaptorState(
-      maxRounds,
-      this.timetable.nbStops(),
-      latest,
-    );
+    const rangeState = new RangeRaptorState();
 
     const paretoRuns: ParetoRun[] = [];
 
@@ -85,7 +81,10 @@ export class RangeRouter {
 
     let routingState: RoutingState | null = null;
 
-    if (query.rangeOptions.optimizeBeyondLatestDeparture) {
+    if (
+      query.rangeOptions.optimizeBeyondLatestDeparture &&
+      latest + 1 < UNREACHED_TIME
+    ) {
       routingState = new RoutingState(
         latest + 1,
         destinations,
@@ -112,6 +111,7 @@ export class RangeRouter {
       }
     }
 
+    // rRAPTOR processes departures latest-first so retained bounds can prune earlier runs.
     for (const { depTime, legs } of departureSlots) {
       if (!noDestinations && trivialDestCovered.size === destinations.length) {
         break;
@@ -127,6 +127,7 @@ export class RangeRouter {
           query.options.maxDuration,
         );
       } else {
+        // Reset run-local results; rangeState retains the cross-departure bounds.
         routingState.resetFor(depTime, legs);
       }
       rangeState.setCurrentRun(routingState);

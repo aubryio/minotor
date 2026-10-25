@@ -1,13 +1,10 @@
 import { StopId } from '../stops/stops.js';
 import { durationToString, timeToString } from '../timetable/time.js';
 import { routeTypeToString } from '../timetable/timetable.js';
+import { isAccessEdge, isTransferEdge, isVehicleEdge } from './edges.js';
 import { Result } from './result.js';
-import {
-  AccessEdge,
-  RoutingEdge,
-  TransferEdge,
-  VehicleEdge,
-} from './router.js';
+import { resultState } from './resultInternals.js';
+import { AccessEdge, TransferEdge, VehicleEdge } from './state.js';
 
 /**
  * Configuration for DOT graph styling.
@@ -35,27 +32,6 @@ const DOT_CONFIG = {
     continuationEdge: 3,
   },
 } as const;
-
-/**
- * Type guard to check if an edge is a VehicleEdge.
- */
-function isVehicleEdge(edge: RoutingEdge): edge is VehicleEdge {
-  return 'routeId' in edge && 'stopIndex' in edge && 'hopOffStopIndex' in edge;
-}
-
-/**
- * Type guard to check if an edge is a TransferEdge.
- */
-function isTransferEdge(edge: RoutingEdge): edge is TransferEdge {
-  return 'from' in edge && 'to' in edge && 'type' in edge;
-}
-
-/**
- * Type guard to check if an edge is an AccessEdge (walking access leg).
- */
-function isAccessEdge(edge: RoutingEdge): edge is AccessEdge {
-  return 'from' in edge && 'duration' in edge;
-}
 
 /**
  * Helper class for building DOT graph syntax.
@@ -261,9 +237,10 @@ export class Plotter {
     isOrigin: boolean;
     isDestination: boolean;
   } {
-    const isOrigin = this.result.routingState.graph[0]?.[stopId] !== undefined;
+    const isOrigin =
+      this.result[resultState]().graph[0]?.[stopId] !== undefined;
     const isDestination =
-      this.result.routingState.destinations.includes(stopId);
+      this.result[resultState]().destinations.includes(stopId);
     return { isOrigin, isDestination };
   }
 
@@ -463,7 +440,7 @@ export class Plotter {
    */
   private collectStations(): Set<StopId> {
     const stations = new Set<StopId>();
-    const graph = this.result.routingState.graph;
+    const graph = this.result[resultState]().graph;
 
     for (const roundEdges of graph) {
       for (let stopId = 0; stopId < roundEdges.length; stopId++) {
@@ -522,7 +499,7 @@ export class Plotter {
   private collectEdges(): string[] {
     const edges: string[] = [];
     const continuationEdges: string[] = [];
-    const graph = this.result.routingState.graph;
+    const graph = this.result[resultState]().graph;
 
     for (let round = 0; round < graph.length; round++) {
       const roundEdges = graph[round];

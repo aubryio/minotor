@@ -26,7 +26,7 @@ export class PlainRouter {
 
   /**
    * Standard RAPTOR: finds the earliest-arrival journey from `query.from` to
-   * `query.to` for the given departure time.
+   * the earliest of the destinations in `query.to` for the given departure time.
    *
    * @param query The routing query.
    * @returns A {@link Result} that can reconstruct the best route and arrival times.

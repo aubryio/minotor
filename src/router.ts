@@ -1,6 +1,7 @@
 import { Plotter } from './routing/plotter.js';
 import type { QueryOptions, RangeQueryOptions } from './routing/query.js';
 import { Query, RangeQuery } from './routing/query.js';
+import type { StopArrival } from './routing/result.js';
 import { Result } from './routing/result.js';
 import type {
   Leg,
@@ -72,6 +73,7 @@ export type {
   ServiceRouteInfo,
   SourceStopId,
   Stop,
+  StopArrival,
   StopId,
   Transfer,
   TransferType,

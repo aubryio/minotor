@@ -10,6 +10,20 @@ export type Time = number;
 export type Duration = number;
 
 export const TIME_INFINITY: Time = Number.MAX_SAFE_INTEGER;
+
+/** Reserved Uint16 value for an unreachable time; valid minutes are below it. */
+export const UINT16_TIME_LIMIT = 0xffff;
+
+/** Round external minute values before comparisons or typed-array storage. */
+export const normalizeMinutes = (value: number): number => {
+  const minutes = Math.round(value);
+  if (!Number.isFinite(value) || value < 0 || minutes >= UINT16_TIME_LIMIT) {
+    throw new RangeError(
+      'Minutes must be finite, nonnegative, and below 65535',
+    );
+  }
+  return minutes;
+};
 export const TIME_ORIGIN: Time = 0;
 
 export const DURATION_ZERO: Duration = 0;
@@ -40,7 +54,7 @@ export const timeFromHMS = (
     );
   }
   const totalSeconds = seconds + 60 * minutes + 3600 * hours;
-  return Math.round(totalSeconds / 60);
+  return normalizeMinutes(totalSeconds / 60);
 };
 
 /**
@@ -54,7 +68,7 @@ export const timeFromHM = (hours: number, minutes: number): Time => {
   if (hours < 0 || minutes < 0 || minutes >= 60) {
     throw new Error('Invalid time. Ensure hours and minutes are valid values.');
   }
-  return minutes + hours * 60;
+  return normalizeMinutes(minutes + hours * 60);
 };
 
 /**
@@ -121,7 +135,7 @@ export const timeToString = (time: Time): string => {
  * @returns A Duration representing the specified duration in minutes.
  */
 export const durationFromSeconds = (seconds: number): Duration =>
-  Math.round(seconds / 60);
+  normalizeMinutes(seconds / 60);
 
 /**
  * Converts a Duration to a string in "HH:MM" or "(M)Mmin" format.

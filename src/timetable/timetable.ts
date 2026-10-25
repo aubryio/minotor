@@ -23,66 +23,34 @@ import {
   TripRouteIndex,
 } from './route.js';
 import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
-import { decode, encode, TripStopId } from './tripStopId.js';
-
-export const TransferTypes = {
-  RECOMMENDED: 1,
-  GUARANTEED: 2,
-  REQUIRES_MINIMAL_TIME: 3,
-  IN_SEAT: 4,
-} as const;
-
-export type TransferType = (typeof TransferTypes)[keyof typeof TransferTypes];
-
-export type TransferTypeString = keyof typeof TransferTypes;
-
-export type Transfer = {
-  destination: StopId;
-  type: TransferType;
-  minTransferTime?: Duration;
-};
-
-export type TripStop = {
-  stopIndex: StopRouteIndex;
-  routeId: RouteId;
-  tripIndex: TripRouteIndex;
-};
+import type {
+  MinimumTripTransfers,
+  Transfer,
+  TransferType,
+  TransferTypeString,
+  TripConnections,
+  TripStop,
+  TripTransferRule,
+  TripTransfers,
+} from './transfers.js';
+import { TransferTypes, tripTransferReadyTime } from './transfers.js';
+import { TripConnectionIndex } from './tripConnectionIndex.js';
+import { encode, TripStopId } from './tripStopId.js';
+export type {
+  MinimumTripTransfers,
+  Transfer,
+  TransferType,
+  TransferTypeString,
+  TripConnections,
+  TripStop,
+  TripTransferRule,
+  TripTransfers,
+} from './transfers.js';
+export { TransferTypes, tripTransferReadyTime } from './transfers.js';
 
 export type StopAdjacency = {
   transfers?: Transfer[];
   routes: RouteId[];
-};
-
-export type TripTransfers = Map<TripStopId, TripStop[]>;
-
-export type MinimumTripTransfers = Map<
-  TripStopId,
-  (TripStop & { minTransferTime: Duration })[]
->;
-
-export type TripTransferRule = TripStop &
-  (
-    | { type: typeof TransferTypes.GUARANTEED }
-    | {
-        type: typeof TransferTypes.REQUIRES_MINIMAL_TIME;
-        minTransferTime: Duration;
-      }
-  );
-
-/** Exact-pair rules replace the fallback buffer, including longer minima. */
-export const tripTransferReadyTime = (
-  rule: TripTransferRule | undefined,
-  arrival: Time,
-  fallbackReady: Time,
-): Time =>
-  rule
-    ? arrival +
-      (rule.type === TransferTypes.GUARANTEED ? 0 : rule.minTransferTime)
-    : fallbackReady;
-
-export type TripConnections = {
-  rules: readonly TripTransferRule[];
-  continuations: readonly TripStop[];
 };
 
 export type ServiceRouteId = number;
@@ -119,11 +87,10 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set(
 );
 
 const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
-const EMPTY_RULES: readonly TripTransferRule[] = [];
-const EMPTY_TRIPS: readonly TripRouteIndex[] = [];
 
 /**
- * The internal transit timetable format.
+ * The internal transit timetable format. Supplied times and durations must
+ * already be normalized to nonnegative integer minutes below 65535.
  */
 export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
@@ -132,15 +99,7 @@ export class Timetable {
   private readonly tripContinuations?: TripTransfers;
   private readonly guaranteedTripTransfers?: TripTransfers;
   private readonly minimumTripTransfers: MinimumTripTransfers;
-  private readonly tripTransferRules = new Map<
-    TripStopId,
-    Map<TripStopId, TripTransferRule>
-  >();
-  private readonly connectionsByTrip = new Map<
-    TripStopId,
-    Map<StopRouteIndex, TripConnections>
-  >();
-  private readonly specialTrips = new Map<RouteId, TripRouteIndex[]>();
+  private readonly connections: TripConnectionIndex;
   private readonly activeStops: Set<StopId>;
 
   constructor(
@@ -157,59 +116,11 @@ export class Timetable {
     this.tripContinuations = tripContinuations;
     this.guaranteedTripTransfers = guaranteedTripTransfers;
     this.minimumTripTransfers = minimumTripTransfers;
-    const special = new Map<RouteId, Set<TripRouteIndex>>();
-    const mark = (origin: TripStopId) => {
-      const [, routeId, tripIndex] = decode(origin);
-      const trips = special.get(routeId) ?? new Set<TripRouteIndex>();
-      trips.add(tripIndex);
-      special.set(routeId, trips);
-    };
-    const addRule = (origin: TripStopId, rule: TripTransferRule) => {
-      const rules =
-        this.tripTransferRules.get(origin) ??
-        new Map<TripStopId, TripTransferRule>();
-      rules.set(encode(rule.stopIndex, rule.routeId, rule.tripIndex), rule);
-      this.tripTransferRules.set(origin, rules);
-      mark(origin);
-    };
-    for (const [origin, destinations] of guaranteedTripTransfers ?? []) {
-      for (const destination of destinations) {
-        addRule(origin, { ...destination, type: TransferTypes.GUARANTEED });
-      }
-    }
-    for (const [origin, destinations] of minimumTripTransfers) {
-      for (const destination of destinations) {
-        addRule(origin, {
-          ...destination,
-          type: TransferTypes.REQUIRES_MINIMAL_TIME,
-        });
-      }
-    }
-    // Every continuation origin is special, including predecessors of chains.
-    for (const origin of tripContinuations?.keys() ?? []) {
-      mark(origin);
-    }
-    for (const [routeId, trips] of special) {
-      this.specialTrips.set(
-        routeId,
-        [...trips].sort((a, b) => a - b),
-      );
-    }
-    for (const origin of new Set([
-      ...this.tripTransferRules.keys(),
-      ...(tripContinuations?.keys() ?? []),
-    ])) {
-      const [stopIndex, routeId, tripIndex] = decode(origin);
-      const trip = encode(0, routeId, tripIndex);
-      const connections =
-        this.connectionsByTrip.get(trip) ??
-        new Map<StopRouteIndex, TripConnections>();
-      connections.set(stopIndex, {
-        rules: [...(this.tripTransferRules.get(origin)?.values() ?? [])],
-        continuations: tripContinuations?.get(origin) ?? EMPTY_TRIP_BOARDINGS,
-      });
-      this.connectionsByTrip.set(trip, connections);
-    }
+    this.connections = new TripConnectionIndex(
+      tripContinuations,
+      guaranteedTripTransfers,
+      minimumTripTransfers,
+    );
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -340,6 +251,17 @@ export class Timetable {
    * @param route - The route for which the service route is to be retrieved.
    * @returns The service route corresponding to the provided route.
    */
+  /** Scalar lookup for routing mode checks, without allocating display metadata. */
+  getServiceRouteType(route: Route): RouteType {
+    const service = this.serviceRoutes[route.serviceRoute()];
+    if (!service) {
+      throw new Error(
+        `Service route not found for route ID: ${route.serviceRoute()}`,
+      );
+    }
+    return service.type;
+  }
+
   getServiceRouteInfo(route: Route): ServiceRouteInfo {
     const serviceRoute = this.serviceRoutes[route.serviceRoute()];
     if (!serviceRoute) {
@@ -428,28 +350,23 @@ export class Timetable {
     routeId: RouteId,
     tripIndex: TripRouteIndex,
   ): ReadonlyMap<StopRouteIndex, TripConnections> | undefined {
-    return this.connectionsByTrip.get(encode(0, routeId, tripIndex));
+    return this.connections.getConnections(routeId, tripIndex);
   }
 
   /** Trips whose distinct onward eligibility must survive stop-time dominance. */
   getSpecialTrips(routeId: RouteId): readonly TripRouteIndex[] {
-    return this.specialTrips.get(routeId) ?? EMPTY_TRIPS;
+    return this.connections.getSpecialTrips(routeId);
   }
 
   getTripTransferRules(from: TripStop): readonly TripTransferRule[] {
-    return (
-      this.getTripConnections(from.routeId, from.tripIndex)?.get(from.stopIndex)
-        ?.rules ?? EMPTY_RULES
-    );
+    return this.connections.getRules(from);
   }
 
   getTripTransferRule(
     from: TripStop,
     to: TripStop,
   ): TripTransferRule | undefined {
-    return this.tripTransferRules
-      .get(encode(from.stopIndex, from.routeId, from.tripIndex))
-      ?.get(encode(to.stopIndex, to.routeId, to.tripIndex));
+    return this.connections.getRule(from, to);
   }
 
   /** Exact-pair rules replace the ordinary buffer, including longer minima. */

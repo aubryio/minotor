@@ -1,9 +1,10 @@
-import { Timetable } from '../router.js';
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
 import { Route as TimetableRoute } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import { TransferTypes } from '../timetable/timetable.js';
+import { Timetable, TransferTypes } from '../timetable/timetable.js';
+import { isAccessEdge, isTransferEdge, isVehicleEdge } from './edges.js';
+import { resultState } from './resultInternals.js';
 import {
   Access,
   Leg,
@@ -12,12 +13,20 @@ import {
   Transfer,
   VehicleLeg,
 } from './route.js';
-import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
-import { AccessEdge, RoutingEdge } from './state.js';
+import {
+  AccessEdge,
+  Arrival,
+  RoutingEdge,
+  RoutingState,
+  TransferEdge,
+  VehicleEdge,
+} from './state.js';
+
+export type StopArrival = Readonly<Arrival & { stop: StopId }>;
 
 export class Result {
   private readonly destinations: ReadonlySet<StopId>;
-  public readonly routingState: RoutingState;
+  private readonly routingState: RoutingState;
   public readonly stopsIndex: StopsIndex;
   public readonly timetable: Timetable;
 
@@ -31,6 +40,18 @@ export class Result {
     this.routingState = routingState;
     this.stopsIndex = stopsIndex;
     this.timetable = timetable;
+  }
+
+  /** Reached concrete stops in ascending ID order, including access-only arrivals.
+   * Records are independent; iteration never exposes mutable routing storage.
+   */
+  arrivals(): IterableIterator<StopArrival> {
+    return this.routingState.arrivals();
+  }
+
+  /** Package-internal access for graph visualization. */
+  [resultState](): RoutingState {
+    return this.routingState;
   }
 
   /**
@@ -132,7 +153,7 @@ export class Result {
         );
       }
       let leg: Leg;
-      if ('routeId' in edge) {
+      if (isVehicleEdge(edge)) {
         // Walk the continuationOf chain to find the earliest (boarding) edge.
         let boardingEdge: VehicleEdge;
         let vehicleLeg: VehicleLeg;
@@ -177,11 +198,11 @@ export class Result {
           );
         }
         previousVehicleEdge = boardingEdge;
-      } else if ('type' in edge) {
+      } else if (isTransferEdge(edge)) {
         leg = this.buildTransferLeg(edge);
         linkedEdge = edge.previous;
         previousVehicleEdge = undefined;
-      } else if ('duration' in edge) {
+      } else if (isAccessEdge(edge)) {
         leg = this.buildAccessLeg(edge);
         previousVehicleEdge = undefined;
       } else {
@@ -189,7 +210,7 @@ export class Result {
       }
       route.push(leg);
       currentStop = leg.from.id;
-      if ('routeId' in edge) {
+      if (isVehicleEdge(edge)) {
         round -= 1;
       }
     }
