@@ -26,6 +26,8 @@ export default tseslint.config(
       'simple-import-sort': simpleImportSort,
     },
     rules: {
+      curly: ['error', 'all'],
+      'brace-style': ['error', '1tbs', { allowSingleLine: false }],
       '@typescript-eslint/no-unused-expressions': 'off', // Breaks the linting
       '@typescript-eslint/restrict-template-expressions': [
         'error',

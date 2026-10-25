@@ -1,4 +1,5 @@
 import {
+  MinimumTripTransferEntry as ProtoMinimumTripTransferEntry,
   Route as ProtoRoute,
   RouteType as ProtoRouteType,
   ServiceRoute as ProtoServiceRoute,
@@ -8,6 +9,7 @@ import {
 } from './proto/v1/timetable.js';
 import { Route } from './route.js';
 import {
+  MinimumTripTransfers,
   RouteType,
   RouteTypes,
   ServiceRoute,
@@ -403,4 +405,36 @@ export const deserializeTripTransfers = (
   }
 
   return result;
+};
+
+export const serializeMinimumTripTransfers = (
+  transfers: MinimumTripTransfers,
+): ProtoMinimumTripTransferEntry[] =>
+  [...transfers].map(([id, destinations]) => {
+    const [stopIndex, routeId, tripIndex] = decode(id);
+    return {
+      origin: { stopIndex, routeId, tripIndex },
+      destinations: destinations.map(({ minTransferTime, ...destination }) => ({
+        destination,
+        minTransferTime,
+      })),
+    };
+  });
+
+export const deserializeMinimumTripTransfers = (
+  entries: ProtoMinimumTripTransferEntry[],
+): MinimumTripTransfers => {
+  const transfers: MinimumTripTransfers = new Map();
+  for (const { origin, destinations } of entries) {
+    if (!origin) {
+      continue;
+    }
+    transfers.set(
+      encode(origin.stopIndex, origin.routeId, origin.tripIndex),
+      destinations.flatMap(({ destination, minTransferTime }) =>
+        destination ? [{ ...destination, minTransferTime }] : [],
+      ),
+    );
+  }
+  return transfers;
 };

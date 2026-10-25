@@ -112,11 +112,15 @@ export class AccessFinder {
       for (const route of this.timetable.routesPassingThrough(toStopId)) {
         for (const stopIndex of route.stopRouteIndices(toStopId)) {
           let tripIndex = route.findEarliestTrip(stopIndex, searchFrom);
-          if (tripIndex === undefined) continue;
+          if (tripIndex === undefined) {
+            continue;
+          }
           const nbTrips = route.getNbTrips();
           while (tripIndex < nbTrips) {
             const dep = route.departureFrom(stopIndex, tripIndex);
-            if (dep > searchTo) break;
+            if (dep > searchTo) {
+              break;
+            }
             if (
               route.pickUpTypeFrom(stopIndex, tripIndex) !==
               PickUpDropOffTypes.NOT_AVAILABLE
@@ -134,7 +138,9 @@ export class AccessFinder {
       }
     }
 
-    if (slotMap.size === 0) return [];
+    if (slotMap.size === 0) {
+      return [];
+    }
 
     // Sort descending so the outer loop processes latest departures first.
     const sorted = Array.from(slotMap.entries()).sort(([a], [b]) => b - a);

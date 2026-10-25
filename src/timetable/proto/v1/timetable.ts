@@ -191,6 +191,16 @@ export interface TripTransferEntry {
   destinations: TripStop[];
 }
 
+export interface MinimumTripTransfer {
+  destination: TripStop | undefined;
+  minTransferTime: number;
+}
+
+export interface MinimumTripTransferEntry {
+  origin: TripStop | undefined;
+  destinations: MinimumTripTransfer[];
+}
+
 export interface StopAdjacency {
   routes: number[];
   transfers: Transfer[];
@@ -208,6 +218,7 @@ export interface Timetable {
   serviceRoutes: ServiceRoute[];
   tripContinuations: TripTransferEntry[];
   guaranteedTripTransfers: TripTransferEntry[];
+  minimumTripTransfers: MinimumTripTransferEntry[];
 }
 
 function createBaseRoute(): Route {
@@ -651,6 +662,186 @@ export const TripTransferEntry: MessageFns<TripTransferEntry> = {
   },
 };
 
+function createBaseMinimumTripTransfer(): MinimumTripTransfer {
+  return { destination: undefined, minTransferTime: 0 };
+}
+
+export const MinimumTripTransfer: MessageFns<MinimumTripTransfer> = {
+  encode(message: MinimumTripTransfer, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.destination !== undefined) {
+      TripStop.encode(message.destination, writer.uint32(10).fork()).join();
+    }
+    if (message.minTransferTime !== 0) {
+      writer.uint32(16).uint32(message.minTransferTime);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MinimumTripTransfer {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseMinimumTripTransfer();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.destination = TripStop.decode(reader, reader.uint32());
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.minTransferTime = reader.uint32();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): MinimumTripTransfer {
+    return {
+      destination: isSet(object.destination) ? TripStop.fromJSON(object.destination) : undefined,
+      minTransferTime: isSet(object.minTransferTime)
+        ? globalThis.Number(object.minTransferTime)
+        : isSet(object.min_transfer_time)
+        ? globalThis.Number(object.min_transfer_time)
+        : 0,
+    };
+  },
+
+  toJSON(message: MinimumTripTransfer): unknown {
+    const obj: any = {};
+    if (message.destination !== undefined) {
+      obj.destination = TripStop.toJSON(message.destination);
+    }
+    if (message.minTransferTime !== 0) {
+      obj.minTransferTime = Math.round(message.minTransferTime);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MinimumTripTransfer>, I>>(base?: I): MinimumTripTransfer {
+    return MinimumTripTransfer.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MinimumTripTransfer>, I>>(object: I): MinimumTripTransfer {
+    const message = createBaseMinimumTripTransfer();
+    message.destination = (object.destination !== undefined && object.destination !== null)
+      ? TripStop.fromPartial(object.destination)
+      : undefined;
+    message.minTransferTime = object.minTransferTime ?? 0;
+    return message;
+  },
+};
+
+function createBaseMinimumTripTransferEntry(): MinimumTripTransferEntry {
+  return { origin: undefined, destinations: [] };
+}
+
+export const MinimumTripTransferEntry: MessageFns<MinimumTripTransferEntry> = {
+  encode(message: MinimumTripTransferEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.origin !== undefined) {
+      TripStop.encode(message.origin, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.destinations) {
+      MinimumTripTransfer.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MinimumTripTransferEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseMinimumTripTransferEntry();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.origin = TripStop.decode(reader, reader.uint32());
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.destinations.push(MinimumTripTransfer.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): MinimumTripTransferEntry {
+    return {
+      origin: isSet(object.origin) ? TripStop.fromJSON(object.origin) : undefined,
+      destinations: globalThis.Array.isArray(object?.destinations)
+        ? object.destinations.map((e: any) => MinimumTripTransfer.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: MinimumTripTransferEntry): unknown {
+    const obj: any = {};
+    if (message.origin !== undefined) {
+      obj.origin = TripStop.toJSON(message.origin);
+    }
+    if (message.destinations?.length) {
+      obj.destinations = message.destinations.map((e) => MinimumTripTransfer.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MinimumTripTransferEntry>, I>>(base?: I): MinimumTripTransferEntry {
+    return MinimumTripTransferEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MinimumTripTransferEntry>, I>>(object: I): MinimumTripTransferEntry {
+    const message = createBaseMinimumTripTransferEntry();
+    message.origin = (object.origin !== undefined && object.origin !== null)
+      ? TripStop.fromPartial(object.origin)
+      : undefined;
+    message.destinations = object.destinations?.map((e) => MinimumTripTransfer.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseStopAdjacency(): StopAdjacency {
   return { routes: [], transfers: [] };
 }
@@ -874,6 +1065,7 @@ function createBaseTimetable(): Timetable {
     serviceRoutes: [],
     tripContinuations: [],
     guaranteedTripTransfers: [],
+    minimumTripTransfers: [],
   };
 }
 
@@ -893,6 +1085,9 @@ export const Timetable: MessageFns<Timetable> = {
     }
     for (const v of message.guaranteedTripTransfers) {
       TripTransferEntry.encode(v!, writer.uint32(42).fork()).join();
+    }
+    for (const v of message.minimumTripTransfers) {
+      MinimumTripTransferEntry.encode(v!, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -950,6 +1145,14 @@ export const Timetable: MessageFns<Timetable> = {
             message.guaranteedTripTransfers.push(TripTransferEntry.decode(reader, reader.uint32()));
             continue;
           }
+          case 6: {
+            if (tag !== 50) {
+              break;
+            }
+
+            message.minimumTripTransfers.push(MinimumTripTransferEntry.decode(reader, reader.uint32()));
+            continue;
+          }
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;
@@ -989,6 +1192,11 @@ export const Timetable: MessageFns<Timetable> = {
         : globalThis.Array.isArray(object?.guaranteed_trip_transfers)
         ? object.guaranteed_trip_transfers.map((e: any) => TripTransferEntry.fromJSON(e))
         : [],
+      minimumTripTransfers: globalThis.Array.isArray(object?.minimumTripTransfers)
+        ? object.minimumTripTransfers.map((e: any) => MinimumTripTransferEntry.fromJSON(e))
+        : globalThis.Array.isArray(object?.minimum_trip_transfers)
+        ? object.minimum_trip_transfers.map((e: any) => MinimumTripTransferEntry.fromJSON(e))
+        : [],
     };
   },
 
@@ -1009,6 +1217,9 @@ export const Timetable: MessageFns<Timetable> = {
     if (message.guaranteedTripTransfers?.length) {
       obj.guaranteedTripTransfers = message.guaranteedTripTransfers.map((e) => TripTransferEntry.toJSON(e));
     }
+    if (message.minimumTripTransfers?.length) {
+      obj.minimumTripTransfers = message.minimumTripTransfers.map((e) => MinimumTripTransferEntry.toJSON(e));
+    }
     return obj;
   },
 
@@ -1022,6 +1233,8 @@ export const Timetable: MessageFns<Timetable> = {
     message.serviceRoutes = object.serviceRoutes?.map((e) => ServiceRoute.fromPartial(e)) || [];
     message.tripContinuations = object.tripContinuations?.map((e) => TripTransferEntry.fromPartial(e)) || [];
     message.guaranteedTripTransfers = object.guaranteedTripTransfers?.map((e) => TripTransferEntry.fromPartial(e)) ||
+      [];
+    message.minimumTripTransfers = object.minimumTripTransfers?.map((e) => MinimumTripTransferEntry.fromPartial(e)) ||
       [];
     return message;
   },

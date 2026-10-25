@@ -13,7 +13,7 @@ import {
   VehicleLeg,
 } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
-import { AccessEdge } from './state.js';
+import { AccessEdge, RoutingEdge } from './state.js';
 
 export class Result {
   private readonly destinations: ReadonlySet<StopId>;
@@ -70,7 +70,9 @@ export class Result {
       const stopIds = new Set<StopId>();
       for (const sourceId of to) {
         const found = this.stopsIndex.findStopBySourceStopId(sourceId);
-        if (found !== undefined) stopIds.add(found.id);
+        if (found !== undefined) {
+          stopIds.add(found.id);
+        }
       }
       return stopIds.size === 0 ? undefined : this.bestRoute(stopIds);
     }
@@ -116,10 +118,15 @@ export class Result {
     let round = fastestLegNumber;
     let previousVehicleEdge: VehicleEdge | undefined;
 
+    let linkedEdge: RoutingEdge | undefined;
     while (round >= 0) {
-      const edge = this.routingState.graph[round]?.[currentStop];
+      const edge: RoutingEdge | undefined =
+        linkedEdge ?? this.routingState.graph[round]?.[currentStop];
+      linkedEdge = undefined;
       if (!edge) {
-        if (round === 0) break;
+        if (round === 0) {
+          break;
+        }
         throw new Error(
           `No edge arriving at stop ${currentStop} at round ${round}`,
         );
@@ -143,6 +150,7 @@ export class Result {
           vehicleLeg = this.buildVehicleLeg(chainedEdges);
         }
         leg = vehicleLeg;
+        linkedEdge = boardingEdge.previous;
 
         // Insert a guaranteed transfer leg between consecutive vehicle legs if
         // applicable. Because we are building the array in reverse, the
@@ -150,6 +158,7 @@ export class Result {
         // the final reverse() it sits between the two vehicle legs.
         if (
           previousVehicleEdge &&
+          !previousVehicleEdge.previous &&
           this.timetable.isTripTransferGuaranteed(
             {
               stopIndex: boardingEdge.hopOffStopIndex,
@@ -170,6 +179,7 @@ export class Result {
         previousVehicleEdge = boardingEdge;
       } else if ('type' in edge) {
         leg = this.buildTransferLeg(edge);
+        linkedEdge = edge.previous;
         previousVehicleEdge = undefined;
       } else if ('duration' in edge) {
         leg = this.buildAccessLeg(edge);

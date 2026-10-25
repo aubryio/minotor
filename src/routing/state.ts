@@ -27,6 +27,8 @@ export type VehicleEdge = TripStop & {
   hopOffStopIndex: StopRouteIndex;
   /** modeling in-seat transfer */
   continuationOf?: VehicleEdge;
+  /** Immutable boarding predecessor, independent of aggregate stop labels. */
+  previous?: RoutingEdge;
 };
 
 /** A walking or guaranteed connection between two stops. */
@@ -36,6 +38,7 @@ export type TransferEdge = {
   to: StopId;
   type: TransferType;
   minTransferTime?: Duration;
+  previous?: RoutingEdge;
 };
 
 export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
@@ -151,7 +154,9 @@ export class RoutingState implements IRaptorState {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
       const arrival = depTime + access.duration;
-      if (arrival > this.maxArrivalTime) continue;
+      if (arrival > this.maxArrivalTime) {
+        continue;
+      }
       const edge: OriginNode | AccessEdge =
         access.duration === 0
           ? { stopId: access.fromStopId, arrival: depTime }
@@ -174,7 +179,9 @@ export class RoutingState implements IRaptorState {
     this.origins = Array.from(seededOrigins);
     for (let i = 0; i < this.destinations.length; i++) {
       const t = this.earliestArrivalTimes[this.destinations[i]!]!;
-      if (t < this._destinationBest) this._destinationBest = t;
+      if (t < this._destinationBest) {
+        this._destinationBest = t;
+      }
     }
   }
 
@@ -301,7 +308,9 @@ export class RoutingState implements IRaptorState {
    */
   getArrival(stop: StopId): Arrival | undefined {
     const time = this.earliestArrivalTimes[stop]!;
-    if (time >= UNREACHED_TIME) return undefined;
+    if (time >= UNREACHED_TIME) {
+      return undefined;
+    }
     return { arrival: time, legNumber: this.earliestArrivalLegs[stop]! };
   }
 
@@ -370,8 +379,9 @@ export class RoutingState implements IRaptorState {
     state._destinationBest = UNREACHED_TIME;
     for (const dest of destinations) {
       const t = earliestArrivalTimes[dest];
-      if (t !== undefined && t < state._destinationBest)
+      if (t !== undefined && t < state._destinationBest) {
         state._destinationBest = t;
+      }
     }
 
     // Convert the sparse per-round representation to dense arrays and replace
@@ -387,7 +397,9 @@ export class RoutingState implements IRaptorState {
     state.reachedStops.length = 0;
     const touched = new Set(arrivals.map(([stop]) => stop));
     for (const round of graph) {
-      for (const [stop] of round) touched.add(stop);
+      for (const [stop] of round) {
+        touched.add(stop);
+      }
     }
     state.reachedStops.push(...touched);
 

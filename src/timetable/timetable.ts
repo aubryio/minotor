@@ -3,10 +3,12 @@ import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
 
 import { StopId } from '../stops/stops.js';
 import {
+  deserializeMinimumTripTransfers,
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
   deserializeTripTransfers,
+  serializeMinimumTripTransfers,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
@@ -21,7 +23,7 @@ import {
   TripRouteIndex,
 } from './route.js';
 import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
-import { encode, TripStopId } from './tripStopId.js';
+import { decode, encode, TripStopId } from './tripStopId.js';
 
 export const TransferTypes = {
   RECOMMENDED: 1,
@@ -52,6 +54,36 @@ export type StopAdjacency = {
 };
 
 export type TripTransfers = Map<TripStopId, TripStop[]>;
+
+export type MinimumTripTransfers = Map<
+  TripStopId,
+  (TripStop & { minTransferTime: Duration })[]
+>;
+
+export type TripTransferRule = TripStop &
+  (
+    | { type: typeof TransferTypes.GUARANTEED }
+    | {
+        type: typeof TransferTypes.REQUIRES_MINIMAL_TIME;
+        minTransferTime: Duration;
+      }
+  );
+
+/** Exact-pair rules replace the fallback buffer, including longer minima. */
+export const tripTransferReadyTime = (
+  rule: TripTransferRule | undefined,
+  arrival: Time,
+  fallbackReady: Time,
+): Time =>
+  rule
+    ? arrival +
+      (rule.type === TransferTypes.GUARANTEED ? 0 : rule.minTransferTime)
+    : fallbackReady;
+
+export type TripConnections = {
+  rules: readonly TripTransferRule[];
+  continuations: readonly TripStop[];
+};
 
 export type ServiceRouteId = number;
 
@@ -87,6 +119,8 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set(
 );
 
 const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
+const EMPTY_RULES: readonly TripTransferRule[] = [];
+const EMPTY_TRIPS: readonly TripRouteIndex[] = [];
 
 /**
  * The internal transit timetable format.
@@ -97,6 +131,16 @@ export class Timetable {
   private readonly serviceRoutes: ServiceRoute[];
   private readonly tripContinuations?: TripTransfers;
   private readonly guaranteedTripTransfers?: TripTransfers;
+  private readonly minimumTripTransfers: MinimumTripTransfers;
+  private readonly tripTransferRules = new Map<
+    TripStopId,
+    Map<TripStopId, TripTransferRule>
+  >();
+  private readonly connectionsByTrip = new Map<
+    TripStopId,
+    Map<StopRouteIndex, TripConnections>
+  >();
+  private readonly specialTrips = new Map<RouteId, TripRouteIndex[]>();
   private readonly activeStops: Set<StopId>;
 
   constructor(
@@ -105,12 +149,67 @@ export class Timetable {
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
     guaranteedTripTransfers?: TripTransfers,
+    minimumTripTransfers: MinimumTripTransfers = new Map(),
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
     this.tripContinuations = tripContinuations;
     this.guaranteedTripTransfers = guaranteedTripTransfers;
+    this.minimumTripTransfers = minimumTripTransfers;
+    const special = new Map<RouteId, Set<TripRouteIndex>>();
+    const mark = (origin: TripStopId) => {
+      const [, routeId, tripIndex] = decode(origin);
+      const trips = special.get(routeId) ?? new Set<TripRouteIndex>();
+      trips.add(tripIndex);
+      special.set(routeId, trips);
+    };
+    const addRule = (origin: TripStopId, rule: TripTransferRule) => {
+      const rules =
+        this.tripTransferRules.get(origin) ??
+        new Map<TripStopId, TripTransferRule>();
+      rules.set(encode(rule.stopIndex, rule.routeId, rule.tripIndex), rule);
+      this.tripTransferRules.set(origin, rules);
+      mark(origin);
+    };
+    for (const [origin, destinations] of guaranteedTripTransfers ?? []) {
+      for (const destination of destinations) {
+        addRule(origin, { ...destination, type: TransferTypes.GUARANTEED });
+      }
+    }
+    for (const [origin, destinations] of minimumTripTransfers) {
+      for (const destination of destinations) {
+        addRule(origin, {
+          ...destination,
+          type: TransferTypes.REQUIRES_MINIMAL_TIME,
+        });
+      }
+    }
+    // Every continuation origin is special, including predecessors of chains.
+    for (const origin of tripContinuations?.keys() ?? []) {
+      mark(origin);
+    }
+    for (const [routeId, trips] of special) {
+      this.specialTrips.set(
+        routeId,
+        [...trips].sort((a, b) => a - b),
+      );
+    }
+    for (const origin of new Set([
+      ...this.tripTransferRules.keys(),
+      ...(tripContinuations?.keys() ?? []),
+    ])) {
+      const [stopIndex, routeId, tripIndex] = decode(origin);
+      const trip = encode(0, routeId, tripIndex);
+      const connections =
+        this.connectionsByTrip.get(trip) ??
+        new Map<StopRouteIndex, TripConnections>();
+      connections.set(stopIndex, {
+        rules: [...(this.tripTransferRules.get(origin)?.values() ?? [])],
+        continuations: tripContinuations?.get(origin) ?? EMPTY_TRIP_BOARDINGS,
+      });
+      this.connectionsByTrip.set(trip, connections);
+    }
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -130,6 +229,9 @@ export class Timetable {
    */
   serialize(): Uint8Array {
     const protoTimetable = {
+      minimumTripTransfers: serializeMinimumTripTransfers(
+        this.minimumTripTransfers,
+      ),
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
@@ -160,6 +262,7 @@ export class Timetable {
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
       deserializeTripTransfers(protoTimetable.tripContinuations),
       deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
+      deserializeMinimumTripTransfers(protoTimetable.minimumTripTransfers),
     );
   }
 
@@ -289,15 +392,21 @@ export class Timetable {
 
     for (const originStop of fromStops) {
       const stopData = this.stopsAdjacency[originStop];
-      if (!stopData) continue;
+      if (!stopData) {
+        continue;
+      }
 
       for (let i = 0; i < stopData.routes.length; i++) {
         const route = this.routesAdjacency[stopData.routes[i]!];
-        if (!route) continue;
+        if (!route) {
+          continue;
+        }
 
         if (filterByMode) {
           const serviceRoute = this.serviceRoutes[route.serviceRoute()];
-          if (!serviceRoute || !transportModes.has(serviceRoute.type)) continue;
+          if (!serviceRoute || !transportModes.has(serviceRoute.type)) {
+            continue;
+          }
         }
 
         const originStopIndex = route.firstStopRouteIndex(originStop)!;
@@ -312,6 +421,46 @@ export class Timetable {
       }
     }
     return reachableRoutes;
+  }
+
+  /** Fetch once per scanned trip; stop visits need no BigInt encoding. */
+  getTripConnections(
+    routeId: RouteId,
+    tripIndex: TripRouteIndex,
+  ): ReadonlyMap<StopRouteIndex, TripConnections> | undefined {
+    return this.connectionsByTrip.get(encode(0, routeId, tripIndex));
+  }
+
+  /** Trips whose distinct onward eligibility must survive stop-time dominance. */
+  getSpecialTrips(routeId: RouteId): readonly TripRouteIndex[] {
+    return this.specialTrips.get(routeId) ?? EMPTY_TRIPS;
+  }
+
+  getTripTransferRules(from: TripStop): readonly TripTransferRule[] {
+    return (
+      this.getTripConnections(from.routeId, from.tripIndex)?.get(from.stopIndex)
+        ?.rules ?? EMPTY_RULES
+    );
+  }
+
+  getTripTransferRule(
+    from: TripStop,
+    to: TripStop,
+  ): TripTransferRule | undefined {
+    return this.tripTransferRules
+      .get(encode(from.stopIndex, from.routeId, from.tripIndex))
+      ?.get(encode(to.stopIndex, to.routeId, to.tripIndex));
+  }
+
+  /** Exact-pair rules replace the ordinary buffer, including longer minima. */
+  tripTransferReadyTime(
+    from: TripStop,
+    to: TripStop,
+    arrival: Time,
+    fallbackReady: Time,
+  ): Time {
+    const rule = this.getTripTransferRule(from, to);
+    return tripTransferReadyTime(rule, arrival, fallbackReady);
   }
 
   /**
@@ -383,16 +532,17 @@ export class Timetable {
         return t;
       }
 
-      const isGuaranteed = this.isTripTransferGuaranteed(fromTripStop, {
-        stopIndex,
-        routeId: route.id,
-        tripIndex: t,
-      });
-      if (isGuaranteed) {
-        return t;
-      }
       const departure = route.departureFrom(stopIndex, t);
-      const requiredTime = after + transferTime;
+      const requiredTime = this.tripTransferReadyTime(
+        fromTripStop,
+        {
+          stopIndex,
+          routeId: route.id,
+          tripIndex: t,
+        },
+        after,
+        after + transferTime,
+      );
       if (departure >= requiredTime) {
         return t;
       }

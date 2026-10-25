@@ -69,8 +69,12 @@ export class RangeResult {
   }
 
   private normalizeTargets(to?: StopId | Set<StopId>): Set<StopId> {
-    if (to instanceof Set) return new Set(to);
-    if (to !== undefined) return new Set([to]);
+    if (to instanceof Set) {
+      return new Set(to);
+    }
+    if (to !== undefined) {
+      return new Set([to]);
+    }
     return new Set(this._destinations);
   }
 
@@ -89,7 +93,9 @@ export class RangeResult {
     const routes: Route[] = [];
     for (const { result } of this._runs) {
       const route = result.bestRoute();
-      if (route !== undefined) routes.push(route);
+      if (route !== undefined) {
+        routes.push(route);
+      }
     }
     return routes.reverse();
   }
@@ -119,7 +125,9 @@ export class RangeResult {
     for (const run of this._runs) {
       for (const stopId of targetStops) {
         const arrival = run.result.arrivalAt(stopId);
-        if (arrival === undefined) continue;
+        if (arrival === undefined) {
+          continue;
+        }
         if (bestArrival === undefined || arrival.arrival < bestArrival) {
           bestArrival = arrival.arrival;
           bestRun = run;
@@ -151,7 +159,9 @@ export class RangeResult {
     const targetStops = this.normalizeTargets(to);
     for (const { result } of this._runs) {
       const route = result.bestRoute(targetStops);
-      if (route !== undefined) return route;
+      if (route !== undefined) {
+        return route;
+      }
     }
     return undefined;
   }
@@ -182,7 +192,9 @@ export class RangeResult {
     for (const run of this._runs) {
       for (const stopId of targetStops) {
         const arrival = run.result.arrivalAt(stopId);
-        if (arrival === undefined) continue;
+        if (arrival === undefined) {
+          continue;
+        }
         const duration = arrival.arrival - run.departureTime;
         if (
           duration < shortestDuration ||
@@ -255,7 +267,9 @@ export class RangeResult {
     let shortest: ArrivalWithDuration | undefined;
     for (const { departureTime, result } of this._runs) {
       const arrival = result.arrivalAt(stop, maxTransfers);
-      if (arrival === undefined) continue;
+      if (arrival === undefined) {
+        continue;
+      }
       const duration = arrival.arrival - departureTime;
       if (shortest === undefined || duration < shortest.duration) {
         shortest = { ...arrival, duration };

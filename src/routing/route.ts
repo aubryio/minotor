@@ -101,7 +101,9 @@ export class Route {
    * @returns The total duration of the route.
    */
   totalDuration(): Duration {
-    if (this.legs.length === 0) return DURATION_ZERO;
+    if (this.legs.length === 0) {
+      return DURATION_ZERO;
+    }
     return Math.abs(this.arrivalTime() - this.departureTime());
   }
 

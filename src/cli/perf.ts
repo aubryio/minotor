@@ -63,7 +63,9 @@ export const measureRetainedMemory = <T>(
   const start = performance.now();
   const value = operation();
   const loadTimeMs = performance.now() - start;
-  if (!gc || !before) return { value, loadTimeMs };
+  if (!gc || !before) {
+    return { value, loadTimeMs };
+  }
   // A second collection lets backing storage released by finalization settle.
   gc();
   gc();

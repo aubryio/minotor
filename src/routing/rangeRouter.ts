@@ -105,8 +105,9 @@ export class RangeRouter {
       if (!noDestinations) {
         for (const dest of destinations) {
           const t = routingState.arrivalTime(dest);
-          if (t < (paretoDestBest.get(dest) ?? UNREACHED_TIME))
+          if (t < (paretoDestBest.get(dest) ?? UNREACHED_TIME)) {
             paretoDestBest.set(dest, t);
+          }
         }
       }
     }

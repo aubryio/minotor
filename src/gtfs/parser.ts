@@ -14,8 +14,10 @@ import { parseStops } from './stops.js';
 import {
   addGeneratedTransfers,
   addMissingSiblingTransfers,
+  buildMinimumTripTransfers,
   buildTripTransfers,
   ForbiddenTransfersMap,
+  GtfsMinimumTripTransfer,
   GtfsTripTransfer,
   parseTransfers,
   TransfersMap,
@@ -133,6 +135,7 @@ export class GtfsParser {
     let transfers: TransfersMap = new Map();
     let forbiddenTransfers: ForbiddenTransfersMap = new Map();
     let tripContinuationsList: GtfsTripTransfer[] = [];
+    let minimumTripTransfersList: GtfsMinimumTripTransfer[] = [];
     let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
@@ -143,11 +146,18 @@ export class GtfsParser {
         forbiddenTransfers: parsedForbiddenTransfers,
         tripContinuations: parsedTripContinuations,
         guaranteedTripTransfers: parsedGuaranteedTripTransfers,
-      } = await parseTransfers(transfersStream, parsedStops, activeServiceIds);
+        minimumTripTransfers: parsedMinimumTripTransfers,
+      } = await parseTransfers(
+        transfersStream,
+        parsedStops,
+        activeServiceIds,
+        trips,
+      );
       transfers = parsedTransfers;
       forbiddenTransfers = parsedForbiddenTransfers;
       tripContinuationsList = parsedTripContinuations;
       guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
+      minimumTripTransfersList = parsedMinimumTripTransfers;
       const transfersEnd = performance.now();
       log.info(
         `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${guaranteedTripTransfersList.length} guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
@@ -279,6 +289,12 @@ export class GtfsParser {
       serviceRoutes,
       tripContinuations,
       guaranteedTripTransfers,
+      buildMinimumTripTransfers(
+        tripsMapping,
+        minimumTripTransfersList,
+        timetable,
+        activeStopIds,
+      ),
     );
   }
 

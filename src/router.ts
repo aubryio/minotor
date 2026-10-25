@@ -24,7 +24,12 @@ import {
   pickUpDropOffTypeToString,
 } from './timetable/route.js';
 import type { Duration, Time } from './timetable/time.js';
-import type { RouteType, TransferType } from './timetable/timetable.js';
+import type {
+  MinimumTripTransfers,
+  RouteType,
+  TransferType,
+  TripTransferRule,
+} from './timetable/timetable.js';
 import {
   RouteTypes,
   routeTypeToString,
@@ -58,6 +63,7 @@ export type {
   ArrivalWithDuration,
   Leg,
   LocationType,
+  MinimumTripTransfers,
   ParetoRun,
   PickUpDropOffType,
   QueryOptions,
@@ -69,5 +75,6 @@ export type {
   StopId,
   Transfer,
   TransferType,
+  TripTransferRule,
   VehicleLeg,
 };

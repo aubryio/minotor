@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import { Time } from '../timetable/time.js';
+import { TripStopId } from '../timetable/tripStopId.js';
 import type { IRaptorState } from './raptor.js';
 import { RoutingEdge, RoutingState, UNREACHED_TIME } from './state.js';
 
@@ -54,6 +55,57 @@ export class RangeRaptorState implements IRaptorState {
 
   private currentRun!: RoutingState;
 
+  /** Earliest boarding position on each trip, by transit-leg count. */
+  private readonly tripBoardings: Map<TripStopId, number>[] = [];
+
+  improveTripBoarding(
+    round: number,
+    trip: TripStopId,
+    stopIndex: number,
+  ): boolean {
+    if (this.tripBoardingBound(round, trip) <= stopIndex) {
+      return false;
+    }
+    const boardings = (this.tripBoardings[round] ??= new Map());
+    boardings.set(trip, stopIndex);
+    return true;
+  }
+
+  tripBoardingBound(round: number, trip: TripStopId): number {
+    let earliest = Infinity;
+    for (let k = 1; k <= round; k++) {
+      earliest = Math.min(
+        earliest,
+        this.tripBoardings[k]?.get(trip) ?? Infinity,
+      );
+    }
+    return earliest;
+  }
+
+  // Stop-only result bounds cannot dominate a label with different eligibility.
+  // These separate tables contain only unrestricted boarding and walking labels.
+  private readonly boardingTimes: Float64Array[] = [];
+  private readonly walkingTimes: Float64Array[] = [];
+
+  improveOrdinaryLabel(
+    round: number,
+    stop: StopId,
+    time: Time,
+    walking: boolean,
+  ): boolean {
+    const labels = walking ? this.walkingTimes : this.boardingTimes;
+    for (let k = 1; k <= round; k++) {
+      if ((labels[k]?.[stop] ?? Infinity) <= time) {
+        return false;
+      }
+    }
+    const current = (labels[round] ??= new Float64Array(
+      this.currentRun.nbStops,
+    ).fill(Infinity));
+    current[stop] = time;
+    return true;
+  }
+
   constructor(maxRounds: number, nbStops: number, latestDeparture: Time) {
     this.latestDeparture = latestDeparture;
     // maxRounds + 2: index 0 = origin/walk legs, indices 1…maxRounds+1 = transit rounds
@@ -76,7 +128,9 @@ export class RangeRaptorState implements IRaptorState {
     const round0 = routingState.graph[0]!;
     for (const stop of routingState.origins) {
       const edge = round0[stop];
-      if (!edge) continue;
+      if (!edge) {
+        continue;
+      }
       this.updateArrival(stop, edge.arrival, 0);
     }
   }
@@ -149,7 +203,9 @@ export class RangeRaptorState implements IRaptorState {
    */
   initRound(round: number): void {
     const changed = this.changedInRound[round - 1]!;
-    if (changed.length === 0) return;
+    if (changed.length === 0) {
+      return;
+    }
 
     const prev = this.roundLabels[round - 1]!;
     const curr = this.roundLabels[round]!;

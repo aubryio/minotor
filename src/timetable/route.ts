@@ -441,11 +441,17 @@ export class Route {
     after: Time = TIME_ORIGIN,
     beforeTrip?: TripRouteIndex,
   ): TripRouteIndex | undefined {
-    if (this.nbTrips <= 0) return undefined;
+    if (this.nbTrips <= 0) {
+      return undefined;
+    }
 
     let hi = this.nbTrips - 1;
-    if (beforeTrip !== undefined) hi = Math.min(hi, beforeTrip - 1);
-    if (hi < 0) return undefined;
+    if (beforeTrip !== undefined) {
+      hi = Math.min(hi, beforeTrip - 1);
+    }
+    if (hi < 0) {
+      return undefined;
+    }
 
     let lo = 0;
     let lb = -1;
@@ -459,7 +465,9 @@ export class Route {
         hi = mid - 1;
       }
     }
-    if (lb === -1) return undefined;
+    if (lb === -1) {
+      return undefined;
+    }
     return lb;
   }
 

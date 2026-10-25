@@ -66,6 +66,12 @@ const stopsIndex = await parser.parseStops();
 
 Times are represented at the minute level (16-bit integers). Parsing can take a few minutes for large feeds.
 
+#### Trip-specific transfers
+
+Transfers specifying both `from_trip_id` and `to_trip_id` support guaranteed connections (type 1) and explicit minimum times (type 2), including between different platforms. A trip-specific minimum replaces the fallback minimum for that pair, even when it is longer. Type 4 continuations remain in-seat connections and do not consume an extra transfer. Transfer `service_id` values and referenced trips are filtered for the requested service date. Point and range queries share one routing engine, with sparse state for trip-specific alternatives.
+
+Times and minimum durations retain minute-level rounding, including explicit zero. Route-only and one-sided trip constraints are not supported. Guarantees use the scheduled times; they do not simulate vehicles waiting after a delay. Reparse a GTFS feed to include type 2 trip rules in an existing binary timetable. Older timetable files remain readable by the updated router; older routers do not interpret the new minimum-time trip rules.
+
 #### Virtual transfers
 
 Many GTFS feeds only partially populate `transfers.txt`, so nearby stops in different stations end up with no walking connection and can't be used as an interchange. Pass a `TransferGenerator` to the parser to synthesize the missing walking transfers before the timetable is serialized. The built-in `StraightLineTransferGenerator` connects nearby stops that aren't already linked, estimating walking time from the straight-line distance:

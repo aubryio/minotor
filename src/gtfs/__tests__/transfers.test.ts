@@ -786,7 +786,6 @@ describe('GTFS transfers parser', () => {
             {
               destination: 1,
               type: TransferTypes.RECOMMENDED,
-              minTransferTime: durationFromSeconds(0),
             },
             {
               destination: 1,
@@ -796,7 +795,6 @@ describe('GTFS transfers parser', () => {
             {
               destination: 1,
               type: TransferTypes.GUARANTEED,
-              minTransferTime: durationFromSeconds(0),
             },
           ],
         ],
@@ -1260,9 +1258,15 @@ describe('buildTripTransfers', () => {
 
     const mockTimetable = {
       getRoute: (routeId: number) => {
-        if (routeId === 0) return mockFromRoute;
-        if (routeId === 1) return mockToRoute1;
-        if (routeId === 2) return mockToRoute2;
+        if (routeId === 0) {
+          return mockFromRoute;
+        }
+        if (routeId === 1) {
+          return mockToRoute1;
+        }
+        if (routeId === 2) {
+          return mockToRoute2;
+        }
         return undefined;
       },
     } as unknown as Timetable;
