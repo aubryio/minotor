@@ -623,24 +623,30 @@ describe('RangeRouter', () => {
       assert.strictEqual(result.size, 2);
     });
 
-    it('allEarliestArrivals covers all reachable stops', () => {
-      const arrivals = result.allEarliestArrivals();
+    it('arrivals covers all reachable stops', () => {
+      const arrivals = [...result.arrivals()];
       // Stop 1 is first reached by trip 0 (depart 08:00, arrive 08:30).
-      assert.strictEqual(arrivals.get(1)?.arrival, timeFromHM(8, 30));
+      assert.strictEqual(
+        arrivals.find(({ stop }) => stop === 1)?.arrival,
+        timeFromHM(8, 30),
+      );
     });
 
-    it('allShortestDurations covers all reachable stops', () => {
-      const durations = result.allShortestDurations();
+    it('shortestDurations covers all reachable stops', () => {
+      const durations = [...result.shortestDurations()];
       // Both trips take 30 min; shortest duration to stop 1 is 30 min.
-      assert.strictEqual(durations.get(1)?.duration, 30);
+      assert.strictEqual(
+        durations.find(({ stop }) => stop === 1)?.duration,
+        30,
+      );
     });
 
     it('bestRoute without an explicit stop returns undefined', () => {
       assert.strictEqual(result.bestRoute(), undefined);
     });
 
-    it('getRoutes returns an empty array', () => {
-      assert.deepStrictEqual(result.getRoutes(), []);
+    it('routes yields nothing', () => {
+      assert.deepStrictEqual([...result.routes()], []);
     });
   });
 });

@@ -58,7 +58,7 @@ export class RangeRouter {
       latest,
     );
     if (departureSlots.length === 0) {
-      return new RangeResult([], new Set(destinations));
+      return new RangeResult([]);
     }
 
     const maxRounds = query.options.maxTransfers + 1;
@@ -161,17 +161,12 @@ export class RangeRouter {
       if (isParetoOptimal) {
         paretoRuns.push({
           departureTime: depTime,
-          result: new Result(
-            new Set(destinations),
-            routingState,
-            this.stopsIndex,
-            this.timetable,
-          ),
+          result: new Result(routingState, this.stopsIndex, this.timetable),
         });
         routingState = null;
       }
     }
 
-    return new RangeResult(paretoRuns, new Set(destinations));
+    return new RangeResult(paretoRuns);
   }
 }

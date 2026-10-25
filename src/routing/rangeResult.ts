@@ -1,7 +1,9 @@
 import { StopId } from '../stops/stops.js';
 import { Duration, Time } from '../timetable/time.js';
 import { Result } from './result.js';
+import { resultDestinations } from './resultInternals.js';
 import { Route } from './route.js';
+import type { RoutingResult, StopArrival } from './routingResult.js';
 import { Arrival } from './state.js';
 
 /**
@@ -42,56 +44,49 @@ export type ArrivalWithDuration = Arrival & {
  * strictly earlier *and* arrives strictly earlier than the previous one,
  * forming the classic staircase Pareto frontier.
  *
- * **Full-network mode** (empty `destinations`): when no destinations are
+ * **Full-network mode** (no query destinations): when no destinations are
  * supplied to the range query every departure slot in the window becomes its
  * own run, because destination-based Pareto pruning cannot be applied.
- * In this mode the destination-specific helpers ({@link getRoutes},
+ * In this mode the destination-specific helpers ({@link routes},
  * {@link bestRoute}, {@link latestDepartureRoute}, {@link fastestRoute})
- * return empty results; use {@link allEarliestArrivals},
- * {@link allShortestDurations}, {@link earliestArrivalAt}, or
+ * return empty results; use {@link arrivals},
+ * {@link shortestDurations}, {@link arrivalAt}, or
  * {@link shortestDurationTo} instead.
  *
  * Destination handling is delegated to {@link Result}, which expands
  * equivalent stops when reconstructing routes or looking up arrivals.
  */
-export class RangeResult {
+export class RangeResult implements RoutingResult {
   private readonly _runs: readonly ParetoRun[];
-  private readonly _destinations: ReadonlySet<StopId>;
 
-  constructor(runs: ParetoRun[], destinations: ReadonlySet<StopId>) {
+  constructor(runs: ParetoRun[]) {
     this._runs = runs;
-    this._destinations = destinations;
-  }
-
-  /** The resolved destination stop IDs for this result. */
-  get destinations(): ReadonlySet<StopId> {
-    return this._destinations;
   }
 
   private normalizeTargets(to?: StopId | Set<StopId>): Set<StopId> {
     if (to instanceof Set) return new Set(to);
     if (to !== undefined) return new Set([to]);
-    return new Set(this._destinations);
+    return new Set(this._runs[0]?.result[resultDestinations]());
   }
 
   /**
-   * Returns all non-dominated routes to this result's default destination set,
+   * Lazily yields all non-dominated routes to this result's default destination set,
    * ordered from the earliest departure to the latest departure.
    *
-   * Each route in the list departs strictly earlier *and* arrives strictly
-   * earlier than its predecessor.
+   * Each route in the list departs strictly later *and* arrives strictly
+   * later than its predecessor.
    *
-   * Returns an empty array when no destinations were provided (full-network
-   * mode). Use {@link allEarliestArrivals} or {@link allShortestDurations}
+   * Yields nothing when no destinations were provided (full-network
+   * mode). Use {@link arrivals} or {@link shortestDurations}
    * to query individual stops in that case.
    */
-  getRoutes(): Route[] {
-    const routes: Route[] = [];
-    for (const { result } of this._runs) {
-      const route = result.bestRoute();
-      if (route !== undefined) routes.push(route);
+  *routes(): Generator<Route> {
+    for (let index = this._runs.length - 1; index >= 0; index--) {
+      const run = this._runs[index];
+      if (run === undefined) continue;
+      const route = run.result.bestRoute();
+      if (route !== undefined) yield route;
     }
-    return routes.reverse();
   }
 
   /**
@@ -107,10 +102,14 @@ export class RangeResult {
    * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    * @returns The reconstructed {@link Route} with the earliest arrival,
    *          or `undefined` if the target is unreachable in every run.
    */
-  bestRoute(to?: StopId | Set<StopId>): Route | undefined {
+  bestRoute(
+    to?: StopId | Set<StopId>,
+    maxTransfers?: number,
+  ): Route | undefined {
     const targetStops = this.normalizeTargets(to);
 
     let bestRun: ParetoRun | undefined;
@@ -118,7 +117,7 @@ export class RangeResult {
 
     for (const run of this._runs) {
       for (const stopId of targetStops) {
-        const arrival = run.result.arrivalAt(stopId);
+        const arrival = run.result.arrivalAt(stopId, maxTransfers);
         if (arrival === undefined) continue;
         if (bestArrival === undefined || arrival.arrival < bestArrival) {
           bestArrival = arrival.arrival;
@@ -127,7 +126,7 @@ export class RangeResult {
       }
     }
 
-    return bestRun?.result.bestRoute(targetStops);
+    return bestRun?.result.bestRoute(targetStops, maxTransfers);
   }
 
   /**
@@ -144,13 +143,17 @@ export class RangeResult {
    * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    * @returns The reconstructed {@link Route} with the latest departure,
    *          or `undefined` if the target is unreachable in every run.
    */
-  latestDepartureRoute(to?: StopId | Set<StopId>): Route | undefined {
+  latestDepartureRoute(
+    to?: StopId | Set<StopId>,
+    maxTransfers?: number,
+  ): Route | undefined {
     const targetStops = this.normalizeTargets(to);
     for (const { result } of this._runs) {
-      const route = result.bestRoute(targetStops);
+      const route = result.bestRoute(targetStops, maxTransfers);
       if (route !== undefined) return route;
     }
     return undefined;
@@ -170,10 +173,14 @@ export class RangeResult {
    * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    * @returns The reconstructed fastest {@link Route}, or `undefined` if the
    *          target is unreachable in every run.
    */
-  fastestRoute(to?: StopId | Set<StopId>): Route | undefined {
+  fastestRoute(
+    to?: StopId | Set<StopId>,
+    maxTransfers?: number,
+  ): Route | undefined {
     const targetStops = this.normalizeTargets(to);
 
     let fastestRun: ParetoRun | undefined;
@@ -181,7 +188,7 @@ export class RangeResult {
 
     for (const run of this._runs) {
       for (const stopId of targetStops) {
-        const arrival = run.result.arrivalAt(stopId);
+        const arrival = run.result.arrivalAt(stopId, maxTransfers);
         if (arrival === undefined) continue;
         const duration = arrival.arrival - run.departureTime;
         if (
@@ -196,7 +203,7 @@ export class RangeResult {
       }
     }
 
-    return fastestRun?.result.bestRoute(targetStops);
+    return fastestRun?.result.bestRoute(targetStops, maxTransfers);
   }
 
   /** Number of Pareto-optimal journeys found. */
@@ -214,9 +221,9 @@ export class RangeResult {
    * Equivalent stops are handled by {@link Result.arrivalAt}.
    *
    * @param stop         The target stop ID.
-   * @param maxTransfers Optional upper bound on the number of transfers.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    */
-  earliestArrivalAt(stop: StopId, maxTransfers?: number): Arrival | undefined {
+  arrivalAt(stop: StopId, maxTransfers?: number): Arrival | undefined {
     let best: Arrival | undefined;
     for (const { result } of this._runs) {
       const arrival = result.arrivalAt(stop, maxTransfers);
@@ -246,7 +253,7 @@ export class RangeResult {
    * Returns `undefined` if `stop` is unreachable in every run.
    *
    * @param stop         The target stop ID.
-   * @param maxTransfers Optional upper bound on the number of transfers.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    */
   shortestDurationTo(
     stop: StopId,
@@ -266,16 +273,19 @@ export class RangeResult {
 
   /**
    * Shortest travel duration to **every reachable stop** across all
-   * Pareto-optimal runs, as a single `Map<StopId, DurationArrival>`.
+   * Pareto-optimal runs, yielding the stop ID and arrival with duration.
+   * All runs are aggregated before the first value is yielded. Ties retain
+   * the first run's arrival and leg count.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    */
-  allShortestDurations(): Map<StopId, ArrivalWithDuration> {
+  *shortestDurations(
+    maxTransfers?: number,
+  ): Generator<StopArrival & { duration: Duration }> {
     const durations = new Map<StopId, ArrivalWithDuration>();
     for (const { departureTime, result } of this._runs) {
-      for (const {
-        stop,
-        arrival,
-        legNumber,
-      } of result.routingState.arrivals()) {
+      for (const { stop, arrival, legNumber } of result.arrivals(
+        maxTransfers,
+      )) {
         const duration = arrival - departureTime;
         const existing = durations.get(stop);
         if (existing === undefined || duration < existing.duration) {
@@ -283,28 +293,33 @@ export class RangeResult {
         }
       }
     }
-    return durations;
+    for (const [stop, arrival] of durations) {
+      yield { stop, ...arrival };
+    }
   }
 
   /**
    * Earliest achievable arrival at **every reachable stop** across all
-   * Pareto-optimal runs, as a single `Map<StopId, Arrival>`.
+   * Pareto-optimal runs, yielding the stop ID and arrival.
+   * All runs are aggregated before the first value is yielded. Ties retain
+   * the first run's arrival and leg count.
+   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
    */
-  allEarliestArrivals(): Map<StopId, Arrival> {
+  *arrivals(maxTransfers?: number): Generator<StopArrival> {
     const arrivals = new Map<StopId, Arrival>();
     for (const { result } of this._runs) {
-      for (const {
-        stop,
-        arrival,
-        legNumber,
-      } of result.routingState.arrivals()) {
+      for (const { stop, arrival, legNumber } of result.arrivals(
+        maxTransfers,
+      )) {
         const existing = arrivals.get(stop);
         if (existing === undefined || arrival < existing.arrival) {
           arrivals.set(stop, { arrival, legNumber });
         }
       }
     }
-    return arrivals;
+    for (const [stop, arrival] of arrivals) {
+      yield { stop, ...arrival };
+    }
   }
 
   /**

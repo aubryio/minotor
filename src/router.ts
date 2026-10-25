@@ -15,6 +15,7 @@ import type {
   ParetoRun,
 } from './routing/router.js';
 import { RangeResult, Router } from './routing/router.js';
+import type { RoutingResult, StopArrival } from './routing/routingResult.js';
 import type { LocationType, SourceStopId, StopId } from './stops/stops.js';
 import type { Stop } from './stops/stops.js';
 import { StopsIndex } from './stops/stopsIndex.js';
@@ -63,9 +64,11 @@ export type {
   QueryOptions,
   RangeQueryOptions,
   RouteType,
+  RoutingResult,
   ServiceRouteInfo,
   SourceStopId,
   Stop,
+  StopArrival,
   StopId,
   Transfer,
   TransferType,

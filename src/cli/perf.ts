@@ -349,18 +349,18 @@ export const testRangeRouterPerformance = (
 };
 
 /**
- * Benchmarks {@link RangeResult.getRoutes} — the full Pareto-frontier
+ * Benchmarks {@link RangeResult.routes} — the full Pareto-frontier
  * reconstruction phase — independently of the range routing phase.
  *
  * @param router - The router instance used to produce the range results that
- *   are then fed into `getRoutes`.
+ *   are then fed into `routes`.
  * @param tasks - The list of range queries to benchmark. One
  *   {@link PerformanceResult} is produced per query.
- * @param iterations - Number of times `getRoutes` is called per query.
+ * @param iterations - Number of times `routes` is fully consumed per query.
  * @param stopsIndex - Used to resolve stop names for result labels.
  * @returns An array of {@link PerformanceResult} objects, one per query, each
  *   containing the mean wall-clock time (µs) and mean heap and ArrayBuffer deltas (MiB) for the
- *   `getRoutes` call alone.
+ *   full `routes` iteration alone.
  */
 export const testRangeResultPerformance = (
   router: Router,
@@ -375,7 +375,7 @@ export const testRangeResultPerformance = (
 
     results.push({
       label: buildQueryLabel(task, stopsIndex),
-      ...measurePerformance(() => rangeResult.getRoutes(), iterations),
+      ...measurePerformance(() => [...rangeResult.routes()], iterations),
     });
   }
 

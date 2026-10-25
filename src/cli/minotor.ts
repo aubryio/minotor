@@ -243,7 +243,7 @@ program
       );
       prettyPrintPerformanceResults(
         rangeResultResults,
-        'Range queries — rangeResult.getRoutes() (reconstruction only)',
+        'Range queries — rangeResult.routes() (reconstruction only)',
       );
     },
   );
