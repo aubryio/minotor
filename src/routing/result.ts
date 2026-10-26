@@ -52,7 +52,7 @@ export class Result implements RoutingResult {
    * Iterates over reached stops, yielding each concrete stop ID, its earliest
    * arrival time, and the number of legs taken to reach it. Unreached stops
    * are omitted. Destination pruning may limit which stops were reached.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link Result}.
+   * @param maxTransfers Optional transfer limit within retained data.
    */
   *arrivals(maxTransfers?: number): Generator<StopArrival> {
     for (const reached of this.#routingState.arrivals()) {
@@ -99,7 +99,7 @@ export class Result implements RoutingResult {
    * Expands a target stop or stop set to all equivalent concrete stop IDs.
    *
    * When `to` is omitted, defaults to the resolved destinations in the
-   * routing state.
+   * query.
    *
    * Equivalent stops are expanded here so destination handling has a single
    * source of truth shared by route reconstruction and arrival lookups.
@@ -127,7 +127,7 @@ export class Result implements RoutingResult {
    * destination set)
    *
    * @param to The destination stop by SourceStopId.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link Result}.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns a route to the destination stop if it exists.
    */
   bestRouteToSourceStopId(
@@ -157,7 +157,7 @@ export class Result implements RoutingResult {
    *
    * @param to The destination stop. Defaults to this result's resolved
    *   destinations.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link Result}.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns a route to the destination stop if it exists.
    */
   bestRoute(
@@ -383,7 +383,7 @@ export class Result implements RoutingResult {
    * than this result's destination set.
    *
    * @param stop The target stop for which to return the arrival time.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link Result}.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns The arrival time if the target stop is reachable, otherwise undefined.
    */
   arrivalAt(stop: StopId, maxTransfers?: number): Arrival | undefined {

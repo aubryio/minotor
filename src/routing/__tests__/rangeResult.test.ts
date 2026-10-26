@@ -13,7 +13,7 @@ import {
 } from '../../timetable/timetable.js';
 import { ParetoRun, RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
-import { RoutingEdge, RoutingState, VehicleEdge } from '../router.js';
+import { RoutingState, VehicleEdge } from '../router.js';
 
 // Two-stop timetable with two trips on a single route:
 //   trip 0: stop 0 departs 09:00, stop 1 arrives 09:30
@@ -494,186 +494,342 @@ describe('RangeResult', () => {
     ];
     const stopsIndex = new StopsIndex(stops);
 
-    function makeRun(
-      departureTime: number,
-      directArrival: number | undefined,
-      viaArrival: number,
-    ): ParetoRun {
-      const timetable = new Timetable(
-        [
-          { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
-          { routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY] }, // Interchange
-          { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
-          { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
-        ],
-        [
-          Route.of({
-            id: DIRECT,
-            serviceRouteId: DIRECT,
-            trips: [
-              {
-                stops: [
-                  {
-                    id: ORIGIN,
-                    arrivalTime: departureTime,
-                    departureTime: departureTime,
-                  },
-                  {
-                    id: DESTINATION,
-                    arrivalTime: directArrival ?? viaArrival + 30,
-                    departureTime: directArrival ?? viaArrival + 30,
-                  },
-                ],
-              },
-            ],
-          }),
-          Route.of({
-            id: TO_INTERCHANGE,
-            serviceRouteId: TO_INTERCHANGE,
-            trips: [
-              {
-                stops: [
-                  {
-                    id: ORIGIN,
-                    arrivalTime: departureTime,
-                    departureTime: departureTime,
-                  },
-                  {
-                    id: INTERCHANGE,
-                    arrivalTime: departureTime + 5,
-                    departureTime: departureTime + 5,
-                  },
-                ],
-              },
-            ],
-          }),
-          Route.of({
-            id: FROM_INTERCHANGE,
-            serviceRouteId: FROM_INTERCHANGE,
-            trips: [
-              {
-                stops: [
-                  {
-                    id: INTERCHANGE,
-                    arrivalTime: departureTime + 7,
-                    departureTime: departureTime + 7,
-                  },
-                  {
-                    id: DESTINATION,
-                    arrivalTime: viaArrival,
-                    departureTime: viaArrival,
-                  },
-                ],
-              },
-            ],
-          }),
-          Route.of({
-            id: TO_TRANSFER_ONLY,
-            serviceRouteId: TO_TRANSFER_ONLY,
-            trips: [
-              {
-                stops: [
-                  {
-                    id: INTERCHANGE,
-                    arrivalTime: departureTime + 7,
-                    departureTime: departureTime + 7,
-                  },
-                  {
-                    id: TRANSFER_ONLY,
-                    arrivalTime: viaArrival,
-                    departureTime: viaArrival,
-                  },
-                ],
-              },
-            ],
-          }),
-        ],
-        [
-          { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
-          { type: RouteTypes.BUS, name: 'Line 1', routes: [TO_INTERCHANGE] },
-          { type: RouteTypes.BUS, name: 'Line 2', routes: [FROM_INTERCHANGE] },
-          { type: RouteTypes.BUS, name: 'Line 3', routes: [TO_TRANSFER_ONLY] },
-        ],
-      );
-      const round1: [number, RoutingEdge][] = [
-        [
-          INTERCHANGE,
-          {
-            routeId: TO_INTERCHANGE,
-            arrival: departureTime + 5,
-            tripIndex: 0,
-            stopIndex: 0,
-            hopOffStopIndex: 1,
-          },
-        ],
-      ];
-      if (directArrival !== undefined)
-        round1.push([
-          DESTINATION,
-          {
-            routeId: DIRECT,
-            arrival: directArrival,
-            tripIndex: 0,
-            stopIndex: 0,
-            hopOffStopIndex: 1,
-          },
-        ]);
-      return {
-        departureTime,
-        result: new Result(
-          RoutingState.fromTestData({
-            nbStops: stops.length,
-            origins: [ORIGIN],
-            destinations: [DESTINATION],
-            arrivals: [
-              [ORIGIN, departureTime, 0],
-              [INTERCHANGE, departureTime + 5, 1],
-              [DESTINATION, viaArrival, 2],
-              [TRANSFER_ONLY, viaArrival, 2],
-            ],
-            graph: [
-              [[ORIGIN, { stopId: ORIGIN, arrival: departureTime }]],
-              round1,
+    const early: ParetoRun = {
+      departureTime: timeFromHM(8, 0),
+      result: new Result(
+        RoutingState.fromTestData({
+          nbStops: stops.length,
+          origins: [ORIGIN],
+          destinations: [DESTINATION],
+          arrivals: [
+            [ORIGIN, timeFromHM(8, 0), 0],
+            [INTERCHANGE, timeFromHM(8, 5), 1],
+            [DESTINATION, timeFromHM(8, 40), 2],
+            [TRANSFER_ONLY, timeFromHM(8, 40), 2],
+          ],
+          graph: [
+            [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 0) }]],
+            [
               [
-                [
-                  DESTINATION,
-                  {
-                    routeId: FROM_INTERCHANGE,
-                    arrival: viaArrival,
-                    tripIndex: 0,
-                    stopIndex: 0,
-                    hopOffStopIndex: 1,
-                  },
-                ],
-                [
-                  TRANSFER_ONLY,
-                  {
-                    routeId: TO_TRANSFER_ONLY,
-                    arrival: viaArrival,
-                    tripIndex: 0,
-                    stopIndex: 0,
-                    hopOffStopIndex: 1,
-                  },
-                ],
+                INTERCHANGE,
+                {
+                  routeId: TO_INTERCHANGE,
+                  arrival: timeFromHM(8, 5),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+              [
+                DESTINATION,
+                {
+                  routeId: DIRECT,
+                  arrival: timeFromHM(9, 10),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
               ],
             ],
-          }),
-          stopsIndex,
-          timetable,
+            [
+              [
+                DESTINATION,
+                {
+                  routeId: FROM_INTERCHANGE,
+                  arrival: timeFromHM(8, 40),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+              [
+                TRANSFER_ONLY,
+                {
+                  routeId: TO_TRANSFER_ONLY,
+                  arrival: timeFromHM(8, 40),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+            ],
+          ],
+        }),
+        stopsIndex,
+        new Timetable(
+          [
+            { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+            { routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY] }, // Interchange
+            { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+            { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+          ],
+          [
+            Route.of({
+              id: DIRECT,
+              serviceRouteId: DIRECT,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: ORIGIN,
+                      arrivalTime: timeFromHM(8, 0),
+                      departureTime: timeFromHM(8, 0),
+                    },
+                    {
+                      id: DESTINATION,
+                      arrivalTime: timeFromHM(9, 10),
+                      departureTime: timeFromHM(9, 10),
+                    },
+                  ],
+                },
+              ],
+            }),
+            Route.of({
+              id: TO_INTERCHANGE,
+              serviceRouteId: TO_INTERCHANGE,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: ORIGIN,
+                      arrivalTime: timeFromHM(8, 0),
+                      departureTime: timeFromHM(8, 0),
+                    },
+                    {
+                      id: INTERCHANGE,
+                      arrivalTime: timeFromHM(8, 5),
+                      departureTime: timeFromHM(8, 5),
+                    },
+                  ],
+                },
+              ],
+            }),
+            Route.of({
+              id: FROM_INTERCHANGE,
+              serviceRouteId: FROM_INTERCHANGE,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: INTERCHANGE,
+                      arrivalTime: timeFromHM(8, 7),
+                      departureTime: timeFromHM(8, 7),
+                    },
+                    {
+                      id: DESTINATION,
+                      arrivalTime: timeFromHM(8, 40),
+                      departureTime: timeFromHM(8, 40),
+                    },
+                  ],
+                },
+              ],
+            }),
+            Route.of({
+              id: TO_TRANSFER_ONLY,
+              serviceRouteId: TO_TRANSFER_ONLY,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: INTERCHANGE,
+                      arrivalTime: timeFromHM(8, 7),
+                      departureTime: timeFromHM(8, 7),
+                    },
+                    {
+                      id: TRANSFER_ONLY,
+                      arrivalTime: timeFromHM(8, 40),
+                      departureTime: timeFromHM(8, 40),
+                    },
+                  ],
+                },
+              ],
+            }),
+          ],
+          [
+            { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+            { type: RouteTypes.BUS, name: 'Line 1', routes: [TO_INTERCHANGE] },
+            {
+              type: RouteTypes.BUS,
+              name: 'Line 2',
+              routes: [FROM_INTERCHANGE],
+            },
+            {
+              type: RouteTypes.BUS,
+              name: 'Line 3',
+              routes: [TO_TRANSFER_ONLY],
+            },
+          ],
         ),
-      };
-    }
-
-    const early = makeRun(
-      timeFromHM(8, 0),
-      timeFromHM(9, 10),
-      timeFromHM(8, 40),
-    );
-    const late = makeRun(
-      timeFromHM(8, 15),
-      timeFromHM(9, 0),
-      timeFromHM(8, 50),
-    );
+      ),
+    };
+    const late: ParetoRun = {
+      departureTime: timeFromHM(8, 15),
+      result: new Result(
+        RoutingState.fromTestData({
+          nbStops: stops.length,
+          origins: [ORIGIN],
+          destinations: [DESTINATION],
+          arrivals: [
+            [ORIGIN, timeFromHM(8, 15), 0],
+            [INTERCHANGE, timeFromHM(8, 20), 1],
+            [DESTINATION, timeFromHM(8, 50), 2],
+            [TRANSFER_ONLY, timeFromHM(8, 50), 2],
+          ],
+          graph: [
+            [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 15) }]],
+            [
+              [
+                INTERCHANGE,
+                {
+                  routeId: TO_INTERCHANGE,
+                  arrival: timeFromHM(8, 20),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+              [
+                DESTINATION,
+                {
+                  routeId: DIRECT,
+                  arrival: timeFromHM(9, 0),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+            ],
+            [
+              [
+                DESTINATION,
+                {
+                  routeId: FROM_INTERCHANGE,
+                  arrival: timeFromHM(8, 50),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+              [
+                TRANSFER_ONLY,
+                {
+                  routeId: TO_TRANSFER_ONLY,
+                  arrival: timeFromHM(8, 50),
+                  tripIndex: 0,
+                  stopIndex: 0,
+                  hopOffStopIndex: 1,
+                },
+              ],
+            ],
+          ],
+        }),
+        stopsIndex,
+        new Timetable(
+          [
+            { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+            { routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY] }, // Interchange
+            { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+            { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+          ],
+          [
+            Route.of({
+              id: DIRECT,
+              serviceRouteId: DIRECT,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: ORIGIN,
+                      arrivalTime: timeFromHM(8, 15),
+                      departureTime: timeFromHM(8, 15),
+                    },
+                    {
+                      id: DESTINATION,
+                      arrivalTime: timeFromHM(9, 0),
+                      departureTime: timeFromHM(9, 0),
+                    },
+                  ],
+                },
+              ],
+            }),
+            Route.of({
+              id: TO_INTERCHANGE,
+              serviceRouteId: TO_INTERCHANGE,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: ORIGIN,
+                      arrivalTime: timeFromHM(8, 15),
+                      departureTime: timeFromHM(8, 15),
+                    },
+                    {
+                      id: INTERCHANGE,
+                      arrivalTime: timeFromHM(8, 20),
+                      departureTime: timeFromHM(8, 20),
+                    },
+                  ],
+                },
+              ],
+            }),
+            Route.of({
+              id: FROM_INTERCHANGE,
+              serviceRouteId: FROM_INTERCHANGE,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: INTERCHANGE,
+                      arrivalTime: timeFromHM(8, 22),
+                      departureTime: timeFromHM(8, 22),
+                    },
+                    {
+                      id: DESTINATION,
+                      arrivalTime: timeFromHM(8, 50),
+                      departureTime: timeFromHM(8, 50),
+                    },
+                  ],
+                },
+              ],
+            }),
+            Route.of({
+              id: TO_TRANSFER_ONLY,
+              serviceRouteId: TO_TRANSFER_ONLY,
+              trips: [
+                {
+                  stops: [
+                    {
+                      id: INTERCHANGE,
+                      arrivalTime: timeFromHM(8, 22),
+                      departureTime: timeFromHM(8, 22),
+                    },
+                    {
+                      id: TRANSFER_ONLY,
+                      arrivalTime: timeFromHM(8, 50),
+                      departureTime: timeFromHM(8, 50),
+                    },
+                  ],
+                },
+              ],
+            }),
+          ],
+          [
+            { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+            { type: RouteTypes.BUS, name: 'Line 1', routes: [TO_INTERCHANGE] },
+            {
+              type: RouteTypes.BUS,
+              name: 'Line 2',
+              routes: [FROM_INTERCHANGE],
+            },
+            {
+              type: RouteTypes.BUS,
+              name: 'Line 3',
+              routes: [TO_TRANSFER_ONLY],
+            },
+          ],
+        ),
+      ),
+    };
     const range = new RangeResult([late, early]);
 
     for (const method of [
@@ -698,7 +854,170 @@ describe('RangeResult', () => {
 
     it('skips a latest departure without a qualifying route', () => {
       const result = new RangeResult([
-        makeRun(timeFromHM(8, 15), undefined, timeFromHM(8, 50)),
+        {
+          departureTime: timeFromHM(8, 15),
+          result: new Result(
+            RoutingState.fromTestData({
+              nbStops: stops.length,
+              origins: [ORIGIN],
+              destinations: [DESTINATION],
+              arrivals: [
+                [ORIGIN, timeFromHM(8, 15), 0],
+                [INTERCHANGE, timeFromHM(8, 20), 1],
+                [DESTINATION, timeFromHM(8, 50), 2],
+                [TRANSFER_ONLY, timeFromHM(8, 50), 2],
+              ],
+              graph: [
+                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 15) }]],
+                [
+                  [
+                    INTERCHANGE,
+                    {
+                      routeId: TO_INTERCHANGE,
+                      arrival: timeFromHM(8, 20),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+                [
+                  [
+                    DESTINATION,
+                    {
+                      routeId: FROM_INTERCHANGE,
+                      arrival: timeFromHM(8, 50),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    TRANSFER_ONLY,
+                    {
+                      routeId: TO_TRANSFER_ONLY,
+                      arrival: timeFromHM(8, 50),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+              ],
+            }),
+            stopsIndex,
+            new Timetable(
+              [
+                { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+                {
+                  routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY],
+                }, // Interchange
+                { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+                { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+              ],
+              [
+                Route.of({
+                  id: DIRECT,
+                  serviceRouteId: DIRECT,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 15),
+                          departureTime: timeFromHM(8, 15),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(9, 20),
+                          departureTime: timeFromHM(9, 20),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_INTERCHANGE,
+                  serviceRouteId: TO_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 15),
+                          departureTime: timeFromHM(8, 15),
+                        },
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 20),
+                          departureTime: timeFromHM(8, 20),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: FROM_INTERCHANGE,
+                  serviceRouteId: FROM_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 22),
+                          departureTime: timeFromHM(8, 22),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(8, 50),
+                          departureTime: timeFromHM(8, 50),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_TRANSFER_ONLY,
+                  serviceRouteId: TO_TRANSFER_ONLY,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 22),
+                          departureTime: timeFromHM(8, 22),
+                        },
+                        {
+                          id: TRANSFER_ONLY,
+                          arrivalTime: timeFromHM(8, 50),
+                          departureTime: timeFromHM(8, 50),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ],
+              [
+                { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 1',
+                  routes: [TO_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 2',
+                  routes: [FROM_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 3',
+                  routes: [TO_TRANSFER_ONLY],
+                },
+              ],
+            ),
+          ),
+        },
         early,
       ]);
       assert.strictEqual(
@@ -755,16 +1074,708 @@ describe('RangeResult', () => {
 
     it('prefers the later departure when constrained arrival times tie', () => {
       const result = new RangeResult([
-        makeRun(490, 540, 520),
-        makeRun(480, 540, 510),
+        {
+          departureTime: timeFromHM(8, 10),
+          result: new Result(
+            RoutingState.fromTestData({
+              nbStops: stops.length,
+              origins: [ORIGIN],
+              destinations: [DESTINATION],
+              arrivals: [
+                [ORIGIN, timeFromHM(8, 10), 0],
+                [INTERCHANGE, timeFromHM(8, 15), 1],
+                [DESTINATION, timeFromHM(8, 40), 2],
+                [TRANSFER_ONLY, timeFromHM(8, 40), 2],
+              ],
+              graph: [
+                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 10) }]],
+                [
+                  [
+                    INTERCHANGE,
+                    {
+                      routeId: TO_INTERCHANGE,
+                      arrival: timeFromHM(8, 15),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    DESTINATION,
+                    {
+                      routeId: DIRECT,
+                      arrival: timeFromHM(9, 0),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+                [
+                  [
+                    DESTINATION,
+                    {
+                      routeId: FROM_INTERCHANGE,
+                      arrival: timeFromHM(8, 40),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    TRANSFER_ONLY,
+                    {
+                      routeId: TO_TRANSFER_ONLY,
+                      arrival: timeFromHM(8, 40),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+              ],
+            }),
+            stopsIndex,
+            new Timetable(
+              [
+                { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+                {
+                  routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY],
+                }, // Interchange
+                { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+                { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+              ],
+              [
+                Route.of({
+                  id: DIRECT,
+                  serviceRouteId: DIRECT,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 10),
+                          departureTime: timeFromHM(8, 10),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(9, 0),
+                          departureTime: timeFromHM(9, 0),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_INTERCHANGE,
+                  serviceRouteId: TO_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 10),
+                          departureTime: timeFromHM(8, 10),
+                        },
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 15),
+                          departureTime: timeFromHM(8, 15),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: FROM_INTERCHANGE,
+                  serviceRouteId: FROM_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 17),
+                          departureTime: timeFromHM(8, 17),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(8, 40),
+                          departureTime: timeFromHM(8, 40),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_TRANSFER_ONLY,
+                  serviceRouteId: TO_TRANSFER_ONLY,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 17),
+                          departureTime: timeFromHM(8, 17),
+                        },
+                        {
+                          id: TRANSFER_ONLY,
+                          arrivalTime: timeFromHM(8, 40),
+                          departureTime: timeFromHM(8, 40),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ],
+              [
+                { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 1',
+                  routes: [TO_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 2',
+                  routes: [FROM_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 3',
+                  routes: [TO_TRANSFER_ONLY],
+                },
+              ],
+            ),
+          ),
+        },
+        {
+          departureTime: timeFromHM(8, 0),
+          result: new Result(
+            RoutingState.fromTestData({
+              nbStops: stops.length,
+              origins: [ORIGIN],
+              destinations: [DESTINATION],
+              arrivals: [
+                [ORIGIN, timeFromHM(8, 0), 0],
+                [INTERCHANGE, timeFromHM(8, 5), 1],
+                [DESTINATION, timeFromHM(8, 30), 2],
+                [TRANSFER_ONLY, timeFromHM(8, 30), 2],
+              ],
+              graph: [
+                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 0) }]],
+                [
+                  [
+                    INTERCHANGE,
+                    {
+                      routeId: TO_INTERCHANGE,
+                      arrival: timeFromHM(8, 5),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    DESTINATION,
+                    {
+                      routeId: DIRECT,
+                      arrival: timeFromHM(9, 0),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+                [
+                  [
+                    DESTINATION,
+                    {
+                      routeId: FROM_INTERCHANGE,
+                      arrival: timeFromHM(8, 30),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    TRANSFER_ONLY,
+                    {
+                      routeId: TO_TRANSFER_ONLY,
+                      arrival: timeFromHM(8, 30),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+              ],
+            }),
+            stopsIndex,
+            new Timetable(
+              [
+                { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+                {
+                  routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY],
+                }, // Interchange
+                { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+                { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+              ],
+              [
+                Route.of({
+                  id: DIRECT,
+                  serviceRouteId: DIRECT,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 0),
+                          departureTime: timeFromHM(8, 0),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(9, 0),
+                          departureTime: timeFromHM(9, 0),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_INTERCHANGE,
+                  serviceRouteId: TO_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 0),
+                          departureTime: timeFromHM(8, 0),
+                        },
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 5),
+                          departureTime: timeFromHM(8, 5),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: FROM_INTERCHANGE,
+                  serviceRouteId: FROM_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 7),
+                          departureTime: timeFromHM(8, 7),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(8, 30),
+                          departureTime: timeFromHM(8, 30),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_TRANSFER_ONLY,
+                  serviceRouteId: TO_TRANSFER_ONLY,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 7),
+                          departureTime: timeFromHM(8, 7),
+                        },
+                        {
+                          id: TRANSFER_ONLY,
+                          arrivalTime: timeFromHM(8, 30),
+                          departureTime: timeFromHM(8, 30),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ],
+              [
+                { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 1',
+                  routes: [TO_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 2',
+                  routes: [FROM_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 3',
+                  routes: [TO_TRANSFER_ONLY],
+                },
+              ],
+            ),
+          ),
+        },
       ]);
       assert.strictEqual(result.bestRoute(undefined, 0)?.departureTime(), 490);
     });
 
     it('prefers the earlier departure when constrained route durations tie', () => {
       const result = new RangeResult([
-        makeRun(490, 550, 520),
-        makeRun(480, 540, 510),
+        {
+          departureTime: timeFromHM(8, 10),
+          result: new Result(
+            RoutingState.fromTestData({
+              nbStops: stops.length,
+              origins: [ORIGIN],
+              destinations: [DESTINATION],
+              arrivals: [
+                [ORIGIN, timeFromHM(8, 10), 0],
+                [INTERCHANGE, timeFromHM(8, 15), 1],
+                [DESTINATION, timeFromHM(8, 40), 2],
+                [TRANSFER_ONLY, timeFromHM(8, 40), 2],
+              ],
+              graph: [
+                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 10) }]],
+                [
+                  [
+                    INTERCHANGE,
+                    {
+                      routeId: TO_INTERCHANGE,
+                      arrival: timeFromHM(8, 15),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    DESTINATION,
+                    {
+                      routeId: DIRECT,
+                      arrival: timeFromHM(9, 10),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+                [
+                  [
+                    DESTINATION,
+                    {
+                      routeId: FROM_INTERCHANGE,
+                      arrival: timeFromHM(8, 40),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    TRANSFER_ONLY,
+                    {
+                      routeId: TO_TRANSFER_ONLY,
+                      arrival: timeFromHM(8, 40),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+              ],
+            }),
+            stopsIndex,
+            new Timetable(
+              [
+                { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+                {
+                  routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY],
+                }, // Interchange
+                { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+                { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+              ],
+              [
+                Route.of({
+                  id: DIRECT,
+                  serviceRouteId: DIRECT,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 10),
+                          departureTime: timeFromHM(8, 10),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(9, 10),
+                          departureTime: timeFromHM(9, 10),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_INTERCHANGE,
+                  serviceRouteId: TO_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 10),
+                          departureTime: timeFromHM(8, 10),
+                        },
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 15),
+                          departureTime: timeFromHM(8, 15),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: FROM_INTERCHANGE,
+                  serviceRouteId: FROM_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 17),
+                          departureTime: timeFromHM(8, 17),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(8, 40),
+                          departureTime: timeFromHM(8, 40),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_TRANSFER_ONLY,
+                  serviceRouteId: TO_TRANSFER_ONLY,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 17),
+                          departureTime: timeFromHM(8, 17),
+                        },
+                        {
+                          id: TRANSFER_ONLY,
+                          arrivalTime: timeFromHM(8, 40),
+                          departureTime: timeFromHM(8, 40),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ],
+              [
+                { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 1',
+                  routes: [TO_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 2',
+                  routes: [FROM_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 3',
+                  routes: [TO_TRANSFER_ONLY],
+                },
+              ],
+            ),
+          ),
+        },
+        {
+          departureTime: timeFromHM(8, 0),
+          result: new Result(
+            RoutingState.fromTestData({
+              nbStops: stops.length,
+              origins: [ORIGIN],
+              destinations: [DESTINATION],
+              arrivals: [
+                [ORIGIN, timeFromHM(8, 0), 0],
+                [INTERCHANGE, timeFromHM(8, 5), 1],
+                [DESTINATION, timeFromHM(8, 30), 2],
+                [TRANSFER_ONLY, timeFromHM(8, 30), 2],
+              ],
+              graph: [
+                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 0) }]],
+                [
+                  [
+                    INTERCHANGE,
+                    {
+                      routeId: TO_INTERCHANGE,
+                      arrival: timeFromHM(8, 5),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    DESTINATION,
+                    {
+                      routeId: DIRECT,
+                      arrival: timeFromHM(9, 0),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+                [
+                  [
+                    DESTINATION,
+                    {
+                      routeId: FROM_INTERCHANGE,
+                      arrival: timeFromHM(8, 30),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                  [
+                    TRANSFER_ONLY,
+                    {
+                      routeId: TO_TRANSFER_ONLY,
+                      arrival: timeFromHM(8, 30),
+                      tripIndex: 0,
+                      stopIndex: 0,
+                      hopOffStopIndex: 1,
+                    },
+                  ],
+                ],
+              ],
+            }),
+            stopsIndex,
+            new Timetable(
+              [
+                { routes: [DIRECT, TO_INTERCHANGE] }, // Origin
+                {
+                  routes: [TO_INTERCHANGE, FROM_INTERCHANGE, TO_TRANSFER_ONLY],
+                }, // Interchange
+                { routes: [DIRECT, FROM_INTERCHANGE] }, // Destination
+                { routes: [TO_TRANSFER_ONLY] }, // Transfer-only destination
+              ],
+              [
+                Route.of({
+                  id: DIRECT,
+                  serviceRouteId: DIRECT,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 0),
+                          departureTime: timeFromHM(8, 0),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(9, 0),
+                          departureTime: timeFromHM(9, 0),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_INTERCHANGE,
+                  serviceRouteId: TO_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: ORIGIN,
+                          arrivalTime: timeFromHM(8, 0),
+                          departureTime: timeFromHM(8, 0),
+                        },
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 5),
+                          departureTime: timeFromHM(8, 5),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: FROM_INTERCHANGE,
+                  serviceRouteId: FROM_INTERCHANGE,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 7),
+                          departureTime: timeFromHM(8, 7),
+                        },
+                        {
+                          id: DESTINATION,
+                          arrivalTime: timeFromHM(8, 30),
+                          departureTime: timeFromHM(8, 30),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+                Route.of({
+                  id: TO_TRANSFER_ONLY,
+                  serviceRouteId: TO_TRANSFER_ONLY,
+                  trips: [
+                    {
+                      stops: [
+                        {
+                          id: INTERCHANGE,
+                          arrivalTime: timeFromHM(8, 7),
+                          departureTime: timeFromHM(8, 7),
+                        },
+                        {
+                          id: TRANSFER_ONLY,
+                          arrivalTime: timeFromHM(8, 30),
+                          departureTime: timeFromHM(8, 30),
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              ],
+              [
+                { type: RouteTypes.BUS, name: 'Line 0', routes: [DIRECT] },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 1',
+                  routes: [TO_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 2',
+                  routes: [FROM_INTERCHANGE],
+                },
+                {
+                  type: RouteTypes.BUS,
+                  name: 'Line 3',
+                  routes: [TO_TRANSFER_ONLY],
+                },
+              ],
+            ),
+          ),
+        },
       ]);
       assert.strictEqual(
         result.fastestRoute(undefined, 0)?.departureTime(),

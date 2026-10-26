@@ -102,7 +102,7 @@ export class RangeResult implements RoutingResult {
    * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns The reconstructed {@link Route} with the earliest arrival,
    *          or `undefined` if the target is unreachable in every run.
    */
@@ -143,7 +143,7 @@ export class RangeResult implements RoutingResult {
    * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns The reconstructed {@link Route} with the latest departure,
    *          or `undefined` if the target is unreachable in every run.
    */
@@ -173,7 +173,7 @@ export class RangeResult implements RoutingResult {
    * (no destinations), otherwise `undefined` is returned.
    *
    * @param to Optional destination stop ID or set of stop IDs.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns The reconstructed fastest {@link Route}, or `undefined` if the
    *          target is unreachable in every run.
    */
@@ -221,7 +221,7 @@ export class RangeResult implements RoutingResult {
    * Equivalent stops are handled by {@link Result.arrivalAt}.
    *
    * @param stop         The target stop ID.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    */
   arrivalAt(stop: StopId, maxTransfers?: number): Arrival | undefined {
     let best: Arrival | undefined;
@@ -253,7 +253,7 @@ export class RangeResult implements RoutingResult {
    * Returns `undefined` if `stop` is unreachable in every run.
    *
    * @param stop         The target stop ID.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    */
   shortestDurationTo(
     stop: StopId,
@@ -276,7 +276,7 @@ export class RangeResult implements RoutingResult {
    * Pareto-optimal runs, yielding the stop ID and arrival with duration.
    * All runs are aggregated before the first value is yielded. Ties retain
    * the first run's arrival and leg count.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    */
   *shortestDurations(
     maxTransfers?: number,
@@ -303,7 +303,7 @@ export class RangeResult implements RoutingResult {
    * Pareto-optimal runs, yielding the stop ID and arrival.
    * All runs are aggregated before the first value is yielded. Ties retain
    * the first run's arrival and leg count.
-   * @param maxTransfers Optional transfer limit within retained data; see {@link RangeResult}.
+   * @param maxTransfers Optional transfer limit within retained data.
    */
   *arrivals(maxTransfers?: number): Generator<StopArrival> {
     const arrivals = new Map<StopId, Arrival>();
