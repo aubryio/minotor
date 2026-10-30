@@ -2,6 +2,7 @@ import { StopId } from '../stops/stops.js';
 import { durationToString, timeToString } from '../timetable/time.js';
 import { routeTypeToString } from '../timetable/timetable.js';
 import { Result } from './result.js';
+import { resultGraph } from './resultInternals.js';
 import {
   AccessEdge,
   RoutingEdge,
@@ -261,9 +262,9 @@ export class Plotter {
     isOrigin: boolean;
     isDestination: boolean;
   } {
-    const isOrigin = this.result.routingState.graph[0]?.[stopId] !== undefined;
-    const isDestination =
-      this.result.routingState.destinations.includes(stopId);
+    const { graph, destinations } = this.result[resultGraph]();
+    const isOrigin = graph[0]?.[stopId] !== undefined;
+    const isDestination = destinations.includes(stopId);
     return { isOrigin, isDestination };
   }
 
@@ -463,7 +464,7 @@ export class Plotter {
    */
   private collectStations(): Set<StopId> {
     const stations = new Set<StopId>();
-    const graph = this.result.routingState.graph;
+    const graph = this.result[resultGraph]().graph;
 
     for (const roundEdges of graph) {
       for (let stopId = 0; stopId < roundEdges.length; stopId++) {
@@ -516,7 +517,7 @@ export class Plotter {
   private collectEdges(): string[] {
     const edges: string[] = [];
     const continuationEdges: string[] = [];
-    const graph = this.result.routingState.graph;
+    const graph = this.result[resultGraph]().graph;
 
     for (let round = 0; round < graph.length; round++) {
       const roundEdges = graph[round];

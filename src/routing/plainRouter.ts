@@ -51,11 +51,6 @@ export class PlainRouter {
     );
 
     this.raptor.run(query.options, routingState);
-    return new Result(
-      new Set(destinations),
-      routingState,
-      this.stopsIndex,
-      this.timetable,
-    );
+    return new Result(routingState, this.stopsIndex, this.timetable);
   }
 }

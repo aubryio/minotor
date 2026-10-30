@@ -13,7 +13,6 @@ import {
   TransferTypes,
 } from '../../timetable/timetable.js';
 import { Plotter } from '../plotter.js';
-import { Query } from '../query.js';
 import { Result } from '../result.js';
 import { RoutingState } from '../router.js';
 
@@ -71,16 +70,10 @@ describe('Plotter', () => {
 
   const mockStopsIndex = new StopsIndex([stop1, stop2]);
   const mockTimetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
-  const mockQuery = new Query.Builder()
-    .from(0)
-    .to(new Set([1]))
-    .departureTime(timeFromHMS(8, 0, 0))
-    .build();
 
   describe('plotDotGraph', () => {
     it('should generate valid DOT graph structure', () => {
       const result = new Result(
-        mockQuery.to,
         RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
@@ -97,7 +90,6 @@ describe('Plotter', () => {
 
     it('should include station nodes', () => {
       const result = new Result(
-        mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [0],
@@ -118,7 +110,6 @@ describe('Plotter', () => {
 
     it('should handle empty graph gracefully', () => {
       const result = new Result(
-        mockQuery.to,
         RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
         mockTimetable,
@@ -146,7 +137,6 @@ describe('Plotter', () => {
       const specialStopsIndex = new StopsIndex([stop1, stop2, specialStop]);
 
       const result = new Result(
-        mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [2],
@@ -171,7 +161,6 @@ describe('Plotter', () => {
 
     it('should use correct colors', () => {
       const result = new Result(
-        mockQuery.to,
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [0],

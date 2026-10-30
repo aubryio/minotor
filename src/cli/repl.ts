@@ -173,7 +173,7 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
                 `from ${fromStop.name} to ${toStop.name} ` +
                 `(window ${atTime}–${beforeTime}):`,
             );
-            const routes = result.getRoutes();
+            const routes = [...result.routes()];
             routes.forEach((route, index) => {
               const journeyNumber = index + 1;
               console.log(`\nJourney ${journeyNumber}:`);

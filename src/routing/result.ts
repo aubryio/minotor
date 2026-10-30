@@ -4,6 +4,7 @@ import { StopsIndex } from '../stops/stopsIndex.js';
 import { Route as TimetableRoute } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
 import { TransferTypes } from '../timetable/timetable.js';
+import { resultDestinations, resultGraph } from './resultInternals.js';
 import {
   Access,
   Leg,
@@ -13,38 +14,103 @@ import {
   VehicleLeg,
 } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
+import type { RoutingResult, StopArrival } from './routingResult.js';
 import { AccessEdge } from './state.js';
 
-export class Result {
-  private readonly destinations: ReadonlySet<StopId>;
-  public readonly routingState: RoutingState;
+/**
+ * A single-departure routing result.
+ */
+export class Result implements RoutingResult {
+  readonly #routingState: RoutingState;
   public readonly stopsIndex: StopsIndex;
   public readonly timetable: Timetable;
 
   constructor(
-    destinations: ReadonlySet<StopId>,
     routingState: RoutingState,
     stopsIndex: StopsIndex,
     timetable: Timetable,
   ) {
-    this.destinations = destinations;
-    this.routingState = routingState;
+    this.#routingState = routingState;
     this.stopsIndex = stopsIndex;
     this.timetable = timetable;
+  }
+
+  /** @internal Default query destinations for range result selection. */
+  [resultDestinations](): readonly StopId[] {
+    return this.#routingState.destinations;
+  }
+
+  /** @internal Routing graph and destination metadata for the graph plotter. */
+  [resultGraph](): Pick<RoutingState, 'graph' | 'destinations'> {
+    return {
+      graph: this.#routingState.graph,
+      destinations: this.#routingState.destinations,
+    };
+  }
+
+  /**
+   * Iterates over reached stops, yielding each concrete stop ID, its earliest
+   * arrival time, and the number of legs taken to reach it. Unreached stops
+   * are omitted. Destination pruning may limit which stops were reached.
+   * @param maxTransfers Optional transfer limit within retained data.
+   */
+  *arrivals(maxTransfers?: number): Generator<StopArrival> {
+    for (const reached of this.#routingState.arrivals()) {
+      if (maxTransfers === undefined) {
+        yield reached;
+      } else {
+        const arrival = this.concreteArrivalAt(reached.stop, maxTransfers);
+        if (arrival !== undefined) yield { stop: reached.stop, ...arrival };
+      }
+    }
+  }
+
+  /** Looks up one concrete stop without expanding equivalent stops. */
+  private concreteArrivalAt(
+    stop: StopId,
+    maxTransfers?: number,
+  ): Arrival | undefined {
+    const best = this.#routingState.getArrival(stop);
+    if (
+      maxTransfers === undefined ||
+      (best !== undefined && best.legNumber <= maxTransfers + 1)
+    ) {
+      return best;
+    }
+
+    let earliest: Arrival | undefined;
+    const lastRound = Math.min(
+      maxTransfers + 1,
+      this.#routingState.graph.length - 1,
+    );
+    for (let round = lastRound; round >= 0; round--) {
+      const edge = this.#routingState.graph[round]?.[stop];
+      if (
+        edge !== undefined &&
+        (earliest === undefined || edge.arrival < earliest.arrival)
+      ) {
+        earliest = { arrival: edge.arrival, legNumber: round };
+      }
+    }
+    return earliest;
   }
 
   /**
    * Expands a target stop or stop set to all equivalent concrete stop IDs.
    *
-   * When `to` is omitted, defaults to the resolved destinations stored on this
-   * result.
+   * When `to` is omitted, defaults to the resolved destinations in the
+   * query.
    *
    * Equivalent stops are expanded here so destination handling has a single
    * source of truth shared by route reconstruction and arrival lookups.
    */
   private expandDestinations(to?: StopId | Set<StopId>): Set<StopId> {
     const targets: Iterable<StopId> =
-      to instanceof Set ? to : to !== undefined ? [to] : this.destinations;
+      to instanceof Set
+        ? to
+        : to !== undefined
+          ? [to]
+          : this.#routingState.destinations;
 
     const expanded = new Set<StopId>();
     for (const target of targets) {
@@ -61,10 +127,12 @@ export class Result {
    * destination set)
    *
    * @param to The destination stop by SourceStopId.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns a route to the destination stop if it exists.
    */
   bestRouteToSourceStopId(
     to: SourceStopId | Set<SourceStopId>,
+    maxTransfers?: number,
   ): Route | undefined {
     if (to instanceof Set) {
       const stopIds = new Set<StopId>();
@@ -72,10 +140,14 @@ export class Result {
         const found = this.stopsIndex.findStopBySourceStopId(sourceId);
         if (found !== undefined) stopIds.add(found.id);
       }
-      return stopIds.size === 0 ? undefined : this.bestRoute(stopIds);
+      return stopIds.size === 0
+        ? undefined
+        : this.bestRoute(stopIds, maxTransfers);
     }
     const stopId = this.stopsIndex.findStopBySourceStopId(to)?.id;
-    return stopId === undefined ? undefined : this.bestRoute(stopId);
+    return stopId === undefined
+      ? undefined
+      : this.bestRoute(stopId, maxTransfers);
   }
 
   /**
@@ -85,9 +157,13 @@ export class Result {
    *
    * @param to The destination stop. Defaults to this result's resolved
    *   destinations.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns a route to the destination stop if it exists.
    */
-  bestRoute(to?: StopId | Set<StopId>): Route | undefined {
+  bestRoute(
+    to?: StopId | Set<StopId>,
+    maxTransfers?: number,
+  ): Route | undefined {
     const destinationStops = this.expandDestinations(to);
 
     // Find the fastest-reached destination across all equivalent stops.
@@ -95,7 +171,7 @@ export class Result {
     let fastestArrivalTime: Time | undefined = undefined;
     let fastestLegNumber: number | undefined = undefined;
     for (const destination of destinationStops) {
-      const arrivalData = this.routingState.getArrival(destination);
+      const arrivalData = this.concreteArrivalAt(destination, maxTransfers);
       if (
         arrivalData !== undefined &&
         (fastestArrivalTime === undefined ||
@@ -117,7 +193,7 @@ export class Result {
     let previousVehicleEdge: VehicleEdge | undefined;
 
     while (round >= 0) {
-      const edge = this.routingState.graph[round]?.[currentStop];
+      const edge = this.#routingState.graph[round]?.[currentStop];
       if (!edge) {
         if (round === 0) break;
         throw new Error(
@@ -307,7 +383,7 @@ export class Result {
    * than this result's destination set.
    *
    * @param stop The target stop for which to return the arrival time.
-   * @param maxTransfers The optional maximum number of transfers allowed.
+   * @param maxTransfers Optional transfer limit within retained data.
    * @returns The arrival time if the target stop is reachable, otherwise undefined.
    */
   arrivalAt(stop: StopId, maxTransfers?: number): Arrival | undefined {
@@ -315,27 +391,10 @@ export class Result {
     let earliestArrival: Arrival | undefined = undefined;
 
     for (const equivalentStop of equivalentStops) {
-      let arrivalTime;
-      if (
-        maxTransfers === undefined ||
-        this.routingState.getArrival(equivalentStop.id)?.legNumber ===
-          maxTransfers + 1
-      ) {
-        arrivalTime = this.routingState.getArrival(equivalentStop.id);
-      } else {
-        // We have no guarantee that the stop was visited in the last round,
-        // so we need to check all rounds if it's not found in the last one.
-        for (let i = maxTransfers + 1; i >= 0; i--) {
-          const arrivalEdge = this.routingState.graph[i]?.[equivalentStop.id];
-          if (arrivalEdge !== undefined) {
-            arrivalTime = {
-              arrival: arrivalEdge.arrival,
-              legNumber: i,
-            };
-            break;
-          }
-        }
-      }
+      const arrivalTime = this.concreteArrivalAt(
+        equivalentStop.id,
+        maxTransfers,
+      );
       if (arrivalTime !== undefined) {
         if (
           earliestArrival === undefined ||

@@ -126,6 +126,8 @@ const route = result.bestRoute(); // Route | undefined
 
 // Earliest arrival at any individual stop (useful for isochrone computation)
 const arrival = result.arrivalAt(stop.id); // { arrival: Time, legNumber: number } | undefined
+// Earliest arrival at every reachable stop
+const arrivals = result.arrivals();
 ```
 
 Query options:
@@ -166,11 +168,12 @@ for (const { departureTime, result } of rangeResult) {
 const earliest = rangeResult.bestRoute(); // earliest arrival
 const latest = rangeResult.latestDepartureRoute(); // latest possible departure
 const fastest = rangeResult.fastestRoute(); // shortest travel duration
-const all = rangeResult.getRoutes(); // all routes, earliest-departure-first
+const all = rangeResult.routes(); // lazy iterator, earliest-departure-first
 
-// Earliest arrival at every reachable stop across all runs
-const arrivals = rangeResult.allEarliestArrivals(); // Map<StopId, Arrival>
-const durations = rangeResult.allShortestDurations(); // Map<StopId, DurationArrival>
+// Earliest arrival at every reachable stop
+const arrivals = rangeResult.arrivals();
+// Shortest duration to every reachable stop
+const durations = rangeResult.shortestDurations();
 ```
 
 ### CLI Usage
