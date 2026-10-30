@@ -90,6 +90,12 @@ describe('Timetable', () => {
           },
         ],
       },
+      {
+        stops: [
+          { id: 2, arrivalTime: 1200, departureTime: 1200 },
+          { id: 1, arrivalTime: 1240, departureTime: 1240 },
+        ],
+      },
     ],
   });
   const routesAdjacency = [route1, route2];
@@ -665,11 +671,11 @@ describe('Timetable', () => {
 
     describe('findFirstBoardableTrip', () => {
       const BOARDING_STOP_INDEX = 0;
-      const FFBT_ROUTE_ID = 2;
+      const FFBT_ROUTE_ID = 0;
 
       const ffbtRoute = Route.of({
         id: FFBT_ROUTE_ID,
-        serviceRouteId: 2,
+        serviceRouteId: 0,
         trips: [
           {
             stops: [
@@ -823,7 +829,7 @@ describe('Timetable', () => {
 
       describe('with fromTripStop', () => {
         const fromTripStop: TripStop = {
-          routeId: 99,
+          routeId: 0,
           stopIndex: 0,
           tripIndex: 0,
         };
@@ -899,7 +905,7 @@ describe('Timetable', () => {
       describe('guaranteed connection', () => {
         it('bypasses the after + transferTime departure check', () => {
           const fromTripStop: TripStop = {
-            routeId: 99,
+            routeId: 0,
             stopIndex: 0,
             tripIndex: 0,
           };
@@ -943,7 +949,7 @@ describe('Timetable', () => {
 
         it('does not bypass a NOT_AVAILABLE pickup', () => {
           const fromTripStop: TripStop = {
-            routeId: 99,
+            routeId: 0,
             stopIndex: 0,
             tripIndex: 0,
           };
@@ -989,7 +995,7 @@ describe('Timetable', () => {
 
         it('applies only to its declared target trip index', () => {
           const fromTripStop: TripStop = {
-            routeId: 99,
+            routeId: 0,
             stopIndex: 0,
             tripIndex: 0,
           };

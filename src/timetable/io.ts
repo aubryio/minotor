@@ -4,7 +4,6 @@ import {
   ServiceRoute as ProtoServiceRoute,
   StopAdjacency as ProtoStopAdjacency,
   TransferType as ProtoTransferType,
-  TripTransferEntry as ProtoTripTransferEntry,
 } from './proto/v1/timetable.js';
 import { Route } from './route.js';
 import {
@@ -16,10 +15,7 @@ import {
   Transfer,
   TransferType,
   TransferTypes,
-  TripStop,
-  TripTransfers,
 } from './timetable.js';
-import { decode, encode, TripStopId } from './tripStopId.js';
 
 export type SerializedRoute = {
   stopTimes: Uint16Array;
@@ -283,7 +279,9 @@ const parseTransferType = (type: ProtoTransferType): TransferType => {
   }
 };
 
-const serializeTransferType = (type: TransferType): ProtoTransferType => {
+export const serializeTransferType = (
+  type: TransferType,
+): ProtoTransferType => {
   switch (type) {
     case TransferTypes.RECOMMENDED:
       return ProtoTransferType.TRANSFER_TYPE_RECOMMENDED_TRANSFER_POINT;
@@ -349,58 +347,4 @@ const serializeRouteType = (type: RouteType): ProtoRouteType => {
     case RouteTypes.MONORAIL:
       return ProtoRouteType.ROUTE_TYPE_MONORAIL;
   }
-};
-
-export const serializeTripTransfers = (
-  tripTransfers: TripTransfers,
-): ProtoTripTransferEntry[] => {
-  const result: ProtoTripTransferEntry[] = [];
-  for (const [tripBoardingId, destinations] of tripTransfers.entries()) {
-    const [originStopIndex, originRouteId, originTripIndex] =
-      decode(tripBoardingId);
-
-    result.push({
-      origin: {
-        stopIndex: originStopIndex,
-        routeId: originRouteId,
-        tripIndex: originTripIndex,
-      },
-      destinations: destinations.map((tripStop) => ({
-        stopIndex: tripStop.stopIndex,
-        routeId: tripStop.routeId,
-        tripIndex: tripStop.tripIndex,
-      })),
-    });
-  }
-
-  return result;
-};
-
-export const deserializeTripTransfers = (
-  protoTripTransfer: ProtoTripTransferEntry[],
-): TripTransfers => {
-  const result = new Map<TripStopId, TripStop[]>();
-
-  for (let i = 0; i < protoTripTransfer.length; i++) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const entry = protoTripTransfer[i]!;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const origin = entry.origin!;
-    const tripBoardingId = encode(
-      origin.stopIndex,
-      origin.routeId,
-      origin.tripIndex,
-    );
-    const destinations: TripStop[] = entry.destinations.map(
-      (protoTripStop) => ({
-        stopIndex: protoTripStop.stopIndex,
-        routeId: protoTripStop.routeId,
-        tripIndex: protoTripStop.tripIndex,
-      }),
-    );
-
-    result.set(tripBoardingId, destinations);
-  }
-
-  return result;
 };

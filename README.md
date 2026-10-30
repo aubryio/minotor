@@ -66,6 +66,14 @@ const stopsIndex = await parser.parseStops();
 
 Times are represented at the minute level (16-bit integers). Parsing can take a few minutes for large feeds.
 
+#### Timetable format and trip transfers
+
+Timetable format **2** uses dense numeric trip and stop-occurrence IDs, with compact typed-array transfer indexes at runtime. Old timetable binaries must be regenerated with the current parser; they are rejected with a regeneration message. Stop-index binaries are unchanged. IDs are local to one generated timetable and must not be persisted across regenerations.
+
+Trip-specific type-1 connections waive the fallback transfer buffer but do not simulate held departures. Type-2 connections replace the generic minimum with their declared interval, including zero; longer intervals cannot be bypassed through a generic platform transfer. Type-4 continuations stay in the same boarding round, including at stops without public pickup or drop-off. Times remain minute-based.
+
+Preprocessing groups trips by stop sequence and pickup/drop-off pattern, then splits overtaking trips into ordered routes. Routing retains separate boarding contexts where incoming trips have different transfer rules and explicitly scans trips with outgoing rules. Immutable predecessor links preserve useful feeder journeys even when they do not win a stop's earliest-arrival label. Range queries reuse bounds only between matching boarding contexts and trip suffixes.
+
 #### Virtual transfers
 
 Many GTFS feeds only partially populate `transfers.txt`, so nearby stops in different stations end up with no walking connection and can't be used as an interchange. Pass a `TransferGenerator` to the parser to synthesize the missing walking transfers before the timetable is serialized. The built-in `StraightLineTransferGenerator` connects nearby stops that aren't already linked, estimating walking time from the straight-line distance:

@@ -15,7 +15,7 @@ import {
 } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
 import type { RoutingResult, StopArrival } from './routingResult.js';
-import { AccessEdge } from './state.js';
+import { AccessEdge, RoutingEdge } from './state.js';
 
 /**
  * A single-departure routing result.
@@ -186,6 +186,12 @@ export class Result implements RoutingResult {
       return undefined;
     }
 
+    const destinationEdge =
+      this.#routingState.graph[fastestLegNumber]?.[fastestDestination];
+    if (destinationEdge && 'predecessor' in destinationEdge) {
+      return this.buildReferencedRoute(destinationEdge);
+    }
+
     // Reconstruct the path by walking backwards through the routing graph.
     const route: Leg[] = [];
     let currentStop = fastestDestination;
@@ -260,6 +266,31 @@ export class Result implements RoutingResult {
       }
     }
     return new Route(route.reverse());
+  }
+
+  /** Immutable links preserve feeders that did not win their stop label. */
+  private buildReferencedRoute(destination: RoutingEdge): Route {
+    const legs: Leg[] = [];
+    let edge: RoutingEdge | undefined = destination;
+    while (edge) {
+      if ('routeId' in edge) {
+        const chain: VehicleEdge[] = [edge];
+        let first: VehicleEdge = edge;
+        while (first.continuationOf) {
+          first = first.continuationOf;
+          chain.push(first);
+        }
+        legs.push(this.buildVehicleLeg(chain));
+        edge = first.predecessor;
+      } else if ('type' in edge) {
+        legs.push(this.buildTransferLeg(edge));
+        edge = edge.predecessor;
+      } else if ('duration' in edge) {
+        legs.push(this.buildAccessLeg(edge));
+        break;
+      } else break;
+    }
+    return new Route(legs.reverse());
   }
 
   private buildServiceRouteInfo(route: TimetableRoute): ServiceRouteInfo {

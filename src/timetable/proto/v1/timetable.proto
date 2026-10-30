@@ -41,17 +41,6 @@ message Transfer {
   optional uint32 min_transfer_time = 3;
 }
 
-message TripStop {
-  uint32 stop_index = 1;
-  uint32 route_id = 2;
-  uint32 trip_index = 3;
-}
-
-message TripTransferEntry {
-  TripStop origin = 1;
-  repeated TripStop destinations = 2;
-}
-
 message StopAdjacency {
   repeated uint32 routes = 1;
   repeated Transfer transfers = 2;
@@ -77,10 +66,20 @@ message ServiceRoute {
   repeated uint32 routes = 3;
 }
 
+// Occurrence IDs enumerate routes in wire order, then trips, then stops.
+// Both total trip count and total occurrence count must fit uint32.
+message TripRule {
+  uint32 source = 1;
+  uint32 target = 2;
+  TransferType type = 3;
+  optional uint32 min_transfer_time = 4;
+}
+
 message Timetable {
   repeated StopAdjacency stops_adjacency = 1;
   repeated Route routes_adjacency = 2;
   repeated ServiceRoute service_routes = 3;
-  repeated TripTransferEntry trip_continuations = 4;
-  repeated TripTransferEntry guaranteed_trip_transfers = 5;
+  reserved 4, 5; // Removed format-1 trip transfer maps.
+  uint32 format_version = 6;
+  repeated TripRule trip_rules = 7;
 }

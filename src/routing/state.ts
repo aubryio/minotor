@@ -27,6 +27,7 @@ export type VehicleEdge = TripStop & {
   hopOffStopIndex: StopRouteIndex;
   /** modeling in-seat transfer */
   continuationOf?: VehicleEdge;
+  predecessor?: RoutingEdge;
 };
 
 /** A walking or guaranteed connection between two stops. */
@@ -35,6 +36,7 @@ export type TransferEdge = {
   from: StopId;
   to: StopId;
   type: TransferType;
+  predecessor?: RoutingEdge;
   minTransferTime?: Duration;
 };
 
@@ -55,6 +57,7 @@ export class RoutingState implements IRaptorState {
 
   /** Destination stop IDs for this query. */
   readonly destinations: StopId[];
+  readonly destinationGroups: StopId[][];
 
   /**
    * Routing graph: the best edge used to reach each stop, per round.
@@ -124,8 +127,11 @@ export class RoutingState implements IRaptorState {
     nbStops: number,
     maxRounds: number = 0,
     maxDuration?: Duration,
+    destinationGroups?: StopId[][],
   ) {
     this.destinations = destinations;
+    this.destinationGroups =
+      destinationGroups ?? destinations.map((stop) => [stop]);
     this.maxDuration = maxDuration;
     this.maxArrivalTime =
       maxDuration === undefined ? UNREACHED_TIME : departureTime + maxDuration;
@@ -195,6 +201,17 @@ export class RoutingState implements IRaptorState {
    * Earliest arrival at any destination stop; {@link UNREACHED_TIME} if none
    * has been reached yet. Updated automatically by {@link updateArrival}. O(1).
    */
+  destinationPruningBound(): Time {
+    if (this.destinationGroups.length === 0) return UNREACHED_TIME;
+    let bound = 0;
+    for (const group of this.destinationGroups) {
+      let best = UNREACHED_TIME;
+      for (const stop of group) best = Math.min(best, this.arrivalTime(stop));
+      bound = Math.max(bound, best);
+    }
+    return bound;
+  }
+
   get destinationBest(): Time {
     return this._destinationBest;
   }

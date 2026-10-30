@@ -215,7 +215,7 @@ describe('RangeRaptorState', () => {
       }
     });
 
-    it('clears the changed-stop list so a subsequent call propagates nothing new', () => {
+    it('propagates inherited improvements into subsequent rounds', () => {
       const state = new RangeRaptorState(
         MAX_ROUNDS,
         NB_STOPS,
@@ -225,7 +225,7 @@ describe('RangeRaptorState', () => {
       state.updateArrival(2, timeFromHM(9, 0), 0);
       state.initRound(1);
       state.initRound(2);
-      assert.strictEqual(state.roundLabels[2]![2], UNREACHED_TIME);
+      assert.strictEqual(state.roundLabels[2]![2], timeFromHM(9, 0));
     });
   });
 

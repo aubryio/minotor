@@ -5,11 +5,9 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
-  deserializeTripTransfers,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
-  serializeTripTransfers,
 } from '../io.js';
 import { PickUpDropOffTypes, Route } from '../route.js';
 import { timeFromHMS } from '../time.js';
@@ -18,9 +16,7 @@ import {
   ServiceRoute,
   StopAdjacency,
   TransferTypes,
-  TripStop,
 } from '../timetable.js';
-import { encode } from '../tripStopId.js';
 
 describe('Timetable IO', () => {
   const stopsAdjacency: StopAdjacency[] = [
@@ -117,22 +113,6 @@ describe('Timetable IO', () => {
     const serializedData = serializeStopsAdjacency(stopsAdjacency);
     const deserializedData = deserializeStopsAdjacency(serializedData);
     assert.deepStrictEqual(deserializedData, stopsAdjacency);
-  });
-
-  it('should serialize and deserialize tripContinuations correctly', () => {
-    const tripContinuations = new Map<bigint, TripStop[]>();
-    tripContinuations.set(encode(1, 0, 2), [
-      { stopIndex: 1, routeId: 0, tripIndex: 2 },
-      { stopIndex: 3, routeId: 1, tripIndex: 1 },
-    ]);
-    tripContinuations.set(encode(2, 0, 0), [
-      { stopIndex: 2, routeId: 0, tripIndex: 0 },
-    ]);
-
-    const serialized = serializeTripTransfers(tripContinuations);
-    const deserialized = deserializeTripTransfers(serialized);
-
-    assert.deepStrictEqual(deserialized, tripContinuations);
   });
 
   it('should handle empty StopAdjacency without transfers or tripContinuations', () => {

@@ -270,7 +270,7 @@ describe('GTFS transfers parser', () => {
 
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, expectedTripContinuations);
-    assert.deepEqual(result.guaranteedTripTransfers, []);
+    assert.deepEqual(result.tripTransfers, []);
   });
 
   it('should correctly parse guaranteed transfers (type 1) with trip IDs', async () => {
@@ -327,7 +327,7 @@ describe('GTFS transfers parser', () => {
 
     const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
-    const expectedGuaranteedTripTransfers = [
+    const expectedTripTransfers = [
       {
         fromStop: 0,
         fromTrip: 'tripA',
@@ -342,13 +342,10 @@ describe('GTFS transfers parser', () => {
       },
     ];
 
-    // Guaranteed transfers with trip IDs should go to guaranteedTripTransfers, not transfers
+    // Guaranteed transfers with trip IDs should go to tripTransfers, not transfers
     assert.deepEqual(result.transfers, new Map());
     assert.deepEqual(result.tripContinuations, []);
-    assert.deepEqual(
-      result.guaranteedTripTransfers,
-      expectedGuaranteedTripTransfers,
-    );
+    assert.deepEqual(result.tripTransfers, expectedTripTransfers);
   });
 
   it('should differentiate guaranteed transfers with and without trip IDs', async () => {
@@ -356,7 +353,7 @@ describe('GTFS transfers parser', () => {
     mockedStream.push(
       'from_stop_id,to_stop_id,from_trip_id,to_trip_id,transfer_type,min_transfer_time\n',
     );
-    // Type 1 with trip IDs -> goes to guaranteedTripTransfers
+    // Type 1 with trip IDs -> goes to tripTransfers
     mockedStream.push('"1100084","8014440:0:1","tripA","tripB","1","0"\n');
     // Type 1 without trip IDs -> goes to transfers as stop-to-stop
     mockedStream.push('"1100097","8014447","","","1","120"\n');
@@ -407,8 +404,8 @@ describe('GTFS transfers parser', () => {
 
     const result = await parseTransfers(mockedStream, stopsMap, new Set());
 
-    // Type 1 with trip IDs -> guaranteedTripTransfers
-    const expectedGuaranteedTripTransfers = [
+    // Type 1 with trip IDs -> tripTransfers
+    const expectedTripTransfers = [
       {
         fromStop: 0,
         fromTrip: 'tripA',
@@ -433,10 +430,7 @@ describe('GTFS transfers parser', () => {
 
     assert.deepEqual(result.transfers, expectedTransfers);
     assert.deepEqual(result.tripContinuations, []);
-    assert.deepEqual(
-      result.guaranteedTripTransfers,
-      expectedGuaranteedTripTransfers,
-    );
+    assert.deepEqual(result.tripTransfers, expectedTripTransfers);
   });
 
   it('should ignore in-seat transfers with missing trip IDs', async () => {
@@ -786,7 +780,6 @@ describe('GTFS transfers parser', () => {
             {
               destination: 1,
               type: TransferTypes.RECOMMENDED,
-              minTransferTime: durationFromSeconds(0),
             },
             {
               destination: 1,
@@ -796,13 +789,12 @@ describe('GTFS transfers parser', () => {
             {
               destination: 1,
               type: TransferTypes.GUARANTEED,
-              minTransferTime: durationFromSeconds(0),
             },
           ],
         ],
       ]),
     );
-    assert.deepEqual(result.guaranteedTripTransfers, [
+    assert.deepEqual(result.tripTransfers, [
       {
         fromStop: 0,
         fromTrip: 'tripA',
@@ -1309,7 +1301,7 @@ describe('buildTripTransfers', () => {
     assert.strictEqual(result.size, 0);
   });
 
-  it('should disambiguate transfers when routes visit same stop multiple times', () => {
+  it('preserves every applicable occurrence when routes revisit stops', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],
@@ -1362,7 +1354,8 @@ describe('buildTripTransfers', () => {
     const transfers = result.get(expectedTripBoardingId);
 
     assert(transfers);
-    assert.strictEqual(transfers.length, 1);
+    assert.strictEqual(transfers.length, 2);
+    assert.strictEqual(result.get(encode(3, 0, 0))?.length, 1);
     assert.deepEqual(transfers[0], {
       stopIndex: 1, // Best to-stop index
       routeId: 1,

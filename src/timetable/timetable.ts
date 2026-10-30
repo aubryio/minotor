@@ -6,11 +6,10 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
-  deserializeTripTransfers,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
-  serializeTripTransfers,
+  serializeTransferType,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/v1/timetable.js';
 import {
@@ -21,37 +20,29 @@ import {
   TripRouteIndex,
 } from './route.js';
 import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
-import { encode, TripStopId } from './tripStopId.js';
+import {
+  Transfer,
+  TransferType,
+  TransferTypes,
+  TransferTypeString,
+  TripStop,
+  TripTransfers,
+} from './transfer.js';
+import { TripRule, TripTransferIndex } from './tripTransfers.js';
 
-export const TransferTypes = {
-  RECOMMENDED: 1,
-  GUARANTEED: 2,
-  REQUIRES_MINIMAL_TIME: 3,
-  IN_SEAT: 4,
-} as const;
-
-export type TransferType = (typeof TransferTypes)[keyof typeof TransferTypes];
-
-export type TransferTypeString = keyof typeof TransferTypes;
-
-export type Transfer = {
-  destination: StopId;
-  type: TransferType;
-  minTransferTime?: Duration;
-};
-
-export type TripStop = {
-  stopIndex: StopRouteIndex;
-  routeId: RouteId;
-  tripIndex: TripRouteIndex;
-};
+export type {
+  Transfer,
+  TransferType,
+  TransferTypeString,
+  TripStop,
+  TripTransfers,
+} from './transfer.js';
+export { TransferTypes } from './transfer.js';
 
 export type StopAdjacency = {
   transfers?: Transfer[];
   routes: RouteId[];
 };
-
-export type TripTransfers = Map<TripStopId, TripStop[]>;
 
 export type ServiceRouteId = number;
 
@@ -86,8 +77,6 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set(
   Object.values(RouteTypes),
 );
 
-const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
-
 /**
  * The internal transit timetable format.
  */
@@ -95,8 +84,7 @@ export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
   private readonly serviceRoutes: ServiceRoute[];
-  private readonly tripContinuations?: TripTransfers;
-  private readonly guaranteedTripTransfers?: TripTransfers;
+  readonly tripTransfers: TripTransferIndex;
   private readonly activeStops: Set<StopId>;
 
   constructor(
@@ -104,13 +92,18 @@ export class Timetable {
     routesAdjacency: Route[],
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
-    guaranteedTripTransfers?: TripTransfers,
+    tripTransfers?: TripTransfers,
+    rules: TripRule[] = [],
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
-    this.tripContinuations = tripContinuations;
-    this.guaranteedTripTransfers = guaranteedTripTransfers;
+    this.tripTransfers = new TripTransferIndex(
+      routesAdjacency,
+      rules,
+      tripContinuations,
+      tripTransfers,
+    );
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -133,12 +126,13 @@ export class Timetable {
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
-      tripContinuations: serializeTripTransfers(
-        this.tripContinuations || new Map<TripStopId, TripStop[]>(),
-      ),
-      guaranteedTripTransfers: serializeTripTransfers(
-        this.guaranteedTripTransfers || new Map<TripStopId, TripStop[]>(),
-      ),
+      formatVersion: 2,
+      tripRules: [...this.tripTransfers.all()].map((rule) => ({
+        source: rule.source,
+        target: rule.target,
+        type: serializeTransferType(rule.type),
+        minTransferTime: rule.minTransferTime,
+      })),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -154,12 +148,17 @@ export class Timetable {
   static fromData(data: Uint8Array): Timetable {
     const reader = new BinaryReader(data);
     const protoTimetable = ProtoTimetable.decode(reader);
+    if (protoTimetable.formatVersion !== 2)
+      throw new Error(
+        'Unsupported timetable format; regenerate the dataset with this version of minotor.',
+      );
     return new Timetable(
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
       deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
-      deserializeTripTransfers(protoTimetable.tripContinuations),
-      deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
+      undefined,
+      undefined,
+      protoTimetable.tripRules as TripRule[],
     );
   }
 
@@ -220,13 +219,15 @@ export class Timetable {
     routeId: RouteId,
     tripIndex: TripRouteIndex,
   ): TripStop[] {
-    const tripContinuations = this.tripContinuations?.get(
-      encode(stopIndex, routeId, tripIndex),
-    );
-    if (!tripContinuations) {
-      return EMPTY_TRIP_BOARDINGS;
-    }
-    return tripContinuations;
+    const source = this.tripTransfers.tryOccurrence({
+      stopIndex,
+      routeId,
+      tripIndex,
+    });
+    if (source === undefined) return [];
+    return [...this.tripTransfers.outgoing(source)]
+      .filter((rule) => rule.type === TransferTypes.IN_SEAT)
+      .map((rule) => this.tripTransfers.position(rule.target));
   }
 
   /**
@@ -325,27 +326,14 @@ export class Timetable {
     fromTripStop: TripStop,
     toTripStop: TripStop,
   ): boolean {
-    const tripBoardingId = encode(
-      fromTripStop.stopIndex,
-      fromTripStop.routeId,
-      fromTripStop.tripIndex,
+    const source = this.tripTransfers.tryOccurrence(fromTripStop);
+    const target = this.tripTransfers.tryOccurrence(toTripStop);
+    return (
+      source !== undefined &&
+      target !== undefined &&
+      this.tripTransfers.transfer(source, target)?.type ===
+        TransferTypes.GUARANTEED
     );
-    const guaranteedTransfers =
-      this.guaranteedTripTransfers?.get(tripBoardingId);
-    if (!guaranteedTransfers) {
-      return false;
-    }
-    for (let i = 0; i < guaranteedTransfers.length; i++) {
-      const transfer = guaranteedTransfers[i]!;
-      if (
-        transfer.stopIndex === toTripStop.stopIndex &&
-        transfer.routeId === toTripStop.routeId &&
-        transfer.tripIndex === toTripStop.tripIndex
-      ) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -383,16 +371,20 @@ export class Timetable {
         return t;
       }
 
-      const isGuaranteed = this.isTripTransferGuaranteed(fromTripStop, {
-        stopIndex,
-        routeId: route.id,
-        tripIndex: t,
-      });
-      if (isGuaranteed) {
-        return t;
-      }
+      const rule = this.tripTransfers.transfer(
+        this.tripTransfers.occurrence(fromTripStop),
+        this.tripTransfers.occurrence({
+          stopIndex,
+          routeId: route.id,
+          tripIndex: t,
+        }),
+      );
       const departure = route.departureFrom(stopIndex, t);
-      const requiredTime = after + transferTime;
+      const requiredTime =
+        after +
+        (rule?.type === TransferTypes.GUARANTEED
+          ? 0
+          : (rule?.minTransferTime ?? transferTime));
       if (departure >= requiredTime) {
         return t;
       }
@@ -413,13 +405,15 @@ export class Timetable {
     routeId: RouteId,
     tripIndex: TripRouteIndex,
   ): TripStop[] {
-    const guaranteedTripTransfers = this.guaranteedTripTransfers?.get(
-      encode(stopIndex, routeId, tripIndex),
-    );
-    if (!guaranteedTripTransfers) {
-      return EMPTY_TRIP_BOARDINGS;
-    }
-    return guaranteedTripTransfers;
+    const source = this.tripTransfers.tryOccurrence({
+      stopIndex,
+      routeId,
+      tripIndex,
+    });
+    if (source === undefined) return [];
+    return [...this.tripTransfers.outgoing(source)]
+      .filter((rule) => rule.type === TransferTypes.GUARANTEED)
+      .map((rule) => this.tripTransfers.position(rule.target));
   }
 }
 

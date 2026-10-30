@@ -180,17 +180,6 @@ export interface Transfer {
   minTransferTime?: number | undefined;
 }
 
-export interface TripStop {
-  stopIndex: number;
-  routeId: number;
-  tripIndex: number;
-}
-
-export interface TripTransferEntry {
-  origin: TripStop | undefined;
-  destinations: TripStop[];
-}
-
 export interface StopAdjacency {
   routes: number[];
   transfers: Transfer[];
@@ -202,12 +191,23 @@ export interface ServiceRoute {
   routes: number[];
 }
 
+/**
+ * Occurrence IDs enumerate routes in wire order, then trips, then stops.
+ * Both total trip count and total occurrence count must fit uint32.
+ */
+export interface TripRule {
+  source: number;
+  target: number;
+  type: TransferType;
+  minTransferTime?: number | undefined;
+}
+
 export interface Timetable {
   stopsAdjacency: StopAdjacency[];
   routesAdjacency: Route[];
   serviceRoutes: ServiceRoute[];
-  tripContinuations: TripTransferEntry[];
-  guaranteedTripTransfers: TripTransferEntry[];
+  formatVersion: number;
+  tripRules: TripRule[];
 }
 
 function createBaseRoute(): Route {
@@ -449,208 +449,6 @@ export const Transfer: MessageFns<Transfer> = {
   },
 };
 
-function createBaseTripStop(): TripStop {
-  return { stopIndex: 0, routeId: 0, tripIndex: 0 };
-}
-
-export const TripStop: MessageFns<TripStop> = {
-  encode(message: TripStop, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stopIndex !== 0) {
-      writer.uint32(8).uint32(message.stopIndex);
-    }
-    if (message.routeId !== 0) {
-      writer.uint32(16).uint32(message.routeId);
-    }
-    if (message.tripIndex !== 0) {
-      writer.uint32(24).uint32(message.tripIndex);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): TripStop {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
-    if (previousRecursionDepth >= 100) {
-      throw new globalThis.Error("protobuf decode recursion limit exceeded");
-    }
-    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
-    try {
-      const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseTripStop();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 8) {
-              break;
-            }
-
-            message.stopIndex = reader.uint32();
-            continue;
-          }
-          case 2: {
-            if (tag !== 16) {
-              break;
-            }
-
-            message.routeId = reader.uint32();
-            continue;
-          }
-          case 3: {
-            if (tag !== 24) {
-              break;
-            }
-
-            message.tripIndex = reader.uint32();
-            continue;
-          }
-        }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
-      }
-      return message;
-    } finally {
-      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
-    }
-  },
-
-  fromJSON(object: any): TripStop {
-    return {
-      stopIndex: isSet(object.stopIndex)
-        ? globalThis.Number(object.stopIndex)
-        : isSet(object.stop_index)
-        ? globalThis.Number(object.stop_index)
-        : 0,
-      routeId: isSet(object.routeId)
-        ? globalThis.Number(object.routeId)
-        : isSet(object.route_id)
-        ? globalThis.Number(object.route_id)
-        : 0,
-      tripIndex: isSet(object.tripIndex)
-        ? globalThis.Number(object.tripIndex)
-        : isSet(object.trip_index)
-        ? globalThis.Number(object.trip_index)
-        : 0,
-    };
-  },
-
-  toJSON(message: TripStop): unknown {
-    const obj: any = {};
-    if (message.stopIndex !== 0) {
-      obj.stopIndex = Math.round(message.stopIndex);
-    }
-    if (message.routeId !== 0) {
-      obj.routeId = Math.round(message.routeId);
-    }
-    if (message.tripIndex !== 0) {
-      obj.tripIndex = Math.round(message.tripIndex);
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<TripStop>, I>>(base?: I): TripStop {
-    return TripStop.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<TripStop>, I>>(object: I): TripStop {
-    const message = createBaseTripStop();
-    message.stopIndex = object.stopIndex ?? 0;
-    message.routeId = object.routeId ?? 0;
-    message.tripIndex = object.tripIndex ?? 0;
-    return message;
-  },
-};
-
-function createBaseTripTransferEntry(): TripTransferEntry {
-  return { origin: undefined, destinations: [] };
-}
-
-export const TripTransferEntry: MessageFns<TripTransferEntry> = {
-  encode(message: TripTransferEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.origin !== undefined) {
-      TripStop.encode(message.origin, writer.uint32(10).fork()).join();
-    }
-    for (const v of message.destinations) {
-      TripStop.encode(v!, writer.uint32(18).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): TripTransferEntry {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
-    if (previousRecursionDepth >= 100) {
-      throw new globalThis.Error("protobuf decode recursion limit exceeded");
-    }
-    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
-    try {
-      const end = length === undefined ? reader.len : reader.pos + length;
-      const message = createBaseTripTransferEntry();
-      while (reader.pos < end) {
-        const tag = reader.uint32();
-        switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
-              break;
-            }
-
-            message.origin = TripStop.decode(reader, reader.uint32());
-            continue;
-          }
-          case 2: {
-            if (tag !== 18) {
-              break;
-            }
-
-            message.destinations.push(TripStop.decode(reader, reader.uint32()));
-            continue;
-          }
-        }
-        if ((tag & 7) === 4 || tag === 0) {
-          break;
-        }
-        reader.skip(tag & 7);
-      }
-      return message;
-    } finally {
-      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
-    }
-  },
-
-  fromJSON(object: any): TripTransferEntry {
-    return {
-      origin: isSet(object.origin) ? TripStop.fromJSON(object.origin) : undefined,
-      destinations: globalThis.Array.isArray(object?.destinations)
-        ? object.destinations.map((e: any) => TripStop.fromJSON(e))
-        : [],
-    };
-  },
-
-  toJSON(message: TripTransferEntry): unknown {
-    const obj: any = {};
-    if (message.origin !== undefined) {
-      obj.origin = TripStop.toJSON(message.origin);
-    }
-    if (message.destinations?.length) {
-      obj.destinations = message.destinations.map((e) => TripStop.toJSON(e));
-    }
-    return obj;
-  },
-
-  create<I extends Exact<DeepPartial<TripTransferEntry>, I>>(base?: I): TripTransferEntry {
-    return TripTransferEntry.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<TripTransferEntry>, I>>(object: I): TripTransferEntry {
-    const message = createBaseTripTransferEntry();
-    message.origin = (object.origin !== undefined && object.origin !== null)
-      ? TripStop.fromPartial(object.origin)
-      : undefined;
-    message.destinations = object.destinations?.map((e) => TripStop.fromPartial(e)) || [];
-    return message;
-  },
-};
-
 function createBaseStopAdjacency(): StopAdjacency {
   return { routes: [], transfers: [] };
 }
@@ -867,14 +665,129 @@ export const ServiceRoute: MessageFns<ServiceRoute> = {
   },
 };
 
+function createBaseTripRule(): TripRule {
+  return { source: 0, target: 0, type: 0, minTransferTime: undefined };
+}
+
+export const TripRule: MessageFns<TripRule> = {
+  encode(message: TripRule, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.source !== 0) {
+      writer.uint32(8).uint32(message.source);
+    }
+    if (message.target !== 0) {
+      writer.uint32(16).uint32(message.target);
+    }
+    if (message.type !== 0) {
+      writer.uint32(24).int32(message.type);
+    }
+    if (message.minTransferTime !== undefined) {
+      writer.uint32(32).uint32(message.minTransferTime);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TripRule {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseTripRule();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
+
+            message.source = reader.uint32();
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.target = reader.uint32();
+            continue;
+          }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.type = reader.int32() as any;
+            continue;
+          }
+          case 4: {
+            if (tag !== 32) {
+              break;
+            }
+
+            message.minTransferTime = reader.uint32();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+
+  fromJSON(object: any): TripRule {
+    return {
+      source: isSet(object.source) ? globalThis.Number(object.source) : 0,
+      target: isSet(object.target) ? globalThis.Number(object.target) : 0,
+      type: isSet(object.type) ? transferTypeFromJSON(object.type) : 0,
+      minTransferTime: isSet(object.minTransferTime)
+        ? globalThis.Number(object.minTransferTime)
+        : isSet(object.min_transfer_time)
+        ? globalThis.Number(object.min_transfer_time)
+        : undefined,
+    };
+  },
+
+  toJSON(message: TripRule): unknown {
+    const obj: any = {};
+    if (message.source !== 0) {
+      obj.source = Math.round(message.source);
+    }
+    if (message.target !== 0) {
+      obj.target = Math.round(message.target);
+    }
+    if (message.type !== 0) {
+      obj.type = transferTypeToJSON(message.type);
+    }
+    if (message.minTransferTime !== undefined) {
+      obj.minTransferTime = Math.round(message.minTransferTime);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TripRule>, I>>(base?: I): TripRule {
+    return TripRule.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TripRule>, I>>(object: I): TripRule {
+    const message = createBaseTripRule();
+    message.source = object.source ?? 0;
+    message.target = object.target ?? 0;
+    message.type = object.type ?? 0;
+    message.minTransferTime = object.minTransferTime ?? undefined;
+    return message;
+  },
+};
+
 function createBaseTimetable(): Timetable {
-  return {
-    stopsAdjacency: [],
-    routesAdjacency: [],
-    serviceRoutes: [],
-    tripContinuations: [],
-    guaranteedTripTransfers: [],
-  };
+  return { stopsAdjacency: [], routesAdjacency: [], serviceRoutes: [], formatVersion: 0, tripRules: [] };
 }
 
 export const Timetable: MessageFns<Timetable> = {
@@ -888,11 +801,11 @@ export const Timetable: MessageFns<Timetable> = {
     for (const v of message.serviceRoutes) {
       ServiceRoute.encode(v!, writer.uint32(26).fork()).join();
     }
-    for (const v of message.tripContinuations) {
-      TripTransferEntry.encode(v!, writer.uint32(34).fork()).join();
+    if (message.formatVersion !== 0) {
+      writer.uint32(48).uint32(message.formatVersion);
     }
-    for (const v of message.guaranteedTripTransfers) {
-      TripTransferEntry.encode(v!, writer.uint32(42).fork()).join();
+    for (const v of message.tripRules) {
+      TripRule.encode(v!, writer.uint32(58).fork()).join();
     }
     return writer;
   },
@@ -934,20 +847,20 @@ export const Timetable: MessageFns<Timetable> = {
             message.serviceRoutes.push(ServiceRoute.decode(reader, reader.uint32()));
             continue;
           }
-          case 4: {
-            if (tag !== 34) {
+          case 6: {
+            if (tag !== 48) {
               break;
             }
 
-            message.tripContinuations.push(TripTransferEntry.decode(reader, reader.uint32()));
+            message.formatVersion = reader.uint32();
             continue;
           }
-          case 5: {
-            if (tag !== 42) {
+          case 7: {
+            if (tag !== 58) {
               break;
             }
 
-            message.guaranteedTripTransfers.push(TripTransferEntry.decode(reader, reader.uint32()));
+            message.tripRules.push(TripRule.decode(reader, reader.uint32()));
             continue;
           }
         }
@@ -979,15 +892,15 @@ export const Timetable: MessageFns<Timetable> = {
         : globalThis.Array.isArray(object?.service_routes)
         ? object.service_routes.map((e: any) => ServiceRoute.fromJSON(e))
         : [],
-      tripContinuations: globalThis.Array.isArray(object?.tripContinuations)
-        ? object.tripContinuations.map((e: any) => TripTransferEntry.fromJSON(e))
-        : globalThis.Array.isArray(object?.trip_continuations)
-        ? object.trip_continuations.map((e: any) => TripTransferEntry.fromJSON(e))
-        : [],
-      guaranteedTripTransfers: globalThis.Array.isArray(object?.guaranteedTripTransfers)
-        ? object.guaranteedTripTransfers.map((e: any) => TripTransferEntry.fromJSON(e))
-        : globalThis.Array.isArray(object?.guaranteed_trip_transfers)
-        ? object.guaranteed_trip_transfers.map((e: any) => TripTransferEntry.fromJSON(e))
+      formatVersion: isSet(object.formatVersion)
+        ? globalThis.Number(object.formatVersion)
+        : isSet(object.format_version)
+        ? globalThis.Number(object.format_version)
+        : 0,
+      tripRules: globalThis.Array.isArray(object?.tripRules)
+        ? object.tripRules.map((e: any) => TripRule.fromJSON(e))
+        : globalThis.Array.isArray(object?.trip_rules)
+        ? object.trip_rules.map((e: any) => TripRule.fromJSON(e))
         : [],
     };
   },
@@ -1003,11 +916,11 @@ export const Timetable: MessageFns<Timetable> = {
     if (message.serviceRoutes?.length) {
       obj.serviceRoutes = message.serviceRoutes.map((e) => ServiceRoute.toJSON(e));
     }
-    if (message.tripContinuations?.length) {
-      obj.tripContinuations = message.tripContinuations.map((e) => TripTransferEntry.toJSON(e));
+    if (message.formatVersion !== 0) {
+      obj.formatVersion = Math.round(message.formatVersion);
     }
-    if (message.guaranteedTripTransfers?.length) {
-      obj.guaranteedTripTransfers = message.guaranteedTripTransfers.map((e) => TripTransferEntry.toJSON(e));
+    if (message.tripRules?.length) {
+      obj.tripRules = message.tripRules.map((e) => TripRule.toJSON(e));
     }
     return obj;
   },
@@ -1020,9 +933,8 @@ export const Timetable: MessageFns<Timetable> = {
     message.stopsAdjacency = object.stopsAdjacency?.map((e) => StopAdjacency.fromPartial(e)) || [];
     message.routesAdjacency = object.routesAdjacency?.map((e) => Route.fromPartial(e)) || [];
     message.serviceRoutes = object.serviceRoutes?.map((e) => ServiceRoute.fromPartial(e)) || [];
-    message.tripContinuations = object.tripContinuations?.map((e) => TripTransferEntry.fromPartial(e)) || [];
-    message.guaranteedTripTransfers = object.guaranteedTripTransfers?.map((e) => TripTransferEntry.fromPartial(e)) ||
-      [];
+    message.formatVersion = object.formatVersion ?? 0;
+    message.tripRules = object.tripRules?.map((e) => TripRule.fromPartial(e)) || [];
     return message;
   },
 };

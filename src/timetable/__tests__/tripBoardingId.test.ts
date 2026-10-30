@@ -48,8 +48,10 @@ describe('tripBoardingId', () => {
     assert.strictEqual(getTripIndex(tripBoardingId), 200);
   });
 
-  it('should throw error for values exceeding 20-bit limit', () => {
-    const maxValue = 1048575; // 2^20 - 1
+  it('should reject unsafe or negative construction indices', () => {
+    const maxValue = Number.MAX_SAFE_INTEGER;
+    assert.throws(() => encode(-1, 0, 0));
+    assert.throws(() => encode(0.5, 0, 0));
     assert.throws(() => encode(maxValue + 1, 0, 0));
     assert.throws(() => encode(0, maxValue + 1, 0));
     assert.throws(() => encode(0, 0, maxValue + 1));

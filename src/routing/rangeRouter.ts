@@ -41,9 +41,10 @@ export class RangeRouter {
   rangeRoute(query: RangeQuery): RangeResult {
     const { departureTime: earliest, lastDepartureTime: latest } = query;
 
-    const destinations = Array.from(query.to)
-      .flatMap((destination) => this.stopsIndex.equivalentStops(destination))
-      .map((destination) => destination.id);
+    const destinationGroups = Array.from(query.to).map((destination) =>
+      this.stopsIndex.equivalentStops(destination).map((stop) => stop.id),
+    );
+    const destinations = destinationGroups.flat();
 
     const noDestinations = destinations.length === 0;
 
@@ -93,6 +94,7 @@ export class RangeRouter {
         this.timetable.nbStops(),
         maxRounds,
         query.options.maxDuration,
+        destinationGroups,
       );
       rangeState.setCurrentRun(routingState);
       this.raptor.run(
@@ -124,6 +126,7 @@ export class RangeRouter {
           this.timetable.nbStops(),
           maxRounds,
           query.options.maxDuration,
+          destinationGroups,
         );
       } else {
         routingState.resetFor(depTime, legs);

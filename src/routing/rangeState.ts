@@ -46,16 +46,81 @@ export class RangeRaptorState implements IRaptorState {
    * all `nbStops` entries, reducing the work from O(nbStops × rounds ×
    * departureTimes) to O(changedStops × rounds × departureTimes).
    *
-   * Duplicates are allowed and harmless — a stop that appears twice merely
-   * receives a redundant (no-op) min-update on the second visit.  The list is
-   * cleared inside `initRound` immediately after processing.
+   * A dirty set prevents duplicate entries. Inherited improvements are queued
+   * again in the next round, so they propagate through every later round.
    */
   private readonly changedInRound: StopId[][];
 
   private currentRun!: RoutingState;
+  private readonly boardingLabels: Map<StopId, Map<number, number>>[];
+  private readonly tripLabels: Map<number, number>[];
+  private readonly dirty: Uint8Array[];
+  private readonly defaultBoardingTimes: Uint16Array[];
+
+  boardingBound(round: number, stop: StopId, context: number): number {
+    return context === 0
+      ? this.defaultBoardingTimes[round]![stop]!
+      : (this.boardingLabels[round]!.get(stop)?.get(context) ?? Infinity);
+  }
+
+  updateBoardingBound(
+    round: number,
+    stop: StopId,
+    context: number,
+    time: number,
+  ): void {
+    for (let k = round; k < this.boardingLabels.length; k++) {
+      if (context === 0) {
+        if (time < this.defaultBoardingTimes[k]![stop]!)
+          this.defaultBoardingTimes[k]![stop] = time;
+        continue;
+      }
+      let labels = this.boardingLabels[k]!.get(stop);
+      if (!labels)
+        this.boardingLabels[k]!.set(stop, (labels = new Map<number, number>()));
+      if (time < (labels.get(context) ?? Infinity)) labels.set(context, time);
+    }
+  }
+
+  tripBoardingBound(round: number, trip: number): number {
+    return this.tripLabels[round]!.get(trip) ?? Infinity;
+  }
+
+  updateTripBoardingBound(
+    round: number,
+    trip: number,
+    stopIndex: number,
+  ): void {
+    for (let k = round; k < this.tripLabels.length; k++) {
+      const labels = this.tripLabels[k]!;
+      if (stopIndex < (labels.get(trip) ?? Infinity))
+        labels.set(trip, stopIndex);
+    }
+  }
+
+  private markChanged(round: number, stop: StopId): void {
+    if (this.dirty[round]![stop]) return;
+    this.dirty[round]![stop] = 1;
+    this.changedInRound[round]!.push(stop);
+  }
 
   constructor(maxRounds: number, nbStops: number, latestDeparture: Time) {
     this.latestDeparture = latestDeparture;
+    this.boardingLabels = Array.from(
+      { length: maxRounds + 2 },
+      () => new Map<StopId, Map<number, number>>(),
+    );
+    this.tripLabels = Array.from(
+      { length: maxRounds + 2 },
+      () => new Map<number, number>(),
+    );
+    this.dirty = Array.from(
+      { length: maxRounds + 2 },
+      () => new Uint8Array(nbStops),
+    );
+    this.defaultBoardingTimes = Array.from({ length: maxRounds + 2 }, () =>
+      new Uint16Array(nbStops).fill(UNREACHED_TIME),
+    );
     // maxRounds + 2: index 0 = origin/walk legs, indices 1…maxRounds+1 = transit rounds
     this.roundLabels = Array.from({ length: maxRounds + 2 }, () =>
       new Uint16Array(nbStops).fill(UNREACHED_TIME),
@@ -105,6 +170,18 @@ export class RangeRaptorState implements IRaptorState {
    * Global best arrival at any destination across all departure-time iterations.
    * Always at least as tight as the per-run `destinationBest`.
    */
+  destinationPruningBound(round: number): Time {
+    if (this.currentRun.destinationGroups.length === 0) return UNREACHED_TIME;
+    let bound = 0;
+    for (const group of this.currentRun.destinationGroups) {
+      let best = UNREACHED_TIME;
+      for (const stop of group)
+        best = Math.min(best, this.roundLabels[round]![stop]!);
+      bound = Math.max(bound, best);
+    }
+    return bound;
+  }
+
   get destinationBest(): Time {
     return this._destinationBest;
   }
@@ -132,7 +209,7 @@ export class RangeRaptorState implements IRaptorState {
 
     if (time < this.roundLabels[round]![stop]!) {
       this.roundLabels[round]![stop] = time;
-      this.changedInRound[round]!.push(stop);
+      this.markChanged(round, stop);
       if (this.currentRun.isDestination(stop) && time < this._destinationBest) {
         this._destinationBest = time;
       }
@@ -155,8 +232,10 @@ export class RangeRaptorState implements IRaptorState {
     const curr = this.roundLabels[round]!;
     for (let i = 0; i < changed.length; i++) {
       const stop = changed[i]!;
+      this.dirty[round - 1]![stop] = 0;
       if (prev[stop]! < curr[stop]!) {
         curr[stop] = prev[stop]!;
+        this.markChanged(round, stop);
       }
     }
     changed.length = 0;

@@ -32,7 +32,15 @@ describe('GTFS parser', () => {
     const transfers = timetable.getTransfers(furCreekResId);
     assert.strictEqual(transfers.length, 0);
 
-    const route = timetable.getRoute(3);
+    const airport = stopsIndex.findStopBySourceStopId('BEATTY_AIRPORT');
+    assert(airport);
+    const route = timetable
+      .routesPassingThrough(airport.id)
+      .find(
+        (candidate) =>
+          timetable.getServiceRouteInfo(candidate).name === '10' &&
+          candidate.arrivalAt(0, 0) === timeFromHMS(8, 0, 0),
+      );
     assert(route);
     assert.strictEqual(route.serviceRoute(), 2);
     const beattyAirportId =

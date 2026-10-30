@@ -1,19 +1,12 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
-import {
-  PickUpDropOffTypes,
-  Route,
-  StopRouteIndex,
-  TripRouteIndex,
-} from '../timetable/route.js';
-import { Duration, DURATION_ZERO, Time } from '../timetable/time.js';
-import { Timetable, TransferTypes, TripStop } from '../timetable/timetable.js';
+import { PickUpDropOffTypes, Route } from '../timetable/route.js';
+import { Time } from '../timetable/time.js';
+import { Timetable, TransferTypes } from '../timetable/timetable.js';
+import { TripRule } from '../timetable/tripTransfers.js';
 import { QueryOptions } from './query.js';
 import { RoutingEdge, VehicleEdge } from './state.js';
 
-/**
- * Common interface for all variants of RAPTOR routing.
- */
 export interface IRaptorState {
   /** Origin stop IDs for this run. */
   readonly origins: StopId[];
@@ -34,6 +27,9 @@ export interface IRaptorState {
    */
   readonly destinationBest: Time;
 
+  /** Bound that is safe for every requested destination, not just the fastest. */
+  destinationPruningBound?(round: number): Time;
+
   /** Latest arrival time allowed by the current query/run. */
   readonly maxArrivalTime: Time;
 
@@ -52,375 +48,394 @@ export interface IRaptorState {
    * No-op in standard RAPTOR mode.
    */
   initRound(round: number): void;
+
+  /** Optional range-only bounds; never use an ordinary stop label for these. */
+  boardingBound?(round: number, stop: StopId, context: number): number;
+  updateBoardingBound?(
+    round: number,
+    stop: StopId,
+    context: number,
+    time: number,
+  ): void;
+  tripBoardingBound?(round: number, trip: number): number;
+  updateTripBoardingBound?(
+    round: number,
+    trip: number,
+    stopIndex: number,
+  ): void;
 }
 
-type TripContinuation = TripStop & {
-  previousEdge: VehicleEdge;
+/** A boarding context retains its feeder until the next vehicle is boarded. */
+type Boarding = {
+  ready: Time;
+  edge: RoutingEdge;
+  source?: VehicleEdge;
+  occurrence?: number;
+};
+const NO_RULES: TripRule[] = [];
+
+type Frontier = Map<StopId, Map<number, Boarding>>;
+type BoardedTrip = {
+  route: Route;
+  trip: number;
+  stop: number;
+  predecessor: RoutingEdge;
+  continuation?: VehicleEdge;
+  scanEnd?: number;
+  scanEntry?: boolean;
 };
 
-type Round = number;
-
 /**
- * Encapsulates the core RAPTOR algorithm, operating on a {@link Timetable} and
- * an {@link IRaptorState} provided by the caller.
- *
- * @see https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
+ * RAPTOR with one active ordinary trip and explicit scans of exception-bearing
+ * trips. Stop arrival bounds never stand in for trip-dependent boarding rights.
  */
 export class Raptor {
-  private readonly timetable: Timetable;
+  /** Counters for reproducible benchmarks; reset for each departure run. */
+  readonly statistics = {
+    scannedTripStops: 0,
+    retainedContexts: 0,
+    exceptionalBoardings: 0,
+  };
+  private readonly ordinaryArrivalWorkspace: Uint16Array;
+  private readonly boardingWorkspace: Uint16Array;
 
-  constructor(timetable: Timetable) {
-    this.timetable = timetable;
+  constructor(private readonly timetable: Timetable) {
+    this.ordinaryArrivalWorkspace = new Uint16Array(timetable.nbStops());
+    this.boardingWorkspace = new Uint16Array(timetable.nbStops());
   }
 
   run(options: QueryOptions, state: IRaptorState): void {
-    const markedStops = new Set<StopId>(state.origins);
+    this.statistics.scannedTripStops = 0;
+    this.statistics.retainedContexts = 0;
+    this.statistics.exceptionalBoardings = 0;
+    const index = this.timetable.tripTransfers;
+    const ordinaryArrivals = this.ordinaryArrivalWorkspace.fill(0xffff);
+    let frontier: Frontier = new Map();
+    // At-most-round dominance is valid only within the same boarding context.
+    const boardingBounds = new Map<StopId, Map<number, number>>();
+    const defaultBoardingBounds = this.boardingWorkspace.fill(0xffff);
+    const covered = new Map<number, number>();
+    const continuationEntries = new Map<number, number>();
+    const allowed = (route: Route) =>
+      options.transportModes.has(
+        this.timetable.getServiceRouteInfo(route).type,
+      );
+    for (const stop of state.origins) {
+      const edge = state.graph[0]![stop];
+      if (edge)
+        frontier.set(stop, new Map([[0, { ready: edge.arrival, edge }]]));
+    }
 
-    for (let round = 1; round <= options.maxTransfers + 1; round++) {
+    for (
+      let round = 1;
+      round <= options.maxTransfers + 1 && frontier.size;
+      round++
+    ) {
       state.initRound(round);
+      const next: Frontier = new Map();
+      let destinationBound = state.destinationPruningBound?.(round) ?? Infinity;
+      const queue: BoardedTrip[] = [];
+      const recordArrival = (stop: StopId, edge: RoutingEdge) => {
+        if (
+          edge.arrival <= state.maxArrivalTime &&
+          edge.arrival < state.improvementBound(round, stop)
+        ) {
+          state.graph[round]![stop] = edge;
+          state.updateArrival(stop, edge.arrival, round);
+          if (state.isDestination(stop))
+            destinationBound =
+              state.destinationPruningBound?.(round) ?? Infinity;
+        }
+      };
+      const addBoarding = (
+        stop: StopId,
+        context: number,
+        boarding: Boarding,
+      ) => {
+        const time = context === 0 ? boarding.ready : boarding.source!.arrival;
+        if (time > state.maxArrivalTime || time >= destinationBound) return;
+        const shared = state.boardingBound?.(round, stop, context) ?? Infinity;
+        if (context === 0) {
+          if (time >= Math.min(defaultBoardingBounds[stop]!, shared)) return;
+          defaultBoardingBounds[stop] = time;
+        } else {
+          let bounds = boardingBounds.get(stop);
+          if (!bounds)
+            boardingBounds.set(stop, (bounds = new Map<number, number>()));
+          if (time >= Math.min(bounds.get(context) ?? Infinity, shared)) return;
+          bounds.set(context, time);
+        }
+        state.updateBoardingBound?.(round, stop, context, time);
+        let labels = next.get(stop);
+        if (!labels) next.set(stop, (labels = new Map<number, Boarding>()));
+        labels.set(context, boarding);
+        this.statistics.retainedContexts++;
+      };
+      const enqueue = (boarding: BoardedTrip) => {
+        if (!allowed(boarding.route)) return;
+        const id = index.tripId(boarding.route.id, boarding.trip);
+        const previous = Math.min(
+          covered.get(id) ?? boarding.route.getNbStops(),
+          state.tripBoardingBound?.(round, id) ?? Infinity,
+        );
+        let scanEntry = false;
+        if (boarding.continuation) {
+          const occurrence = index.occurrence({
+            routeId: boarding.route.id,
+            tripIndex: boarding.trip,
+            stopIndex: boarding.stop,
+          });
+          const arrival = Math.max(
+            boarding.continuation.arrival,
+            boarding.route.arrivalAt(boarding.stop, boarding.trip),
+          );
+          scanEntry =
+            arrival < (continuationEntries.get(occurrence) ?? Infinity);
+          if (scanEntry) continuationEntries.set(occurrence, arrival);
+        }
+        // Suffix coverage is independent of the feeder's entry arrival time.
+        const firstArrival = boarding.stop + 1;
+        if (firstArrival >= previous && !scanEntry) return;
+        if (firstArrival < previous) {
+          covered.set(id, firstArrival);
+          state.updateTripBoardingBound?.(round, id, firstArrival);
+        }
+        queue.push({
+          ...boarding,
+          scanEntry,
+          scanEnd: firstArrival < previous ? previous : firstArrival,
+        });
+        this.statistics.exceptionalBoardings++;
+      };
+      const arrive = (boarded: BoardedTrip, stopIndex: number) => {
+        const { route, trip } = boarded;
+        this.statistics.scannedTripStops++;
+        const arrival = Math.max(
+          route.arrivalAt(stopIndex, trip),
+          stopIndex === boarded.stop ? (boarded.continuation?.arrival ?? 0) : 0,
+        );
+        if (arrival > state.maxArrivalTime || arrival >= destinationBound)
+          return;
+        const occurrence = index.occurrence({
+          routeId: route.id,
+          tripIndex: trip,
+          stopIndex,
+        });
+        const rules = index.isExceptional(route.id, trip)
+          ? [...index.outgoing(occurrence)]
+          : NO_RULES;
+        const stop = route.stopId(stopIndex);
+        const canAlight =
+          route.dropOffTypeAt(stopIndex, trip) !==
+          PickUpDropOffTypes.NOT_AVAILABLE;
+        if (rules.length === 0) {
+          if (!canAlight || arrival >= ordinaryArrivals[stop]!) return;
+        }
+        const edge: VehicleEdge = {
+          routeId: route.id,
+          tripIndex: trip,
+          stopIndex: boarded.stop,
+          hopOffStopIndex: stopIndex,
+          arrival,
+          predecessor: boarded.predecessor,
+          ...(boarded.continuation && { continuationOf: boarded.continuation }),
+        };
+        // In-seat transfers are reachable even where public alighting is forbidden.
+        for (const rule of rules) {
+          if (rule.type !== TransferTypes.IN_SEAT) continue;
+          const target = index.position(rule.target);
+          const targetRoute = this.timetable.getRoute(target.routeId)!;
+          if (
+            targetRoute.departureFrom(target.stopIndex, target.tripIndex) <
+            arrival
+          )
+            continue;
+          enqueue({
+            route: targetRoute,
+            trip: target.tripIndex,
+            stop: target.stopIndex,
+            predecessor: edge,
+            continuation: edge,
+          });
+        }
+        if (!canAlight) return;
+        if (!rules.some((rule) => rule.type !== TransferTypes.IN_SEAT)) {
+          if (arrival >= ordinaryArrivals[stop]!) return;
+          ordinaryArrivals[stop] = arrival;
+        }
+        recordArrival(stop, edge);
+        const destinations = new Map<
+          number,
+          { ready: number; edge: RoutingEdge }
+        >();
+        destinations.set(stop, {
+          ready: arrival + options.minTransferTime,
+          edge,
+        });
+        for (const transfer of this.timetable.getTransfers(stop)) {
+          const duration =
+            transfer.minTransferTime ??
+            (transfer.type === TransferTypes.GUARANTEED ||
+            transfer.type === TransferTypes.IN_SEAT
+              ? 0
+              : options.minTransferTime);
+          const ready = arrival + duration;
+          const walk = {
+            arrival: ready,
+            from: stop,
+            to: transfer.destination,
+            type: transfer.type,
+            minTransferTime: duration,
+            predecessor: edge,
+          };
+          if (transfer.destination !== stop)
+            recordArrival(transfer.destination, walk);
+          if (
+            transfer.destination === stop ||
+            ready < (destinations.get(transfer.destination)?.ready ?? Infinity)
+          ) {
+            destinations.set(transfer.destination, {
+              ready,
+              edge: transfer.destination === stop ? edge : walk,
+            });
+          }
+        }
+        const sensitive = new Set<number>();
+        for (const rule of rules) {
+          if (rule.type === TransferTypes.IN_SEAT) continue;
+          const target = index.position(rule.target);
+          const destination = this.timetable
+            .getRoute(target.routeId)!
+            .stopId(target.stopIndex);
+          sensitive.add(destination);
+          // A specific rule can establish a connection without a generic footpath.
+          if (!destinations.has(destination))
+            destinations.set(destination, { ready: Infinity, edge });
+        }
+        for (const [destination, boarding] of destinations) {
+          addBoarding(
+            destination,
+            sensitive.has(destination) ? occurrence + 1 : 0,
+            {
+              ...boarding,
+              ...(sensitive.has(destination) && { source: edge, occurrence }),
+            },
+          );
+        }
+      };
+      const board = (
+        label: Boarding,
+        route: Route,
+        stop: number,
+        trip: number,
+      ): BoardedTrip | undefined => {
+        if (
+          route.pickUpTypeFrom(stop, trip) === PickUpDropOffTypes.NOT_AVAILABLE
+        )
+          return undefined;
+        const departure = route.departureFrom(stop, trip);
+        const rule =
+          label.occurrence === undefined
+            ? undefined
+            : index.transfer(
+                label.occurrence,
+                index.occurrence({
+                  routeId: route.id,
+                  tripIndex: trip,
+                  stopIndex: stop,
+                }),
+              );
+        const ready = rule
+          ? label.source!.arrival +
+            (rule.type === TransferTypes.GUARANTEED
+              ? 0
+              : (rule.minTransferTime ?? options.minTransferTime))
+          : label.ready;
+        if (
+          departure < ready ||
+          departure > state.maxArrivalTime ||
+          departure >= destinationBound ||
+          (round === 1 &&
+            options.maxInitialWaitingTime !== undefined &&
+            departure - label.edge.arrival > options.maxInitialWaitingTime)
+        )
+          return undefined;
+        let predecessor = label.edge;
+        if (rule) {
+          const source = label.source!;
+          predecessor = {
+            arrival: ready,
+            from: this.timetable
+              .getRoute(source.routeId)!
+              .stopId(source.hopOffStopIndex),
+            to: route.stopId(stop),
+            type: rule.type,
+            minTransferTime: rule.minTransferTime,
+            predecessor: source,
+          };
+        }
+        return { route, trip, stop, predecessor };
+      };
 
-      const edgesAtCurrentRound = state.graph[round]!;
-      const reachableRoutes = this.timetable.findReachableRoutes(
-        markedStops,
+      const routes = this.timetable.findReachableRoutes(
+        new Set(frontier.keys()),
         options.transportModes,
       );
-      markedStops.clear();
+      for (const [route, firstStop] of routes) {
+        const exceptions = index.exceptionalTrips[route.id]!;
 
-      for (const [route, hopOnStopIndex] of reachableRoutes) {
-        for (const stop of this.scanRoute(
-          route,
-          hopOnStopIndex,
-          round,
-          state,
-          options,
-        )) {
-          markedStops.add(stop);
-        }
-      }
-
-      let continuations = this.findTripContinuations(
-        markedStops,
-        edgesAtCurrentRound,
-      );
-      const stopsFromContinuations = new Set<StopId>();
-      while (continuations.length > 0) {
-        stopsFromContinuations.clear();
-        for (const continuation of continuations) {
-          const route = this.timetable.getRoute(continuation.routeId)!;
-          for (const stop of this.scanRouteContinuation(
-            route,
-            continuation.stopIndex,
-            round,
-            state,
-            continuation,
-          )) {
-            stopsFromContinuations.add(stop);
-            markedStops.add(stop);
-          }
-        }
-        continuations = this.findTripContinuations(
-          stopsFromContinuations,
-          edgesAtCurrentRound,
-        );
-      }
-
-      for (const stop of this.considerTransfers(
-        options,
-        round,
-        markedStops,
-        state,
-      )) {
-        markedStops.add(stop);
-      }
-
-      if (markedStops.size === 0) break;
-    }
-  }
-
-  /**
-   * Finds trip continuations for the given marked stops and edges at the current round.
-   * @param markedStops The set of marked stops.
-   * @param edgesAtCurrentRound The array of edges at the current round, indexed by stop ID.
-   * @returns An array of trip continuations.
-   */
-  private findTripContinuations(
-    markedStops: Set<StopId>,
-    edgesAtCurrentRound: (RoutingEdge | undefined)[],
-  ): TripContinuation[] {
-    const continuations: TripContinuation[] = [];
-    for (const stopId of markedStops) {
-      const arrival = edgesAtCurrentRound[stopId];
-      if (!arrival || !('routeId' in arrival)) continue;
-
-      const continuousTrips = this.timetable.getContinuousTrips(
-        arrival.hopOffStopIndex,
-        arrival.routeId,
-        arrival.tripIndex,
-      );
-      for (const trip of continuousTrips) {
-        continuations.push({
-          routeId: trip.routeId,
-          stopIndex: trip.stopIndex,
-          tripIndex: trip.tripIndex,
-          previousEdge: arrival,
-        });
-      }
-    }
-    return continuations;
-  }
-
-  /**
-   * Scans a route for an in-seat trip continuation.
-   *
-   * The boarded trip and entry stop are fixed, so there is no need to probe for
-   * earlier boardings.
-   *
-   * @param route The route to scan
-   * @param hopOnStopIndex The stop index where the continuation begins
-   * @param round The current RAPTOR round
-   * @param routingState Current routing state
-   * @param tripContinuation The in-seat continuation descriptor
-   * @param shared Optional shared state for Range RAPTOR mode
-   */
-  private scanRouteContinuation(
-    route: Route,
-    hopOnStopIndex: StopRouteIndex,
-    round: Round,
-    state: IRaptorState,
-    tripContinuation: TripContinuation,
-  ): Set<StopId> {
-    const newlyMarkedStops = new Set<StopId>();
-    const edgesAtCurrentRound = state.graph[round]!;
-
-    const nbStops = route.getNbStops();
-    const routeId = route.id;
-    const tripIndex = tripContinuation.tripIndex;
-    const tripStopOffset = route.tripStopOffset(tripIndex);
-    const previousEdge = tripContinuation.previousEdge;
-
-    for (
-      let currentStopIndex = hopOnStopIndex;
-      currentStopIndex < nbStops;
-      currentStopIndex++
-    ) {
-      const currentStop: StopId = route.stops[currentStopIndex]!;
-      const arrivalTime = route.arrivalAtOffset(
-        currentStopIndex,
-        tripStopOffset,
-      );
-      const dropOffType = route.dropOffTypeAtOffset(
-        currentStopIndex,
-        tripStopOffset,
-      );
-
-      if (
-        dropOffType !== PickUpDropOffTypes.NOT_AVAILABLE &&
-        arrivalTime <= state.maxArrivalTime &&
-        arrivalTime < state.improvementBound(round, currentStop) &&
-        arrivalTime < state.destinationBest
-      ) {
-        edgesAtCurrentRound[currentStop] = {
-          routeId,
-          stopIndex: hopOnStopIndex,
-          tripIndex,
-          arrival: arrivalTime,
-          hopOffStopIndex: currentStopIndex,
-          continuationOf: previousEdge,
-        };
-        state.updateArrival(currentStop, arrivalTime, round);
-        newlyMarkedStops.add(currentStop);
-      }
-    }
-    return newlyMarkedStops;
-  }
-
-  /**
-   * Scans a route using the standard RAPTOR boarding logic.
-   *
-   * Iterates through all stops from the hop-on point, maintaining the current
-   * best trip and improving arrival times when possible. At each marked stop it
-   * also checks whether an earlier (or first) trip can be boarded, upgrading the
-   * active trip when one is found.
-   *
-   * @param route The route to scan
-   * @param hopOnStopIndex The stop index where passengers can first board
-   * @param round The current RAPTOR round
-   * @param state Current routing state
-   * @param options Query options (minTransferTime, etc.)
-   */
-  private scanRoute(
-    route: Route,
-    hopOnStopIndex: StopRouteIndex,
-    round: Round,
-    state: IRaptorState,
-    options: QueryOptions,
-  ): Set<StopId> {
-    const newlyMarkedStops = new Set<StopId>();
-    const edgesAtCurrentRound = state.graph[round]!;
-    const edgesAtPreviousRound = state.graph[round - 1]!;
-
-    const nbStops = route.getNbStops();
-    const routeId = route.id;
-    let activeTripIndex: TripRouteIndex | undefined;
-    let activeTripBoardStopIndex = hopOnStopIndex;
-    // tripStopOffset = activeTripIndex * nbStops, precomputed when the trip changes.
-    let activeTripStopOffset = 0;
-
-    for (
-      let currentStopIndex = hopOnStopIndex;
-      currentStopIndex < nbStops;
-      currentStopIndex++
-    ) {
-      const currentStop: StopId = route.stops[currentStopIndex]!;
-
-      // If on a trip, check whether alighting here improves the global best.
-      if (activeTripIndex !== undefined) {
-        const arrivalTime = route.arrivalAtOffset(
-          currentStopIndex,
-          activeTripStopOffset,
-        );
-        const dropOffType = route.dropOffTypeAtOffset(
-          currentStopIndex,
-          activeTripStopOffset,
-        );
-
-        if (
-          dropOffType !== PickUpDropOffTypes.NOT_AVAILABLE &&
-          arrivalTime <= state.maxArrivalTime &&
-          arrivalTime < state.improvementBound(round, currentStop) &&
-          arrivalTime < state.destinationBest
-        ) {
-          edgesAtCurrentRound[currentStop] = {
-            routeId,
-            stopIndex: activeTripBoardStopIndex,
-            tripIndex: activeTripIndex,
-            arrival: arrivalTime,
-            hopOffStopIndex: currentStopIndex,
-          };
-          state.updateArrival(currentStop, arrivalTime, round);
-          newlyMarkedStops.add(currentStop);
-        }
-      }
-
-      // Check whether we can board an earlier (or first) trip at this stop.
-      const previousEdge = edgesAtPreviousRound[currentStop];
-      const earliestArrivalOnPreviousRound = previousEdge?.arrival;
-      if (
-        earliestArrivalOnPreviousRound !== undefined &&
-        (activeTripIndex === undefined ||
-          earliestArrivalOnPreviousRound <=
-            route.departureAtOffset(currentStopIndex, activeTripStopOffset))
-      ) {
-        const earliestTrip = route.findEarliestTrip(
-          currentStopIndex,
-          earliestArrivalOnPreviousRound,
-          activeTripIndex,
-        );
-        if (earliestTrip === undefined) {
-          continue;
-        }
-
-        const fromTripStop =
-          previousEdge && 'routeId' in previousEdge
-            ? {
-                stopIndex: previousEdge.hopOffStopIndex,
-                routeId: previousEdge.routeId,
-                tripIndex: previousEdge.tripIndex,
+        let active: BoardedTrip | undefined;
+        for (let stop = firstStop; stop < route.getNbStops(); stop++) {
+          if (active) arrive(active, stop);
+          for (const label of frontier.get(route.stopId(stop))?.values() ??
+            []) {
+            // A specific minimum can be shorter than the generic walking time.
+            const earliest = route.findEarliestTrip(
+              stop,
+              label.source?.arrival ?? label.ready,
+            );
+            if (earliest === undefined) continue;
+            for (const trip of exceptions) {
+              if (trip < earliest) continue;
+              const id = index.tripId(route.id, trip);
+              if (
+                stop + 1 >=
+                Math.min(
+                  covered.get(id) ?? Infinity,
+                  state.tripBoardingBound?.(round, id) ?? Infinity,
+                )
+              )
+                continue;
+              const boarding = board(label, route, stop, trip);
+              if (boarding) enqueue(boarding);
+            }
+            for (
+              let trip = earliest;
+              trip < (active?.trip ?? route.getNbTrips());
+              trip++
+            ) {
+              if (index.isExceptional(route.id, trip)) continue;
+              const boarding = board(label, route, stop, trip);
+              if (boarding) {
+                active = boarding;
+                break;
               }
-            : undefined;
-        const firstBoardableTrip = this.timetable.findFirstBoardableTrip(
-          currentStopIndex,
-          route,
-          earliestTrip,
-          earliestArrivalOnPreviousRound,
-          activeTripIndex,
-          fromTripStop,
-          options.minTransferTime,
-        );
-
-        if (firstBoardableTrip !== undefined) {
-          const departureTime = route.departureFrom(
-            currentStopIndex,
-            firstBoardableTrip,
-          );
-          // At round 1, enforce maxInitialWaitingTime: skip boarding if the
-          // traveler would have to wait longer than the allowed threshold at
-          // the first boarding stop.
-          const exceedsInitialWait =
-            round === 1 &&
-            options.maxInitialWaitingTime !== undefined &&
-            departureTime - earliestArrivalOnPreviousRound >
-              options.maxInitialWaitingTime;
-          const exceedsMaxDuration = departureTime > state.maxArrivalTime;
-
-          if (!exceedsInitialWait && !exceedsMaxDuration) {
-            activeTripIndex = firstBoardableTrip;
-            activeTripBoardStopIndex = currentStopIndex;
-            activeTripStopOffset = route.tripStopOffset(firstBoardableTrip);
+            }
           }
         }
       }
-    }
-    return newlyMarkedStops;
-  }
-
-  /**
-   * Processes all currently marked stops to find available transfers
-   * and determines if using these transfers would result in earlier arrival times
-   * at destination stops. It handles different transfer types including in-seat
-   * transfers and walking transfers with appropriate minimum transfer times.
-   *
-   * @param options  Query options (minTransferTime, etc.)
-   * @param round The current round number in the RAPTOR algorithm
-   * @param markedStops The set of currently marked stops
-   * @param state Current routing state
-   */
-  private considerTransfers(
-    options: QueryOptions,
-    round: number,
-    markedStops: Set<StopId>,
-    state: IRaptorState,
-  ): Set<StopId> {
-    const newlyMarkedStops = new Set<StopId>();
-    const arrivalsAtCurrentRound = state.graph[round]!;
-    for (const stop of markedStops) {
-      const currentArrival = arrivalsAtCurrentRound[stop];
-      // Skip transfers if the last leg was also a transfer
-      if (!currentArrival || 'type' in currentArrival) continue;
-      const transfers = this.timetable.getTransfers(stop);
-      for (const transfer of transfers) {
-        let transferTime: Duration;
-        if (transfer.minTransferTime) {
-          transferTime = transfer.minTransferTime;
-        } else if (transfer.type === TransferTypes.IN_SEAT) {
-          transferTime = DURATION_ZERO;
-        } else {
-          transferTime = options.minTransferTime;
-        }
-        const arrivalAfterTransfer = currentArrival.arrival + transferTime;
-
-        if (
-          arrivalAfterTransfer <= state.maxArrivalTime &&
-          arrivalAfterTransfer <
-            state.improvementBound(round, transfer.destination) &&
-          arrivalAfterTransfer < state.destinationBest
-        ) {
-          arrivalsAtCurrentRound[transfer.destination] = {
-            arrival: arrivalAfterTransfer,
-            from: stop,
-            to: transfer.destination, // TODO needed?
-            minTransferTime: transferTime || undefined,
-            type: transfer.type,
-          };
-          state.updateArrival(
-            transfer.destination,
-            arrivalAfterTransfer,
-            round,
-          );
-          newlyMarkedStops.add(transfer.destination);
-        }
+      for (let q = 0; q < queue.length; q++) {
+        const boarding = queue[q]!;
+        // The entry occurrence matters for an in-seat continuation, including
+        // another continuation at the same occurrence. Ordinary boarding cannot alight there.
+        for (
+          let stop = boarding.stop + (boarding.scanEntry ? 0 : 1);
+          stop < (boarding.scanEnd ?? boarding.route.getNbStops());
+          stop++
+        )
+          arrive(boarding, stop);
       }
+      frontier = next;
     }
-    return newlyMarkedStops;
   }
 }
