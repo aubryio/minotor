@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
+import { StopRouteIndex } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
+import { TripId } from '../timetable/tripTransfers.js';
+import { BoardingContext, RoundNumber } from './frontier.js';
 import type { IRaptorState } from './raptor.js';
 import { RoutingEdge, RoutingState, UNREACHED_TIME } from './state.js';
 
@@ -52,67 +55,81 @@ export class RangeRaptorState implements IRaptorState {
   private readonly changedInRound: StopId[][];
 
   private currentRun!: RoutingState;
-  private readonly boardingLabels: Map<StopId, Map<number, number>>[];
-  private readonly tripLabels: Map<number, number>[];
+  private readonly boardingLabels: Map<StopId, Map<BoardingContext, Time>>[];
+  private readonly tripLabels: Map<TripId, StopRouteIndex>[];
   private readonly dirty: Uint8Array[];
   private readonly defaultBoardingTimes: Uint16Array[];
 
-  boardingBound(round: number, stop: StopId, context: number): number {
+  boardingBound(
+    round: RoundNumber,
+    stop: StopId,
+    context: BoardingContext,
+  ): Time {
     return context === 0
       ? this.defaultBoardingTimes[round]![stop]!
       : (this.boardingLabels[round]!.get(stop)?.get(context) ?? Infinity);
   }
 
   updateBoardingBound(
-    round: number,
+    round: RoundNumber,
     stop: StopId,
-    context: number,
-    time: number,
+    context: BoardingContext,
+    time: Time,
   ): void {
     for (let k = round; k < this.boardingLabels.length; k++) {
       if (context === 0) {
-        if (time < this.defaultBoardingTimes[k]![stop]!)
+        if (time < this.defaultBoardingTimes[k]![stop]!) {
           this.defaultBoardingTimes[k]![stop] = time;
+        }
         continue;
       }
       let labels = this.boardingLabels[k]!.get(stop);
-      if (!labels)
-        this.boardingLabels[k]!.set(stop, (labels = new Map<number, number>()));
-      if (time < (labels.get(context) ?? Infinity)) labels.set(context, time);
+      if (!labels) {
+        this.boardingLabels[k]!.set(
+          stop,
+          (labels = new Map<BoardingContext, Time>()),
+        );
+      }
+      if (time < (labels.get(context) ?? Infinity)) {
+        labels.set(context, time);
+      }
     }
   }
 
-  tripBoardingBound(round: number, trip: number): number {
+  tripBoardingBound(round: RoundNumber, trip: TripId): StopRouteIndex {
     return this.tripLabels[round]!.get(trip) ?? Infinity;
   }
 
   updateTripBoardingBound(
-    round: number,
-    trip: number,
-    stopIndex: number,
+    round: RoundNumber,
+    trip: TripId,
+    stopIndex: StopRouteIndex,
   ): void {
     for (let k = round; k < this.tripLabels.length; k++) {
       const labels = this.tripLabels[k]!;
-      if (stopIndex < (labels.get(trip) ?? Infinity))
+      if (stopIndex < (labels.get(trip) ?? Infinity)) {
         labels.set(trip, stopIndex);
+      }
     }
   }
 
-  private markChanged(round: number, stop: StopId): void {
-    if (this.dirty[round]![stop]) return;
+  private markChanged(round: RoundNumber, stop: StopId): void {
+    if (this.dirty[round]![stop]) {
+      return;
+    }
     this.dirty[round]![stop] = 1;
     this.changedInRound[round]!.push(stop);
   }
 
-  constructor(maxRounds: number, nbStops: number, latestDeparture: Time) {
+  constructor(maxRounds: RoundNumber, nbStops: number, latestDeparture: Time) {
     this.latestDeparture = latestDeparture;
     this.boardingLabels = Array.from(
       { length: maxRounds + 2 },
-      () => new Map<StopId, Map<number, number>>(),
+      () => new Map<StopId, Map<BoardingContext, Time>>(),
     );
     this.tripLabels = Array.from(
       { length: maxRounds + 2 },
-      () => new Map<number, number>(),
+      () => new Map<TripId, StopRouteIndex>(),
     );
     this.dirty = Array.from(
       { length: maxRounds + 2 },
@@ -141,7 +158,9 @@ export class RangeRaptorState implements IRaptorState {
     const round0 = routingState.graph[0]!;
     for (const stop of routingState.origins) {
       const edge = round0[stop];
-      if (!edge) continue;
+      if (!edge) {
+        continue;
+      }
       this.updateArrival(stop, edge.arrival, 0);
     }
   }
@@ -162,7 +181,7 @@ export class RangeRaptorState implements IRaptorState {
    * Uses the cross-run shared label for `round`, which is always at least as
    * tight as the per-run arrival and therefore provides stronger pruning.
    */
-  improvementBound(round: number, stop: StopId): Time {
+  improvementBound(round: RoundNumber, stop: StopId): Time {
     return this.roundLabels[round]![stop]!;
   }
 
@@ -170,18 +189,6 @@ export class RangeRaptorState implements IRaptorState {
    * Global best arrival at any destination across all departure-time iterations.
    * Always at least as tight as the per-run `destinationBest`.
    */
-  destinationPruningBound(round: number): Time {
-    if (this.currentRun.destinationGroups.length === 0) return UNREACHED_TIME;
-    let bound = 0;
-    for (const group of this.currentRun.destinationGroups) {
-      let best = UNREACHED_TIME;
-      for (const stop of group)
-        best = Math.min(best, this.roundLabels[round]![stop]!);
-      bound = Math.max(bound, best);
-    }
-    return bound;
-  }
-
   get destinationBest(): Time {
     return this._destinationBest;
   }
@@ -195,7 +202,7 @@ export class RangeRaptorState implements IRaptorState {
   }
 
   /** Updates the per-run aggregate best when improved, and always considers the cross-run shared label. */
-  updateArrival(stop: StopId, time: Time, round: number): void {
+  updateArrival(stop: StopId, time: Time, round: RoundNumber): void {
     const currentRunArrival = this.currentRun.getArrival(stop);
     const improvesCurrentRunAggregate =
       currentRunArrival === undefined ||
@@ -224,9 +231,11 @@ export class RangeRaptorState implements IRaptorState {
    * stop `p` achievable with **at most** k transit legs from any departure time
    * tried so far — which is exactly the tightest valid pruning bound for round k.
    */
-  initRound(round: number): void {
+  initRound(round: RoundNumber): void {
     const changed = this.changedInRound[round - 1]!;
-    if (changed.length === 0) return;
+    if (changed.length === 0) {
+      return;
+    }
 
     const prev = this.roundLabels[round - 1]!;
     const curr = this.roundLabels[round]!;

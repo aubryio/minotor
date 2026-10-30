@@ -26,7 +26,7 @@ export class PlainRouter {
 
   /**
    * Standard RAPTOR: finds the earliest-arrival journey from `query.from` to
-   * `query.to` for the given departure time.
+   * any stop in `query.to` for the given departure time.
    *
    * @param query The routing query.
    * @returns A {@link Result} that can reconstruct the best route and arrival times.
@@ -37,10 +37,9 @@ export class PlainRouter {
       query.options.minTransferTime,
     );
 
-    const destinationGroups = Array.from(query.to).map((destination) =>
+    const destinations = Array.from(query.to).flatMap((destination) =>
       this.stopsIndex.equivalentStops(destination).map((stop) => stop.id),
     );
-    const destinations = destinationGroups.flat();
 
     const routingState = new RoutingState(
       query.departureTime,
@@ -49,7 +48,6 @@ export class PlainRouter {
       this.timetable.nbStops(),
       query.options.maxTransfers + 1,
       query.options.maxDuration,
-      destinationGroups,
     );
 
     this.raptor.run(query.options, routingState);

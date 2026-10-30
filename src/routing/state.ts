@@ -4,6 +4,7 @@ import { StopRouteIndex } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
 import { TransferType, TripStop } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
+import type { RoundNumber } from './frontier.js';
 import type { IRaptorState } from './raptor.js';
 
 /**
@@ -45,7 +46,7 @@ export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
 /** The earliest arrival at a stop together with how many legs were needed to reach it. */
 export type Arrival = {
   arrival: Time;
-  legNumber: number;
+  legNumber: RoundNumber;
 };
 
 /**
@@ -57,7 +58,6 @@ export class RoutingState implements IRaptorState {
 
   /** Destination stop IDs for this query. */
   readonly destinations: StopId[];
-  readonly destinationGroups: StopId[][];
 
   /**
    * Routing graph: the best edge used to reach each stop, per round.
@@ -125,13 +125,10 @@ export class RoutingState implements IRaptorState {
     destinations: StopId[],
     accessPaths: AccessPoint[],
     nbStops: number,
-    maxRounds: number = 0,
+    maxRounds: RoundNumber = 0,
     maxDuration?: Duration,
-    destinationGroups?: StopId[][],
   ) {
     this.destinations = destinations;
-    this.destinationGroups =
-      destinationGroups ?? destinations.map((stop) => [stop]);
     this.maxDuration = maxDuration;
     this.maxArrivalTime =
       maxDuration === undefined ? UNREACHED_TIME : departureTime + maxDuration;
@@ -157,7 +154,9 @@ export class RoutingState implements IRaptorState {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
       const arrival = depTime + access.duration;
-      if (arrival > this.maxArrivalTime) continue;
+      if (arrival > this.maxArrivalTime) {
+        continue;
+      }
       const edge: OriginNode | AccessEdge =
         access.duration === 0
           ? { stopId: access.fromStopId, arrival: depTime }
@@ -180,7 +179,9 @@ export class RoutingState implements IRaptorState {
     this.origins = Array.from(seededOrigins);
     for (let i = 0; i < this.destinations.length; i++) {
       const t = this.earliestArrivalTimes[this.destinations[i]!]!;
-      if (t < this._destinationBest) this._destinationBest = t;
+      if (t < this._destinationBest) {
+        this._destinationBest = t;
+      }
     }
   }
 
@@ -201,17 +202,6 @@ export class RoutingState implements IRaptorState {
    * Earliest arrival at any destination stop; {@link UNREACHED_TIME} if none
    * has been reached yet. Updated automatically by {@link updateArrival}. O(1).
    */
-  destinationPruningBound(): Time {
-    if (this.destinationGroups.length === 0) return UNREACHED_TIME;
-    let bound = 0;
-    for (const group of this.destinationGroups) {
-      let best = UNREACHED_TIME;
-      for (const stop of group) best = Math.min(best, this.arrivalTime(stop));
-      bound = Math.max(bound, best);
-    }
-    return bound;
-  }
-
   get destinationBest(): Time {
     return this._destinationBest;
   }
@@ -220,13 +210,13 @@ export class RoutingState implements IRaptorState {
    * In standard RAPTOR the improvement bound is simply the per-run earliest
    * arrival; the `round` argument is ignored.
    */
-  improvementBound(_round: number, stop: StopId): Time {
+  improvementBound(_round: RoundNumber, stop: StopId): Time {
     return this.arrivalTime(stop);
   }
 
   /** No-op in standard RAPTOR — there are no shared cross-run labels to propagate. */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  initRound(_round: number): void {}
+  initRound(_round: RoundNumber): void {}
 
   /**
    * Records a new earliest arrival at a stop.
@@ -235,7 +225,7 @@ export class RoutingState implements IRaptorState {
    * @param time The arrival time in minutes from midnight.
    * @param leg  The round number (number of transit legs taken so far).
    */
-  updateArrival(stop: StopId, time: Time, leg: number): void {
+  updateArrival(stop: StopId, time: Time, leg: RoundNumber): void {
     if (this.earliestArrivalTimes[stop] === UNREACHED_TIME) {
       this.reachedStops.push(stop);
     }
@@ -289,7 +279,11 @@ export class RoutingState implements IRaptorState {
    * }
    * ```
    */
-  *arrivals(): Generator<{ stop: StopId; arrival: Time; legNumber: number }> {
+  *arrivals(): Generator<{
+    stop: StopId;
+    arrival: Time;
+    legNumber: RoundNumber;
+  }> {
     for (let stop = 0; stop < this.earliestArrivalTimes.length; stop++) {
       const time = this.earliestArrivalTimes[stop]!;
       if (time < UNREACHED_TIME) {
@@ -318,7 +312,9 @@ export class RoutingState implements IRaptorState {
    */
   getArrival(stop: StopId): Arrival | undefined {
     const time = this.earliestArrivalTimes[stop]!;
-    if (time >= UNREACHED_TIME) return undefined;
+    if (time >= UNREACHED_TIME) {
+      return undefined;
+    }
     return { arrival: time, legNumber: this.earliestArrivalLegs[stop]! };
   }
 
@@ -357,7 +353,7 @@ export class RoutingState implements IRaptorState {
     nbStops: number;
     origins?: StopId[];
     destinations?: StopId[];
-    arrivals?: [stop: StopId, time: Time, leg: number][];
+    arrivals?: [stop: StopId, time: Time, leg: RoundNumber][];
     graph?: [stop: StopId, edge: RoutingEdge][][];
   }): RoutingState {
     const state = new RoutingState(
@@ -387,8 +383,9 @@ export class RoutingState implements IRaptorState {
     state._destinationBest = UNREACHED_TIME;
     for (const dest of destinations) {
       const t = earliestArrivalTimes[dest];
-      if (t !== undefined && t < state._destinationBest)
+      if (t !== undefined && t < state._destinationBest) {
         state._destinationBest = t;
+      }
     }
 
     // Convert the sparse per-round representation to dense arrays and replace
@@ -404,7 +401,9 @@ export class RoutingState implements IRaptorState {
     state.reachedStops.length = 0;
     const touched = new Set(arrivals.map(([stop]) => stop));
     for (const round of graph) {
-      for (const [stop] of round) touched.add(stop);
+      for (const [stop] of round) {
+        touched.add(stop);
+      }
     }
     state.reachedStops.push(...touched);
 

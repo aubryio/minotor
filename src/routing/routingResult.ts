@@ -23,7 +23,7 @@ export interface RoutingResult {
 
   /**
    * Reconstructs the earliest-arriving route to the given or default
-   * destinations. Returns undefined when none
+   * alternative destinations. Other requested destinations need not be reached. Returns undefined when none
    * were reached or when no destinations were provided.
    * @param maxTransfers Optional transfer limit within retained data.
    */

@@ -93,17 +93,20 @@ export class Timetable {
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
     tripTransfers?: TripTransfers,
-    rules: TripRule[] = [],
+    rules: TripRule[] | TripTransferIndex = [],
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
-    this.tripTransfers = new TripTransferIndex(
-      routesAdjacency,
-      rules,
-      tripContinuations,
-      tripTransfers,
-    );
+    this.tripTransfers =
+      rules instanceof TripTransferIndex
+        ? rules
+        : TripTransferIndex.fromRaw(
+            routesAdjacency,
+            rules,
+            tripContinuations,
+            tripTransfers,
+          );
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -140,7 +143,8 @@ export class Timetable {
   }
 
   /**
-   * Deserializes a binary protobuf into a Timetable object.
+   * Loads a binary produced by a compatible Minotor serializer.
+   * Transfer rules must already be canonical; raw-input validation is not repeated.
    *
    * @param data - The binary data to deserialize.
    * @returns The deserialized Timetable object.
@@ -148,17 +152,22 @@ export class Timetable {
   static fromData(data: Uint8Array): Timetable {
     const reader = new BinaryReader(data);
     const protoTimetable = ProtoTimetable.decode(reader);
-    if (protoTimetable.formatVersion !== 2)
+    if (protoTimetable.formatVersion !== 2) {
       throw new Error(
         'Unsupported timetable format; regenerate the dataset with this version of minotor.',
       );
+    }
+    const routes = deserializeRoutesAdjacency(protoTimetable.routesAdjacency);
     return new Timetable(
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
-      deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
+      routes,
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
       undefined,
       undefined,
-      protoTimetable.tripRules as TripRule[],
+      TripTransferIndex.fromCanonical(
+        routes,
+        protoTimetable.tripRules as TripRule[],
+      ),
     );
   }
 
@@ -224,20 +233,26 @@ export class Timetable {
       routeId,
       tripIndex,
     });
-    if (source === undefined) return [];
+    if (source === undefined) {
+      return [];
+    }
     return [...this.tripTransfers.outgoing(source)]
       .filter((rule) => rule.type === TransferTypes.IN_SEAT)
       .map((rule) => this.tripTransfers.position(rule.target));
   }
 
-  /**
-   * Retrieves the service route associated with the given route.
-   * A service route refers to a collection of trips that are displayed
-   * to riders as a single service.
-   *
-   * @param route - The route for which the service route is to be retrieved.
-   * @returns The service route corresponding to the provided route.
-   */
+  /** Scalar mode lookup for scans, without allocating display metadata. */
+  getServiceRouteType(route: Route): RouteType {
+    const serviceRoute = this.serviceRoutes[route.serviceRoute()];
+    if (!serviceRoute) {
+      throw new Error(
+        `Service route not found for route ID: ${route.serviceRoute()}`,
+      );
+    }
+    return serviceRoute.type;
+  }
+
+  /** Display metadata for reconstructed journeys. */
   getServiceRouteInfo(route: Route): ServiceRouteInfo {
     const serviceRoute = this.serviceRoutes[route.serviceRoute()];
     if (!serviceRoute) {
@@ -290,15 +305,21 @@ export class Timetable {
 
     for (const originStop of fromStops) {
       const stopData = this.stopsAdjacency[originStop];
-      if (!stopData) continue;
+      if (!stopData) {
+        continue;
+      }
 
       for (let i = 0; i < stopData.routes.length; i++) {
         const route = this.routesAdjacency[stopData.routes[i]!];
-        if (!route) continue;
+        if (!route) {
+          continue;
+        }
 
         if (filterByMode) {
           const serviceRoute = this.serviceRoutes[route.serviceRoute()];
-          if (!serviceRoute || !transportModes.has(serviceRoute.type)) continue;
+          if (!serviceRoute || !transportModes.has(serviceRoute.type)) {
+            continue;
+          }
         }
 
         const originStopIndex = route.firstStopRouteIndex(originStop)!;
@@ -410,7 +431,9 @@ export class Timetable {
       routeId,
       tripIndex,
     });
-    if (source === undefined) return [];
+    if (source === undefined) {
+      return [];
+    }
     return [...this.tripTransfers.outgoing(source)]
       .filter((rule) => rule.type === TransferTypes.GUARANTEED)
       .map((rule) => this.tripTransfers.position(rule.target));

@@ -64,8 +64,8 @@ export class Query {
     }
 
     /**
-     * Sets the destination stop(s).
-     * Routing stops as soon as all provided stops have been reached.
+     * Sets alternative destination stops. Finds the earliest arrival at any of them.
+     * Other destinations need not be reached. Omit destinations for full-network routing.
      */
     to(to: StopId | Set<StopId>): this {
       this.toValue = to instanceof Set ? to : new Set([to]);
@@ -148,18 +148,18 @@ export type RangeQueryOptions = {
    * achieves is therefore suppressed — you only see journeys that are still
    * worth taking given that a later departure exists.
    *
-   * **Timetable use-case** (`boundaryRun: true`): the window is a *display
+   * **Timetable use-case** (`optimizeBeyondLatestDeparture: true`): the window is a *display
    * filter*.  A journey at 10:55 that arrives at 12:30 is hidden when an
    * 11:05 departure arrives at 12:00 — the router pre-empts the dominated
    * option on the caller's behalf.
    *
-   * **Isochrone / accessibility use-case** (`boundaryRun: false`, the
-   * default): the window is a hard constraint.  Every Pareto-optimal journey
-   * whose departure falls strictly within `[departureTime, lastDepartureTime]`
+   * **Isochrone / accessibility use-case** (`optimizeBeyondLatestDeparture: false`,
+   * when explicitly selected): the window is a hard constraint. Every Pareto-optimal journey
+   * whose departure falls within `[departureTime, lastDepartureTime]`
    * is returned, regardless of what might be available just outside the
    * window.
    *
-   * @default false
+   * @default true
    */
   optimizeBeyondLatestDeparture: boolean;
 };
@@ -169,7 +169,7 @@ export type RangeQueryOptions = {
  *
  * Extends {@link Query} with a required `lastDepartureTime` that defines the
  * upper bound of the departure-time window.  `router.rangeRoute()` returns
- * all Pareto-optimal journeys departing in
+ * the departure/arrival frontier across alternative destinations, departing in
  * `[departureTime, lastDepartureTime]`.
  *
  */

@@ -53,14 +53,18 @@ const make = (
     },
     () => ({ routes: [] }),
   );
-  for (const r of routes)
-    for (const stop of new Set(r.stops)) stops[stop]!.routes.push(r.id);
-  for (const [from, destination, minTransferTime] of walks)
+  for (const r of routes) {
+    for (const stop of new Set(r.stops)) {
+      stops[stop]!.routes.push(r.id);
+    }
+  }
+  for (const [from, destination, minTransferTime] of walks) {
     (stops[from]!.transfers ??= []).push({
       destination,
       minTransferTime,
       type: TransferTypes.REQUIRES_MINIMAL_TIME,
     });
+  }
   return new Timetable(
     stops,
     routes,
@@ -102,7 +106,9 @@ function exhaustive(
   const maxTime = departure + (opts.maxDuration ?? UNREACHED_TIME);
   const rules = [...tt.tripTransfers.all()];
   const routes: Route[] = [];
-  for (let i = 0; tt.getRoute(i); i++) routes.push(tt.getRoute(i)!);
+  for (let i = 0; tt.getRoute(i); i++) {
+    routes.push(tt.getRoute(i)!);
+  }
   for (let round = 1; round <= opts.maxTransfers + 1; round++) {
     const reached: Event[] = [];
     const visited = new Map<string, number>();
@@ -115,10 +121,14 @@ function exhaustive(
     }[] = [];
     for (const event of previous) {
       for (const r of routes) {
-        if (!opts.transportModes.has(tt.getServiceRouteInfo(r).type)) continue;
-        for (let trip = 0; trip < r.getNbTrips(); trip++)
+        if (!opts.transportModes.has(tt.getServiceRouteInfo(r).type)) {
+          continue;
+        }
+        for (let trip = 0; trip < r.getNbTrips(); trip++) {
           for (let stop = 0; stop < r.getNbStops(); stop++) {
-            if (r.pickUpTypeFrom(stop, trip) === 1) continue;
+            if (r.pickUpTypeFrom(stop, trip) === 1) {
+              continue;
+            }
             const dest = r.stopId(stop),
               dep = r.departureFrom(stop, trip);
             let minimum =
@@ -128,9 +138,11 @@ function exhaustive(
                   : 0
                 : Infinity;
             if (event.position) {
-              for (const walk of tt.getTransfers(event.stop))
-                if (walk.destination === dest)
+              for (const walk of tt.getTransfers(event.stop)) {
+                if (walk.destination === dest) {
                   minimum = walk.minTransferTime ?? opts.minTransferTime;
+                }
+              }
               const source = tt.tripTransfers.occurrence(event.position);
               const target = tt.tripTransfers.occurrence({
                 routeId: r.id,
@@ -143,11 +155,12 @@ function exhaustive(
                   rule.target === target &&
                   rule.type !== TransferTypes.IN_SEAT,
               );
-              if (rule)
+              if (rule) {
                 minimum =
                   rule.type === TransferTypes.GUARANTEED
                     ? 0
                     : rule.minTransferTime!;
+              }
             }
             if (
               dep < event.time + minimum ||
@@ -155,10 +168,12 @@ function exhaustive(
               (round === 1 &&
                 opts.maxInitialWaitingTime !== undefined &&
                 dep - event.time > opts.maxInitialWaitingTime)
-            )
+            ) {
               continue;
+            }
             rides.push({ route: r, trip, start: stop, continuation: false });
           }
+        }
       }
     }
     for (let q = 0; q < rides.length; q++) {
@@ -173,23 +188,27 @@ function exhaustive(
           ride.route.arrivalAt(stop, ride.trip),
           stop === ride.start ? (ride.entryTime ?? 0) : 0,
         );
-        if (time >= (visited.get(key) ?? Infinity)) continue;
+        if (time >= (visited.get(key) ?? Infinity)) {
+          continue;
+        }
         visited.set(key, time);
-        if (time > maxTime) continue;
+        if (time > maxTime) {
+          continue;
+        }
         const position = {
           routeId: ride.route.id,
           tripIndex: ride.trip,
           stopIndex: stop,
         };
         const source = tt.tripTransfers.occurrence(position);
-        for (const rule of rules)
+        for (const rule of rules) {
           if (rule.source === source && rule.type === TransferTypes.IN_SEAT) {
             const target = tt.tripTransfers.position(rule.target),
               r = tt.getRoute(target.routeId)!;
             if (
               opts.transportModes.has(tt.getServiceRouteInfo(r).type) &&
               r.departureFrom(target.stopIndex, target.tripIndex) >= time
-            )
+            ) {
               rides.push({
                 route: r,
                 trip: target.tripIndex,
@@ -197,15 +216,20 @@ function exhaustive(
                 continuation: true,
                 entryTime: time,
               });
+            }
           }
-        if (ride.route.dropOffTypeAt(stop, ride.trip) === 1) continue;
+        }
+        if (ride.route.dropOffTypeAt(stop, ride.trip) === 1) {
+          continue;
+        }
         const stopId = ride.route.stopId(stop);
         best[stopId] = Math.min(best[stopId]!, time);
         reached.push({ stop: stopId, time, position });
         for (const walk of tt.getTransfers(stopId)) {
           const arrival = time + (walk.minTransferTime ?? opts.minTransferTime);
-          if (arrival <= maxTime)
+          if (arrival <= maxTime) {
             best[walk.destination] = Math.min(best[walk.destination]!, arrival);
+          }
         }
       }
     }
@@ -238,12 +262,16 @@ function validateLinks(tt: Timetable, state: RoutingState): void {
           r.departureFrom(edge.stopIndex, edge.tripIndex) >=
             edge.predecessor.arrival,
         );
-        if (!edge.continuationOf) boardings++;
+        if (!edge.continuationOf) {
+          boardings++;
+        }
         edge = edge.continuationOf ?? edge.predecessor;
       } else if ('type' in edge) {
         assert(edge.predecessor && edge.arrival >= edge.predecessor.arrival);
         edge = edge.predecessor;
-      } else break;
+      } else {
+        break;
+      }
     }
     assert.equal(boardings, legNumber);
   }
@@ -490,7 +518,28 @@ describe('transfer-aware trip scans', () => {
     );
   });
 
-  it('does not let one requested destination prune a later destination', () => {
+  it('relaxes walks from the best vehicle arrival without chaining footpaths', () => {
+    const tt = make(
+      [
+        route(0, [0, 1], [[0, 20]]),
+        route(1, [0, 1], [[0, 10]]),
+        route(2, [2, 3], [[15, 25]]),
+      ],
+      new Map(),
+      new Map(),
+      [
+        [1, 2, 3],
+        [2, 4, 1],
+      ],
+    );
+    const state = run(tt);
+    assert.equal(state.arrivalTime(2), 13);
+    assert.equal(state.arrivalTime(3), 25);
+    assert.equal(state.arrivalTime(4), UNREACHED_TIME);
+    validateLinks(tt, state);
+  });
+
+  it('prunes later alternative destinations after finding the earliest arrival', () => {
     const tt = make([route(0, [0, 1, 2], [[0, 10, 20]])]);
     const state = new RoutingState(
       0,
@@ -501,7 +550,7 @@ describe('transfer-aware trip scans', () => {
     );
     new Raptor(tt).run(options, state);
     assert.equal(state.arrivalTime(1), 10);
-    assert.equal(state.arrivalTime(2), 20);
+    assert.equal(state.arrivalTime(2), UNREACHED_TIME);
   });
 
   it('rejects old datasets and invalid numeric references', () => {
@@ -549,8 +598,9 @@ describe('transfer-aware trip scans', () => {
           list = rules.get(key) ?? [];
         if (
           list.some((r) => r.routeId === target && r.tripIndex === targetTrip)
-        )
+        ) {
           continue;
+        }
         list.push({
           routeId: target,
           tripIndex: targetTrip,
@@ -594,6 +644,22 @@ describe('transfer-aware trip scans', () => {
           `sample ${sample}, departure ${departure}`,
         );
         validateLinks(tt, state);
+        // Target pruning must preserve the best answer among alternatives.
+        const targets = [1, tt.nbStops() - 1];
+        const targeted = new RoutingState(
+          departure,
+          targets,
+          [{ fromStopId: 0, toStopId: 0, duration: 0 }],
+          tt.nbStops(),
+          4,
+          opts.maxDuration,
+        );
+        new Raptor(tt).run(opts, targeted);
+        assert.equal(
+          targeted.destinationBest,
+          Math.min(...targets.map((stop) => expected[stop]!)),
+        );
+        validateLinks(tt, targeted);
         const rangeRun = new RoutingState(
           departure,
           [],

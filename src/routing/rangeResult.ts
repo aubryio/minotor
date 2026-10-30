@@ -64,8 +64,12 @@ export class RangeResult implements RoutingResult {
   }
 
   private normalizeTargets(to?: StopId | Set<StopId>): Set<StopId> {
-    if (to instanceof Set) return new Set(to);
-    if (to !== undefined) return new Set([to]);
+    if (to instanceof Set) {
+      return new Set(to);
+    }
+    if (to !== undefined) {
+      return new Set([to]);
+    }
     return new Set(this._runs[0]?.result[resultDestinations]());
   }
 
@@ -83,9 +87,13 @@ export class RangeResult implements RoutingResult {
   *routes(): Generator<Route> {
     for (let index = this._runs.length - 1; index >= 0; index--) {
       const run = this._runs[index];
-      if (run === undefined) continue;
+      if (run === undefined) {
+        continue;
+      }
       const route = run.result.bestRoute();
-      if (route !== undefined) yield route;
+      if (route !== undefined) {
+        yield route;
+      }
     }
   }
 
@@ -118,7 +126,9 @@ export class RangeResult implements RoutingResult {
     for (const run of this._runs) {
       for (const stopId of targetStops) {
         const arrival = run.result.arrivalAt(stopId, maxTransfers);
-        if (arrival === undefined) continue;
+        if (arrival === undefined) {
+          continue;
+        }
         if (bestArrival === undefined || arrival.arrival < bestArrival) {
           bestArrival = arrival.arrival;
           bestRun = run;
@@ -154,7 +164,9 @@ export class RangeResult implements RoutingResult {
     const targetStops = this.normalizeTargets(to);
     for (const { result } of this._runs) {
       const route = result.bestRoute(targetStops, maxTransfers);
-      if (route !== undefined) return route;
+      if (route !== undefined) {
+        return route;
+      }
     }
     return undefined;
   }
@@ -189,7 +201,9 @@ export class RangeResult implements RoutingResult {
     for (const run of this._runs) {
       for (const stopId of targetStops) {
         const arrival = run.result.arrivalAt(stopId, maxTransfers);
-        if (arrival === undefined) continue;
+        if (arrival === undefined) {
+          continue;
+        }
         const duration = arrival.arrival - run.departureTime;
         if (
           duration < shortestDuration ||
@@ -262,7 +276,9 @@ export class RangeResult implements RoutingResult {
     let shortest: ArrivalWithDuration | undefined;
     for (const { departureTime, result } of this._runs) {
       const arrival = result.arrivalAt(stop, maxTransfers);
-      if (arrival === undefined) continue;
+      if (arrival === undefined) {
+        continue;
+      }
       const duration = arrival.arrival - departureTime;
       if (shortest === undefined || duration < shortest.duration) {
         shortest = { ...arrival, duration };
@@ -272,8 +288,9 @@ export class RangeResult implements RoutingResult {
   }
 
   /**
-   * Shortest travel duration to **every reachable stop** across all
+   * Shortest travel duration to every retained stop across all
    * Pareto-optimal runs, yielding the stop ID and arrival with duration.
+   * Destination pruning can omit stops; omit destinations for full-network results.
    * All runs are aggregated before the first value is yielded. Ties retain
    * the first run's arrival and leg count.
    * @param maxTransfers Optional transfer limit within retained data.
@@ -299,8 +316,9 @@ export class RangeResult implements RoutingResult {
   }
 
   /**
-   * Earliest achievable arrival at **every reachable stop** across all
+   * Earliest retained arrival at each stop across all
    * Pareto-optimal runs, yielding the stop ID and arrival.
+   * Destination pruning can omit stops; omit destinations for full-network results.
    * All runs are aggregated before the first value is yielded. Ties retain
    * the first run's arrival and leg count.
    * @param maxTransfers Optional transfer limit within retained data.
