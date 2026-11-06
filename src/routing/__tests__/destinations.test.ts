@@ -70,21 +70,27 @@ const makeRouter = (
   );
 };
 
-const point = (destinations: StopId[]) =>
+/**
+ * Build an earliest-arrival query for the fixture origin and alternative
+ * destinations.
+ */
+const createPointQuery = (destinations: StopId[]) =>
   new Query.Builder()
     .from(0)
     .to(new Set(destinations))
     .departureTime(480)
     .build();
 
-const range = (boundary: boolean, destinations = [1, 2]) =>
+/**
+ * Prepare the fixture departure window; callers explicitly choose boundary
+ * optimization before building.
+ */
+const createRangeQueryBuilder = (destinations: StopId[] = [1, 2]) =>
   new RangeQuery.Builder()
     .from(0)
     .to(new Set(destinations))
     .departureTime(470)
-    .lastDepartureTime(490)
-    .rangeOptions({ optimizeBeyondLatestDeparture: boundary })
-    .build();
+    .lastDepartureTime(490);
 
 describe('alternative destinations', () => {
   it('does not need to reach a slower destination on the same vehicle', () => {
@@ -93,7 +99,7 @@ describe('alternative destinations', () => {
         [0, 1, 2],
         [480, 490, 500],
       ],
-    ]).route(point([1, 2]));
+    ]).route(createPointQuery([1, 2]));
     assert.equal(result.bestRoute()?.arrivalTime(), 490);
     assert.equal(result.arrivalAt(2), undefined);
   });
@@ -108,7 +114,7 @@ describe('alternative destinations', () => {
         [0, 2],
         [485, 500],
       ],
-    ]).route(point([1, 2]));
+    ]).route(createPointQuery([1, 2]));
     assert.equal(result.bestRoute()?.arrivalTime(), 500);
   });
 
@@ -122,7 +128,7 @@ describe('alternative destinations', () => {
         [0, 2],
         [480, 500],
       ],
-    ]).route(point([1, 2]));
+    ]).route(createPointQuery([1, 2]));
     assert.equal(result.bestRoute()?.arrivalTime(), 500);
   });
 
@@ -133,10 +139,16 @@ describe('alternative destinations', () => {
         [480, 500],
       ],
     ]);
-    const result = router.route(point([0, 2]));
+    const result = router.route(createPointQuery([0, 2]));
     assert.equal(result.arrivalAt(0)?.arrival, 480);
     assert.equal(result.arrivalAt(2), undefined);
-    const runs = [...router.rangeRoute(range(false, [0, 2]))];
+    const runs = [
+      ...router.rangeRoute(
+        createRangeQueryBuilder([0, 2])
+          .rangeOptions({ optimizeBeyondLatestDeparture: false })
+          .build(),
+      ),
+    ];
     assert.equal(runs.length, 1);
     assert.equal(runs[0]?.result.arrivalAt(2), undefined);
   });
@@ -161,7 +173,13 @@ describe('alternative destinations', () => {
       ],
     ]);
     for (const boundary of [false, true]) {
-      const runs = [...router.rangeRoute(range(boundary))];
+      const runs = [
+        ...router.rangeRoute(
+          createRangeQueryBuilder()
+            .rangeOptions({ optimizeBeyondLatestDeparture: boundary })
+            .build(),
+        ),
+      ];
       assert.deepEqual(
         runs.map(({ departureTime, result }) => [
           departureTime,
@@ -196,7 +214,13 @@ describe('alternative destinations', () => {
       ],
       10,
     );
-    const runs = [...router.rangeRoute(range(false))];
+    const runs = [
+      ...router.rangeRoute(
+        createRangeQueryBuilder()
+          .rangeOptions({ optimizeBeyondLatestDeparture: false })
+          .build(),
+      ),
+    ];
     assert.deepEqual(
       runs.map(({ departureTime, result }) => [
         departureTime,
@@ -223,7 +247,13 @@ describe('alternative destinations', () => {
         [490, 510],
       ],
     ]);
-    const runs = [...router.rangeRoute(range(false))];
+    const runs = [
+      ...router.rangeRoute(
+        createRangeQueryBuilder()
+          .rangeOptions({ optimizeBeyondLatestDeparture: false })
+          .build(),
+      ),
+    ];
     assert.deepEqual(
       runs.map(({ departureTime }) => departureTime),
       [490],
@@ -237,10 +267,16 @@ describe('alternative destinations', () => {
         [480, 490, 500],
       ],
     ]);
-    const result = router.route(point([]));
+    const result = router.route(createPointQuery([]));
     assert.equal(result.arrivalAt(1)?.arrival, 490);
     assert.equal(result.arrivalAt(2)?.arrival, 500);
-    const runs = [...router.rangeRoute(range(false, []))];
+    const runs = [
+      ...router.rangeRoute(
+        createRangeQueryBuilder([])
+          .rangeOptions({ optimizeBeyondLatestDeparture: false })
+          .build(),
+      ),
+    ];
     assert.equal(runs[0]?.result.arrivalAt(2)?.arrival, 500);
   });
 });

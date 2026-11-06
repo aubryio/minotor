@@ -50,7 +50,7 @@ export type TripRouteIndex = number;
 export type StopRouteIndex = number;
 
 /**
- * A route identifies all trips of a given service route sharing the same list of stops.
+ * A route groups non-overtaking trips with identical stops and pickup/drop-off patterns.
  */
 export class Route {
   public readonly id: RouteId;
@@ -69,7 +69,7 @@ export class Route {
    *
    * Encoding format: Each byte contains 2 pickup/drop-off pairs (4 bits each)
    * Bit layout per byte: [pickup_1 (2 bits)][drop_off_1 (2 bits)][pickup_0 (2 bits)][drop_off_0 (2 bits)]
-   * Example: For stops 0 and 1 in a trip, one byte encodes all 4 values
+   * One pattern per route: trips share these values.
    */
   private readonly pickupDropOffTypes: Uint8Array;
   /**
@@ -194,32 +194,28 @@ export class Route {
       }
     }
 
-    // Create pickupDropOffTypes array (2-bit encoded) for all trips
-    const totalStopEntries = trips.length * numStops;
-    const pickupDropOffTypes = new Uint8Array(Math.ceil(totalStopEntries / 2));
-
-    for (let tripIndex = 0; tripIndex < trips.length; tripIndex++) {
+    // A route has one public boarding/alighting pattern shared by every trip.
+    const pickupDropOffTypes = new Uint8Array(Math.ceil(numStops / 2));
+    for (let stopIndex = 0; stopIndex < numStops; stopIndex++) {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const trip = trips[tripIndex]!;
-      for (let stopIndex = 0; stopIndex < numStops; stopIndex++) {
+      const stop = firstTrip.stops[stopIndex]!;
+      const pickup = stop.pickUpType ?? PickUpDropOffTypes.REGULAR;
+      const dropoff = stop.dropOffType ?? PickUpDropOffTypes.REGULAR;
+      for (const trip of trips) {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        const stop = trip.stops[stopIndex]!;
-        const globalIndex = tripIndex * numStops + stopIndex;
-        const pickUp = stop.pickUpType ?? PickUpDropOffTypes.REGULAR;
-        const dropOff = stop.dropOffType ?? PickUpDropOffTypes.REGULAR;
-        const byteIndex = Math.floor(globalIndex / 2);
-        const isSecondPair = globalIndex % 2 === 1;
-
-        if (isSecondPair) {
-          // Second pair: pickup in upper 2 bits, dropOff in bits 4-5
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          pickupDropOffTypes[byteIndex]! |= (pickUp << 6) | (dropOff << 4);
-        } else {
-          // First pair: pickup in bits 2-3, dropOff in lower 2 bits
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          pickupDropOffTypes[byteIndex]! |= (pickUp << 2) | dropOff;
+        const other = trip.stops[stopIndex]!;
+        if (
+          (other.pickUpType ?? 0) !== pickup ||
+          (other.dropOffType ?? 0) !== dropoff
+        ) {
+          throw new Error(
+            'Trips in a route must share pickup/drop-off patterns; split mixed patterns into separate routes',
+          );
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      pickupDropOffTypes[stopIndex >> 1]! |=
+        ((pickup << 2) | dropoff) << ((stopIndex & 1) * 4);
     }
 
     return new Route(
@@ -278,7 +274,7 @@ export class Route {
    *
    * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
-   * @returns The arrival time at the specified stop and trip as a Time.
+   * @returns The arrival time at the specified stop as a Time.
    */
   arrivalAt(stopIndex: StopRouteIndex, tripIndex: TripRouteIndex): Time {
     const arrivalIndex = (tripIndex * this.stops.length + stopIndex) * 2;
@@ -295,7 +291,7 @@ export class Route {
    * Computes the per-trip base offset used by the hot-path scanning methods.
    *
    * Cache the result once when boarding a new trip and pass it to
-   * {@link arrivalAtOffset} and {@link dropOffTypeAtOffset} throughout the
+   * {@link arrivalAtOffset} throughout the
    * scanning loop to avoid recomputing `tripIndex × nbStops` on every stop.
    *
    * @param tripIndex - The index of the trip.
@@ -330,32 +326,11 @@ export class Route {
   }
 
   /**
-   * Hot-path variant of {@link dropOffTypeAt} that accepts a precomputed base offset.
-   *
-   * @param stopIndex - The index of the stop in the route.
-   * @param offset    - Precomputed value from {@link tripStopOffset}.
-   * @returns The drop-off type at the specified stop.
-   */
-  dropOffTypeAtOffset(
-    stopIndex: StopRouteIndex,
-    offset: number,
-  ): PickUpDropOffType {
-    const globalIndex = offset + stopIndex;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const byte = this.pickupDropOffTypes[globalIndex >> 1]!;
-    // Bit layout per byte (two pairs): [pickup_1(2)][dropOff_1(2)][pickup_0(2)][dropOff_0(2)]
-    // First pair  → drop-off in lower 2 bits; second pair → drop-off in bits 4-5.
-    return (
-      globalIndex & 1 ? (byte >> 4) & 0x03 : byte & 0x03
-    ) as PickUpDropOffType;
-  }
-
-  /**
    * Retrieves the departure time at a specific stop for a given trip.
    *
    * @param stopIndex - The index of the stop in the route.
    * @param tripIndex - The index of the trip.
-   * @returns The departure time at the specified stop and trip as a Time.
+   * @returns The departure time at the specified stop as a Time.
    */
   departureFrom(stopIndex: StopRouteIndex, tripIndex: TripRouteIndex): Time {
     const departureIndex = (tripIndex * this.stops.length + stopIndex) * 2 + 1;
@@ -369,24 +344,20 @@ export class Route {
   }
 
   /**
-   * Retrieves the pick-up type for a specific stop and trip.
+   * Retrieves the pick-up type for a stop in the shared route pattern.
    *
    * @param stopIndex - The index of the stop in the route.
-   * @param tripIndex - The index of the trip.
-   * @returns The pick-up type at the specified stop and trip.
+   * @returns The pick-up type at the specified stop.
    */
-  pickUpTypeFrom(
-    stopIndex: StopRouteIndex,
-    tripIndex: TripRouteIndex,
-  ): PickUpDropOffType {
-    const globalIndex = tripIndex * this.stops.length + stopIndex;
+  pickUpTypeFrom(stopIndex: StopRouteIndex): PickUpDropOffType {
+    const globalIndex = stopIndex;
     const byteIndex = globalIndex >> 1;
     const isSecondPair = (globalIndex & 1) === 1;
 
     const byte = this.pickupDropOffTypes[byteIndex];
     if (byte === undefined) {
       throw new Error(
-        `Pick up type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
+        `Pick up type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) in route ${this.serviceRouteId}`,
       );
     }
 
@@ -397,24 +368,20 @@ export class Route {
   }
 
   /**
-   * Retrieves the drop-off type for a specific stop and trip.
+   * Retrieves the drop-off type for a stop in the shared route pattern.
    *
    * @param stopIndex - The index of the stop in the route.
-   * @param tripIndex - The index of the trip.
-   * @returns The drop-off type at the specified stop and trip.
+   * @returns The drop-off type at the specified stop.
    */
-  dropOffTypeAt(
-    stopIndex: StopRouteIndex,
-    tripIndex: TripRouteIndex,
-  ): PickUpDropOffType {
-    const globalIndex = tripIndex * this.stops.length + stopIndex;
+  dropOffTypeAt(stopIndex: StopRouteIndex): PickUpDropOffType {
+    const globalIndex = stopIndex;
     const byteIndex = globalIndex >> 1;
     const isSecondPair = (globalIndex & 1) === 1;
 
     const byte = this.pickupDropOffTypes[byteIndex];
     if (byte === undefined) {
       throw new Error(
-        `Drop off type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) at trip index ${tripIndex} in route ${this.serviceRouteId}`,
+        `Drop off type not found for stop ${this.stopId(stopIndex)} (${stopIndex}) in route ${this.serviceRouteId}`,
       );
     }
 
@@ -482,7 +449,7 @@ export class Route {
     return stopIndex;
   }
 
-  /** Returns the first occurrence without allocating an array. */
+  /** Returns the first stop position without allocating an array. */
   public firstStopRouteIndex(stopId: StopId): StopRouteIndex | undefined {
     const indices = this.stopIndices.get(stopId);
     return typeof indices === 'number' ? indices : indices?.[0];

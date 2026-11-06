@@ -516,18 +516,8 @@ describe('GTFS stop times parser', () => {
           timeFromHMS(9, 15, 0),
         ]),
         encodePickUpDropOffTypes(
-          [
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-          ],
-          [
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-          ],
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
         ),
         new Uint32Array([0, 1]),
         0,
@@ -601,18 +591,8 @@ describe('GTFS stop times parser', () => {
           timeFromHMS(9, 15, 0),
         ]),
         encodePickUpDropOffTypes(
-          [
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-          ],
-          [
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-            PickUpDropOffTypes.REGULAR,
-          ],
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
+          [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
         ),
         new Uint32Array([0, 1]),
         0,

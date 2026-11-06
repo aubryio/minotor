@@ -6,27 +6,41 @@ import {
   StopRouteIndex,
   TripRouteIndex,
 } from '../timetable/route.js';
-import { Time } from '../timetable/time.js';
-import { Timetable, TransferTypes } from '../timetable/timetable.js';
-import { OccurrenceId, TripId, TripRule } from '../timetable/tripTransfers.js';
+import { Time, UINT16_TIME_LIMIT } from '../timetable/time.js';
+import {
+  BoardingSource,
+  ResolvedBoarding,
+  Timetable,
+  TransferTypes,
+} from '../timetable/timetable.js';
+import { transferDuration } from '../timetable/transfer.js';
+import {
+  TripId,
+  TripRule,
+  TripStopId,
+  TripTransferIndex,
+} from '../timetable/tripTransfers.js';
 import {
   Boarding,
-  BoardingContext,
+  boardingFeeder,
+  ConditionalBoarding,
   Frontier,
   RoundNumber,
 } from './frontier.js';
 import { QueryOptions } from './query.js';
 import { RoutingEdge, VehicleEdge } from './state.js';
 
+const NO_TRIP_RULES: readonly Readonly<TripRule>[] = [];
+
 export interface IRaptorState {
   /** Origin stop IDs for this run. */
   readonly origins: StopId[];
 
-  /** Per-round routing graph; `graph[round][stop]` is the best edge used to reach `stop`. */
+  /**
+   * Per-round routing graph; `graph[round][stop]` is the best edge used to
+   * reach `stop`.
+   */
   readonly graph: (RoutingEdge | undefined)[][];
-
-  /** Per-run earliest arrival at a stop. Used for boarding decisions. */
-  arrivalTime(stop: StopId): Time;
 
   /**
    * Tightest known upper bound on the arrival time at `stop` in `round`.
@@ -41,9 +55,6 @@ export interface IRaptorState {
   /** Latest arrival time allowed by the current query/run. */
   readonly maxArrivalTime: Time;
 
-  /** Returns `true` if `stop` is one of the query's destination stops. */
-  isDestination(stop: StopId): boolean;
-
   /**
    * Records a new arrival at `stop`, updating all relevant state.
    *
@@ -57,19 +68,29 @@ export interface IRaptorState {
    */
   initRound(round: RoundNumber): void;
 
-  /** Optional range-only bounds; never use an ordinary stop label for these. */
-  boardingBound?(
+  /** Optional cross-run ordinary readiness bounds. */
+  boardingBound?(round: RoundNumber, stop: StopId): Time;
+  updateBoardingBound?(round: RoundNumber, stop: StopId, time: Time): void;
+
+  /** Optional cross-run conditional arrival bounds. */
+  conditionalBoardingBound?(
     round: RoundNumber,
     stop: StopId,
-    context: BoardingContext,
+    context: TripStopId,
   ): Time;
-  updateBoardingBound?(
+  /**
+   * Optionally retain a tighter boarding-context bound across range-query
+   * departure runs.
+   */
+  updateConditionalBoardingBound?(
     round: RoundNumber,
     stop: StopId,
-    context: BoardingContext,
+    context: TripStopId,
     time: Time,
   ): void;
+  /** Optionally return the first covered trip arrival index across range-query runs. */
   tripBoardingBound?(round: RoundNumber, trip: TripId): StopRouteIndex;
+  /** Optionally retain trip suffix coverage across range-query runs and later rounds. */
   updateTripBoardingBound?(
     round: RoundNumber,
     trip: TripId,
@@ -77,16 +98,17 @@ export interface IRaptorState {
   ): void;
 }
 
-const NO_RULES: TripRule[] = [];
-
 type BoardedTrip = {
   route: Route;
-  trip: TripRouteIndex;
-  stop: StopRouteIndex;
+  tripIndex: TripRouteIndex;
+  boardingStopIndex: StopRouteIndex;
   predecessor: RoutingEdge;
   continuation?: VehicleEdge;
-  scanEnd?: StopRouteIndex;
-  scanEntry?: boolean;
+};
+
+type TripScan = BoardedTrip & {
+  startStopIndex: StopRouteIndex;
+  endStopIndexExclusive: StopRouteIndex;
 };
 
 /** Shared workspaces avoid reallocating stop-sized buffers between departure runs. */
@@ -95,75 +117,102 @@ export class Raptor {
     scannedTripStops: 0,
     retainedContexts: 0,
     exceptionalBoardings: 0,
+    exceptionalTripsConsidered: 0,
+    exceptionalBoardingAttempts: 0,
   };
-  private readonly ordinaryArrivals: Uint16Array;
-  private readonly boardingTimes: Uint16Array;
+  private readonly bestOrdinaryArrivalTimes: Uint16Array;
+  private readonly bestGenericReadyTimes: Uint16Array;
+  private readonly frontiers: [Frontier, Frontier];
 
+  /**
+   * Allocate reusable stop-sized buffers and alternating frontiers for this
+   * timetable.
+   */
   constructor(private readonly timetable: Timetable) {
-    this.ordinaryArrivals = new Uint16Array(timetable.nbStops());
-    this.boardingTimes = new Uint16Array(timetable.nbStops());
+    this.bestOrdinaryArrivalTimes = new Uint16Array(timetable.nbStops());
+    this.bestGenericReadyTimes = new Uint16Array(timetable.nbStops());
+    this.frontiers = [
+      new Frontier(timetable.nbStops()),
+      new Frontier(timetable.nbStops()),
+    ];
   }
 
+  /**
+   * Reset workspaces, execute one departure run, and release frontier
+   * predecessors even if scanning fails.
+   */
   run(options: QueryOptions, state: IRaptorState): void {
     this.statistics.scannedTripStops = 0;
     this.statistics.retainedContexts = 0;
     this.statistics.exceptionalBoardings = 0;
-    new RaptorRun(
-      this.timetable,
-      options,
-      state,
-      this.ordinaryArrivals.fill(0xffff),
-      this.boardingTimes.fill(0xffff),
-      this.statistics,
-    ).run();
+    this.statistics.exceptionalTripsConsidered = 0;
+    this.statistics.exceptionalBoardingAttempts = 0;
+    try {
+      new RaptorRun(
+        this.timetable,
+        options,
+        state,
+        this.bestOrdinaryArrivalTimes.fill(UINT16_TIME_LIMIT),
+        this.bestGenericReadyTimes.fill(UINT16_TIME_LIMIT),
+        this.statistics,
+        this.frontiers[0],
+        this.frontiers[1],
+      ).run();
+    } finally {
+      // Release predecessor chains even after a round limit or a failed run.
+      for (const frontier of this.frontiers) frontier.clear();
+    }
   }
 }
 
-/** One departure run: scan vehicles, preserve special connections, then relax walks. */
+/**
+ * One departure run: scan vehicles, preserve special connections, then relax
+ * transfers from vehicle arrivals.
+ */
 class RaptorRun {
-  private readonly index: Timetable['tripTransfers'];
-  private frontier: Frontier;
-  private nextFrontier: Frontier;
-  private readonly conditionalTimes = new Map<
+  private readonly transferIndex: TripTransferIndex;
+  private readonly bestConditionalArrivalTimes = new Map<
     StopId,
-    Map<BoardingContext, Time>
+    Map<TripStopId, Time>
   >();
-  private readonly covered = new Map<TripId, StopRouteIndex>();
-  private readonly continuationEntries = new Map<OccurrenceId, Time>();
-  private readonly queue: BoardedTrip[] = [];
-  private readonly walks = new Map<StopId, VehicleEdge>();
-  private readonly conditionalWalks: {
+  private readonly firstCoveredArrivalIndex = new Map<TripId, StopRouteIndex>();
+  private readonly bestContinuationEntryArrival = new Map<TripStopId, Time>();
+  private readonly pendingTripScans: TripScan[] = [];
+  private readonly bestOrdinaryVehicleArrivals = new Map<StopId, VehicleEdge>();
+  private readonly pendingConditionalTransfers: {
     edge: VehicleEdge;
-    occurrence: OccurrenceId;
-    rules: TripRule[];
+    tripStopId: TripStopId;
+    rules: readonly Readonly<TripRule>[];
   }[] = [];
   private round: RoundNumber = 0;
 
+  /**
+   * Bind one departure run to reusable workspaces and seed ordinary labels
+   * from access arrivals.
+   */
   constructor(
     private readonly timetable: Timetable,
     private readonly options: QueryOptions,
     private readonly state: IRaptorState,
-    private readonly ordinaryArrivals: Uint16Array,
-    private readonly boardingTimes: Uint16Array,
+    private readonly bestOrdinaryArrivalTimes: Uint16Array,
+    private readonly bestGenericReadyTimes: Uint16Array,
     private readonly statistics: Raptor['statistics'],
+    private frontier: Frontier,
+    private nextFrontier: Frontier,
   ) {
-    this.index = timetable.tripTransfers;
-    this.frontier = new Frontier(timetable.nbStops());
-    this.nextFrontier = new Frontier(timetable.nbStops());
+    this.transferIndex = timetable.tripTransfers;
     for (const stop of state.origins) {
       const edge = state.graph[0]![stop];
       if (edge) {
-        this.frontier.set(stop, 0, { ready: edge.arrival, edge });
+        this.frontier.set(stop, { readyAt: edge.arrival, edge });
       }
     }
   }
 
-  private allowed(route: Route): boolean {
-    return this.options.transportModes.has(
-      this.timetable.getServiceRouteType(route),
-    );
-  }
-
+  /**
+   * Scan ordinary and exceptional trips by round, then relax vehicle transfers
+   * into the next frontier.
+   */
   run(): void {
     for (
       this.round = 1;
@@ -176,7 +225,7 @@ class RaptorRun {
         this.frontier.stops,
         this.options.transportModes,
       );
-      // Ordinary routes establish destination bounds before exceptional scans.
+      // Trips without outgoing rules establish destination bounds before exceptional scans.
       for (const [route, firstStop] of routes) {
         this.scanOrdinaryRoute(route, firstStop);
       }
@@ -184,74 +233,109 @@ class RaptorRun {
         this.findExceptionalBoardings(route, firstStop);
       }
       // Continuations appended during a scan remain in this transit round.
-      for (let position = 0; position < this.queue.length; position++) {
-        this.scanExceptionalTrip(this.queue[position]!);
+      for (
+        let position = 0;
+        position < this.pendingTripScans.length;
+        position++
+      ) {
+        const boarding = this.pendingTripScans[position]!;
+        // Continuations can alight or continue again at their entry trip stop;
+        // ordinary boardings start with the following arrival.
+        for (
+          let stopIndex = boarding.startStopIndex;
+          stopIndex < boarding.endStopIndexExclusive;
+          stopIndex++
+        ) {
+          this.processTripArrival(boarding, stopIndex);
+        }
       }
-      // Only vehicle arrivals start walks; walked labels feed the next transit round.
-      for (const edge of this.walks.values()) {
+      // Only vehicle arrivals start transfers; walked labels feed the next transit round.
+      for (const edge of this.bestOrdinaryVehicleArrivals.values()) {
         this.relaxOrdinaryTransfers(edge);
       }
-      for (const { edge, occurrence, rules } of this.conditionalWalks) {
-        this.relaxConditionalTransfers(edge, occurrence, rules);
+      for (const { edge, tripStopId, rules } of this
+        .pendingConditionalTransfers) {
+        this.relaxConditionalTransfers(edge, tripStopId, rules);
       }
       this.frontier.clear();
       [this.frontier, this.nextFrontier] = [this.nextFrontier, this.frontier];
-      this.queue.length = 0;
-      this.walks.clear();
-      this.conditionalWalks.length = 0;
+      this.pendingTripScans.length = 0;
+      this.bestOrdinaryVehicleArrivals.clear();
+      this.pendingConditionalTransfers.length = 0;
     }
   }
 
+  /**
+   * Scan trips without outgoing rules, replacing the active trip when an
+   * earlier eligible boarding is found.
+   */
   private scanOrdinaryRoute(route: Route, firstStop: StopRouteIndex): void {
     let active: BoardedTrip | undefined;
-    for (let stop = firstStop; stop < route.getNbStops(); stop++) {
+    for (
+      let stopIndex = firstStop;
+      stopIndex < route.getNbStops();
+      stopIndex++
+    ) {
       if (active) {
-        this.arrive(active, stop);
+        this.processTripArrival(active, stopIndex);
       }
-      const ordinary = this.frontier.ordinary[route.stopId(stop)];
-      const labels = this.frontier.conditional.get(route.stopId(stop));
+      const ordinary = this.frontier.ordinary[route.stopId(stopIndex)];
+      const conditionals = this.frontier.conditional.get(
+        route.stopId(stopIndex),
+      );
       if (ordinary) {
         active =
-          this.firstOrdinaryBoarding(ordinary, route, stop, active) ?? active;
+          this.firstOrdinaryBoarding(ordinary, route, stopIndex, active) ??
+          active;
       }
-      if (labels) {
-        for (const label of labels.values()) {
+      if (conditionals) {
+        for (const label of conditionals.values()) {
           active =
-            this.firstOrdinaryBoarding(label, route, stop, active) ?? active;
+            this.firstOrdinaryBoarding(
+              label,
+              route,
+              stopIndex,
+              active,
+              boardingFeeder(label),
+            ) ?? active;
         }
       }
     }
   }
 
+  /**
+   * Find an eligible ordinary trip before the active trip, respecting
+   * readiness and query departure bounds.
+   */
   private firstOrdinaryBoarding(
     label: Boarding,
     route: Route,
-    stop: StopRouteIndex,
+    stopIndex: StopRouteIndex,
     active?: BoardedTrip,
+    feeder?: VehicleEdge,
   ): BoardedTrip | undefined {
-    // A pair-specific minimum can permit boarding before the generic ready time.
-    const earliest = route.findEarliestTrip(
-      stop,
-      label.source?.arrival ?? label.ready,
-      active?.trip,
+    const resolved = this.timetable.findFirstOrdinaryBoarding(
+      route,
+      stopIndex,
+      {
+        genericReady: label.readyAt,
+        fallbackTransferDuration: this.options.minTransferTime,
+        source: feeder ? this.boardingSource(feeder) : undefined,
+        beforeTrip: active?.tripIndex,
+        maxDeparture: this.maxBoardingDeparture(label),
+        beforeDeparture: this.state.destinationBest,
+      },
     );
-    if (earliest === undefined) {
-      return undefined;
-    }
-    for (
-      let trip = earliest;
-      trip < (active?.trip ?? route.getNbTrips());
-      trip++
-    ) {
-      if (this.index.isExceptional(route.id, trip)) {
-        continue;
-      }
-      const boarding = this.board(label, route, stop, trip);
-      if (boarding) {
-        return boarding;
-      }
-    }
-    return undefined;
+    return resolved
+      ? this.createBoarding(
+          label,
+          route,
+          stopIndex,
+          resolved.trip,
+          resolved,
+          feeder,
+        )
+      : undefined;
   }
 
   /** Each exceptional trip needs only its earliest useful boarding position. */
@@ -259,112 +343,205 @@ class RaptorRun {
     route: Route,
     firstStop: StopRouteIndex,
   ): void {
-    for (const trip of this.index.exceptionalTrips[route.id]!) {
+    const exceptionalTrips = this.transferIndex.exceptionalTrips[route.id]!;
+    if (!exceptionalTrips.length) return;
+    // Every trip stop matters: a trip already departed upstream may still be boardable downstream.
+    let earliestTrip = 0;
+    // A single candidate is cheaper to check directly than to search for a lower bound.
+    if (exceptionalTrips.length > 1) {
+      earliestTrip = route.getNbTrips();
+      for (
+        let stopIndex = firstStop;
+        stopIndex + 1 < route.getNbStops();
+        stopIndex++
+      ) {
+        const stopId = route.stopId(stopIndex);
+        if (
+          !this.frontier.stops.has(stopId) ||
+          route.pickUpTypeFrom(stopIndex) === PickUpDropOffTypes.NOT_AVAILABLE
+        )
+          continue;
+        let earliestTime = this.frontier.ordinary[stopId]?.readyAt ?? Infinity;
+        const conditionalLabels = this.frontier.conditional.get(stopId);
+        if (conditionalLabels)
+          for (const label of conditionalLabels.values()) {
+            earliestTime = Math.min(
+              earliestTime,
+              boardingFeeder(label).arrival,
+            );
+          }
+        if (earliestTime !== Infinity)
+          earliestTrip = Math.min(
+            earliestTrip,
+            route.findEarliestTrip(stopIndex, earliestTime) ??
+              route.getNbTrips(),
+          );
+      }
+    }
+    let lo = 0,
+      hi = exceptionalTrips.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (exceptionalTrips[mid]! < earliestTrip) lo = mid + 1;
+      else hi = mid;
+    }
+    for (let candidate = lo; candidate < exceptionalTrips.length; candidate++) {
+      const tripIndex = exceptionalTrips[candidate]!;
+      this.statistics.exceptionalTripsConsidered++;
       if (
-        route.departureFrom(firstStop, trip) >= this.state.destinationBest ||
-        route.departureFrom(firstStop, trip) > this.state.maxArrivalTime
+        route.departureFrom(firstStop, tripIndex) >=
+          this.state.destinationBest ||
+        route.departureFrom(firstStop, tripIndex) > this.state.maxArrivalTime
       ) {
         break;
       }
-      const tripId = this.index.tripId(route.id, trip);
+      const tripId = this.transferIndex.tripId(route.id, tripIndex);
       const firstCoveredArrival = Math.min(
-        this.covered.get(tripId) ?? route.getNbStops(),
+        this.firstCoveredArrivalIndex.get(tripId) ?? route.getNbStops(),
         this.state.tripBoardingBound?.(this.round, tripId) ?? Infinity,
       );
-      for (let stop = firstStop; stop + 1 < firstCoveredArrival; stop++) {
-        const stopId = route.stopId(stop);
+      for (
+        let stopIndex = firstStop;
+        stopIndex + 1 < firstCoveredArrival;
+        stopIndex++
+      ) {
+        const stopId = route.stopId(stopIndex);
         const ordinary = this.frontier.ordinary[stopId];
         let boarding = ordinary
-          ? this.board(ordinary, route, stop, trip)
+          ? this.tryExceptionalBoarding(ordinary, route, stopIndex, tripIndex)
           : undefined;
         if (!boarding) {
-          const labels = this.frontier.conditional.get(stopId);
-          if (labels) {
-            for (const label of labels.values()) {
-              boarding = this.board(label, route, stop, trip);
-              if (boarding) {
-                break;
-              }
-            }
+          for (const label of this.frontier.conditional.get(stopId)?.values() ??
+            []) {
+            boarding = this.tryExceptionalBoarding(
+              label,
+              route,
+              stopIndex,
+              tripIndex,
+              boardingFeeder(label),
+            );
+            if (boarding) break;
           }
         }
         if (boarding) {
-          this.enqueue(boarding);
+          this.enqueueUncoveredTripScan(boarding);
           break;
         }
       }
     }
   }
 
-  private scanExceptionalTrip(boarding: BoardedTrip): void {
-    // The entry occurrence matters for an in-seat continuation, including
-    // another continuation at the same occurrence. Ordinary boarding cannot alight there.
-    for (
-      let stop = boarding.stop + (boarding.scanEntry ? 0 : 1);
-      stop < (boarding.scanEnd ?? boarding.route.getNbStops());
-      stop++
-    ) {
-      this.arrive(boarding, stop);
-    }
+  private boardingSource(feeder: VehicleEdge): BoardingSource {
+    return {
+      tripStopId: this.transferIndex.tripStopId({
+        routeId: feeder.routeId,
+        tripIndex: feeder.tripIndex,
+        stopIndex: feeder.hopOffStopIndex,
+      }),
+      arrival: feeder.arrival,
+    };
   }
 
-  private recordArrival(stop: StopId, edge: RoutingEdge) {
+  private tryExceptionalBoarding(
+    label: Boarding,
+    route: Route,
+    stopIndex: StopRouteIndex,
+    tripIndex: TripRouteIndex,
+    feeder?: VehicleEdge,
+  ): BoardedTrip | undefined {
+    this.statistics.exceptionalBoardingAttempts++;
+    const departure = route.departureFrom(stopIndex, tripIndex);
     if (
-      edge.arrival <= this.state.maxArrivalTime &&
-      edge.arrival < this.state.improvementBound(this.round, stop)
-    ) {
-      this.state.graph[this.round]![stop] = edge;
-      this.state.updateArrival(stop, edge.arrival, this.round);
-    }
+      departure > this.maxBoardingDeparture(label) ||
+      departure >= this.state.destinationBest
+    )
+      return undefined;
+    const resolved = this.timetable.resolveBoarding(
+      route,
+      stopIndex,
+      tripIndex,
+      departure,
+      label.readyAt,
+      this.options.minTransferTime,
+      feeder ? this.boardingSource(feeder) : undefined,
+    );
+    return resolved
+      ? this.createBoarding(
+          label,
+          route,
+          stopIndex,
+          tripIndex,
+          resolved,
+          feeder,
+        )
+      : undefined;
   }
 
-  /** Compare only labels with identical boarding rights. */
-  private improveBoarding(
-    stop: StopId,
-    context: BoardingContext,
-    time: Time,
-  ): boolean {
-    if (
-      time > this.state.maxArrivalTime ||
-      time >= this.state.destinationBest
-    ) {
-      return false;
-    }
-    const shared =
-      this.state.boardingBound?.(this.round, stop, context) ?? Infinity;
-    if (context === 0) {
-      if (time >= Math.min(this.boardingTimes[stop]!, shared)) {
-        return false;
-      }
-      this.boardingTimes[stop] = time;
-    } else {
-      let bounds = this.conditionalTimes.get(stop);
-      if (!bounds) {
-        bounds = new Map<BoardingContext, Time>();
-        this.conditionalTimes.set(stop, bounds);
-      }
-      if (time >= Math.min(bounds.get(context) ?? Infinity, shared)) {
-        return false;
-      }
-      bounds.set(context, time);
-    }
-    this.state.updateBoardingBound?.(this.round, stop, context, time);
+  /** Publish an arrival already checked against the duration and improvement bounds. */
+  private recordArrival(stop: StopId, edge: RoutingEdge): void {
+    this.state.graph[this.round]![stop] = edge;
+    this.state.updateArrival(stop, edge.arrival, this.round);
+  }
+
+  /** Read the tightest ordinary readiness bound. */
+  private boardingBound(stop: StopId): Time {
+    return Math.min(
+      this.bestGenericReadyTimes[stop]!,
+      this.state.boardingBound?.(this.round, stop) ?? Infinity,
+    );
+  }
+
+  /** Read the tightest bound for matching conditional boarding rights. */
+  private conditionalBoardingBound(stop: StopId, context: TripStopId): Time {
+    return Math.min(
+      this.bestConditionalArrivalTimes.get(stop)?.get(context) ?? Infinity,
+      this.state.conditionalBoardingBound?.(this.round, stop, context) ??
+        Infinity,
+    );
+  }
+
+  /** Retain ordinary boarding after checking time limits and dominance. */
+  private retainBoarding(stop: StopId, time: Time, boarding: Boarding): void {
+    this.bestGenericReadyTimes[stop] = time;
+    this.state.updateBoardingBound?.(this.round, stop, time);
+    this.nextFrontier.set(stop, boarding);
     this.statistics.retainedContexts++;
-    return true;
   }
 
-  private relaxOrdinaryTransfers(edge: VehicleEdge) {
+  /** Retain conditional boarding after checking time limits and dominance. */
+  private retainConditionalBoarding(
+    stop: StopId,
+    context: TripStopId,
+    time: Time,
+    boarding: ConditionalBoarding,
+  ): void {
+    let bounds = this.bestConditionalArrivalTimes.get(stop);
+    if (!bounds) {
+      bounds = new Map<TripStopId, Time>();
+      this.bestConditionalArrivalTimes.set(stop, bounds);
+    }
+    bounds.set(context, time);
+    this.state.updateConditionalBoardingBound?.(
+      this.round,
+      stop,
+      context,
+      time,
+    );
+    this.nextFrontier.setConditional(stop, context, boarding);
+    this.statistics.retainedContexts++;
+  }
+
+  /**
+   * Relax same-stop readiness and one walking transfer from an ordinary
+   * vehicle arrival.
+   */
+  private relaxOrdinaryTransfers(edge: VehicleEdge): void {
     const stop = this.timetable
       .getRoute(edge.routeId)!
       .stopId(edge.hopOffStopIndex);
     let sameStopReady = edge.arrival + this.options.minTransferTime;
     for (const transfer of this.timetable.getTransfers(stop)) {
-      const duration =
-        transfer.minTransferTime ??
-        (transfer.type === TransferTypes.GUARANTEED ||
-        transfer.type === TransferTypes.IN_SEAT
-          ? 0
-          : this.options.minTransferTime);
+      const duration = transferDuration(transfer, this.options.minTransferTime);
       const ready = edge.arrival + duration;
       if (transfer.destination === stop) {
         // Explicit same-platform transfer times replace the query fallback.
@@ -379,7 +556,8 @@ class RaptorRun {
       }
       const publish =
         ready < this.state.improvementBound(this.round, transfer.destination);
-      const retain = this.improveBoarding(transfer.destination, 0, ready);
+      // Decide both outcomes before publication can tighten destinationBest.
+      const retain = ready < this.boardingBound(transfer.destination);
       if (!publish && !retain) {
         continue;
       }
@@ -395,63 +573,94 @@ class RaptorRun {
         this.recordArrival(transfer.destination, walk);
       }
       if (retain) {
-        this.nextFrontier.set(transfer.destination, 0, { ready, edge: walk });
+        this.retainBoarding(transfer.destination, ready, {
+          readyAt: ready,
+          edge: walk,
+        });
       }
     }
-    if (this.improveBoarding(stop, 0, sameStopReady)) {
-      this.nextFrontier.set(stop, 0, { ready: sameStopReady, edge });
+    if (
+      sameStopReady <= this.state.maxArrivalTime &&
+      sameStopReady < this.state.destinationBest &&
+      sameStopReady < this.boardingBound(stop)
+    ) {
+      this.retainBoarding(stop, sameStopReady, {
+        readyAt: sameStopReady,
+        edge,
+      });
     }
   }
 
-  private enqueue(boarding: BoardedTrip) {
-    if (!this.allowed(boarding.route)) {
+  /**
+   * Queue only uncovered trip arrivals, tracking continuation-entry
+   * improvements separately from suffix coverage.
+   */
+  private enqueueUncoveredTripScan(boarding: BoardedTrip): void {
+    if (
+      !this.options.transportModes.has(
+        this.timetable.getServiceRouteType(boarding.route),
+      )
+    ) {
       return;
     }
-    const id = this.index.tripId(boarding.route.id, boarding.trip);
+    const id = this.transferIndex.tripId(boarding.route.id, boarding.tripIndex);
     const previous = Math.min(
-      this.covered.get(id) ?? boarding.route.getNbStops(),
+      this.firstCoveredArrivalIndex.get(id) ?? boarding.route.getNbStops(),
       this.state.tripBoardingBound?.(this.round, id) ?? Infinity,
     );
     let scanEntry = false;
     if (boarding.continuation) {
-      const occurrence = this.index.occurrence({
+      const tripStopId = this.transferIndex.tripStopId({
         routeId: boarding.route.id,
-        tripIndex: boarding.trip,
-        stopIndex: boarding.stop,
+        tripIndex: boarding.tripIndex,
+        stopIndex: boarding.boardingStopIndex,
       });
       const arrival = Math.max(
         boarding.continuation.arrival,
-        boarding.route.arrivalAt(boarding.stop, boarding.trip),
+        boarding.route.arrivalAt(
+          boarding.boardingStopIndex,
+          boarding.tripIndex,
+        ),
       );
       scanEntry =
-        arrival < (this.continuationEntries.get(occurrence) ?? Infinity);
+        arrival <
+        (this.bestContinuationEntryArrival.get(tripStopId) ?? Infinity);
       if (scanEntry) {
-        this.continuationEntries.set(occurrence, arrival);
+        this.bestContinuationEntryArrival.set(tripStopId, arrival);
       }
     }
     // Suffix coverage is independent of the feeder's entry arrival time.
-    const firstArrival = boarding.stop + 1;
+    const firstArrival = boarding.boardingStopIndex + 1;
     if (firstArrival >= previous && !scanEntry) {
       return;
     }
     if (firstArrival < previous) {
-      this.covered.set(id, firstArrival);
+      this.firstCoveredArrivalIndex.set(id, firstArrival);
       this.state.updateTripBoardingBound?.(this.round, id, firstArrival);
     }
-    this.queue.push({
+    this.pendingTripScans.push({
       ...boarding,
-      scanEntry,
-      scanEnd: firstArrival < previous ? previous : firstArrival,
+      startStopIndex: boarding.boardingStopIndex + (scanEntry ? 0 : 1),
+      endStopIndexExclusive: firstArrival < previous ? previous : firstArrival,
     });
     this.statistics.exceptionalBoardings++;
   }
 
-  private arrive(boarded: BoardedTrip, stopIndex: StopRouteIndex) {
-    const { route, trip } = boarded;
+  /**
+   * Process continuations before alighting restrictions, then retain
+   * ordinary or conditional vehicle arrivals.
+   */
+  private processTripArrival(
+    boarded: BoardedTrip,
+    stopIndex: StopRouteIndex,
+  ): void {
+    const { route, tripIndex } = boarded;
     this.statistics.scannedTripStops++;
     const arrival = Math.max(
-      route.arrivalAt(stopIndex, trip),
-      stopIndex === boarded.stop ? (boarded.continuation?.arrival ?? 0) : 0,
+      route.arrivalAt(stopIndex, tripIndex),
+      stopIndex === boarded.boardingStopIndex
+        ? (boarded.continuation?.arrival ?? 0)
+        : 0,
     );
     if (
       arrival > this.state.maxArrivalTime ||
@@ -459,47 +668,53 @@ class RaptorRun {
     ) {
       return;
     }
-    // Ordinary trips have no occurrence-specific rules to look up.
-    const occurrence = this.index.isExceptional(route.id, trip)
-      ? this.index.occurrence({ routeId: route.id, tripIndex: trip, stopIndex })
+    // Ordinary trips have no trip stop-specific rules to look up.
+    const tripStopId = this.transferIndex.isExceptional(route.id, tripIndex)
+      ? this.transferIndex.tripStopId({
+          routeId: route.id,
+          tripIndex,
+          stopIndex,
+        })
       : undefined;
     const rules =
-      occurrence === undefined
-        ? NO_RULES
-        : [...this.index.outgoing(occurrence)];
+      tripStopId === undefined
+        ? NO_TRIP_RULES
+        : this.transferIndex.rulesFrom(tripStopId);
     const stop = route.stopId(stopIndex);
     const canAlight =
-      route.dropOffTypeAt(stopIndex, trip) !== PickUpDropOffTypes.NOT_AVAILABLE;
+      route.dropOffTypeAt(stopIndex) !== PickUpDropOffTypes.NOT_AVAILABLE;
     if (rules.length === 0) {
-      if (!canAlight || arrival >= this.ordinaryArrivals[stop]!) {
+      if (!canAlight || arrival >= this.bestOrdinaryArrivalTimes[stop]!) {
         return;
       }
     }
     const edge: VehicleEdge = {
       routeId: route.id,
-      tripIndex: trip,
-      stopIndex: boarded.stop,
+      tripIndex,
+      stopIndex: boarded.boardingStopIndex,
       hopOffStopIndex: stopIndex,
       arrival,
       predecessor: boarded.predecessor,
       ...(boarded.continuation && { continuationOf: boarded.continuation }),
     };
+    let conditional = false;
     // In-seat transfers are reachable even where public alighting is forbidden.
     for (const rule of rules) {
       if (rule.type !== TransferTypes.IN_SEAT) {
+        conditional = true;
         continue;
       }
-      const target = this.index.position(rule.target);
+      const target = this.transferIndex.position(rule.target);
       const targetRoute = this.timetable.getRoute(target.routeId)!;
       if (
         targetRoute.departureFrom(target.stopIndex, target.tripIndex) < arrival
       ) {
         continue;
       }
-      this.enqueue({
+      this.enqueueUncoveredTripScan({
         route: targetRoute,
-        trip: target.tripIndex,
-        stop: target.stopIndex,
+        tripIndex: target.tripIndex,
+        boardingStopIndex: target.stopIndex,
         predecessor: edge,
         continuation: edge,
       });
@@ -507,45 +722,46 @@ class RaptorRun {
     if (!canAlight) {
       return;
     }
-    const conditional = rules.some(
-      (rule) => rule.type !== TransferTypes.IN_SEAT,
-    );
     if (!conditional) {
-      if (arrival >= this.ordinaryArrivals[stop]!) {
+      if (arrival >= this.bestOrdinaryArrivalTimes[stop]!) {
         return;
       }
-      this.ordinaryArrivals[stop] = arrival;
+      this.bestOrdinaryArrivalTimes[stop] = arrival;
     }
-    this.recordArrival(stop, edge);
+    if (
+      arrival <= this.state.maxArrivalTime &&
+      arrival < this.state.improvementBound(this.round, stop)
+    ) {
+      this.recordArrival(stop, edge);
+    }
     if (conditional) {
-      this.conditionalWalks.push({ edge, occurrence: occurrence!, rules });
+      this.pendingConditionalTransfers.push({
+        edge,
+        tripStopId: tripStopId!,
+        rules,
+      });
     } else {
-      this.walks.set(stop, edge);
+      this.bestOrdinaryVehicleArrivals.set(stop, edge);
     }
   }
 
   /** Coalesce footpaths within one feeder; different feeders retain distinct rights. */
   private relaxConditionalTransfers(
     edge: VehicleEdge,
-    occurrence: OccurrenceId,
-    rules: TripRule[],
-  ) {
+    tripStopId: TripStopId,
+    rules: readonly Readonly<TripRule>[],
+  ): void {
     const stop = this.timetable
       .getRoute(edge.routeId)!
       .stopId(edge.hopOffStopIndex);
     const arrival = edge.arrival;
-    const destinations = new Map<StopId, { ready: Time; edge: RoutingEdge }>();
+    const destinations = new Map<StopId, ConditionalBoarding>();
     destinations.set(stop, {
-      ready: arrival + this.options.minTransferTime,
+      readyAt: arrival + this.options.minTransferTime,
       edge,
     });
     for (const transfer of this.timetable.getTransfers(stop)) {
-      const duration =
-        transfer.minTransferTime ??
-        (transfer.type === TransferTypes.GUARANTEED ||
-        transfer.type === TransferTypes.IN_SEAT
-          ? 0
-          : this.options.minTransferTime);
+      const duration = transferDuration(transfer, this.options.minTransferTime);
       const ready = arrival + duration;
       const walk = {
         arrival: ready,
@@ -555,15 +771,19 @@ class RaptorRun {
         minTransferTime: duration,
         predecessor: edge,
       };
-      if (transfer.destination !== stop) {
+      if (
+        transfer.destination !== stop &&
+        ready <= this.state.maxArrivalTime &&
+        ready < this.state.improvementBound(this.round, transfer.destination)
+      ) {
         this.recordArrival(transfer.destination, walk);
       }
       if (
         transfer.destination === stop ||
-        ready < (destinations.get(transfer.destination)?.ready ?? Infinity)
+        ready < (destinations.get(transfer.destination)?.readyAt ?? Infinity)
       ) {
         destinations.set(transfer.destination, {
-          ready,
+          readyAt: ready,
           edge: transfer.destination === stop ? edge : walk,
         });
       }
@@ -573,80 +793,79 @@ class RaptorRun {
       if (rule.type === TransferTypes.IN_SEAT) {
         continue;
       }
-      const target = this.index.position(rule.target);
+      const target = this.transferIndex.position(rule.target);
       const destination = this.timetable
         .getRoute(target.routeId)!
         .stopId(target.stopIndex);
       sensitive.add(destination);
       // A specific rule can establish a connection without a generic footpath.
       if (!destinations.has(destination)) {
-        destinations.set(destination, { ready: Infinity, edge });
+        destinations.set(destination, { readyAt: Infinity, edge });
       }
     }
     for (const [destination, boarding] of destinations) {
       const conditional = sensitive.has(destination);
-      const context = conditional ? occurrence + 1 : 0;
-      const time = conditional ? edge.arrival : boarding.ready;
-      if (this.improveBoarding(destination, context, time)) {
-        this.nextFrontier.set(destination, context, {
-          ...boarding,
-          ...(conditional && { source: edge, occurrence }),
-        });
+      const bound = conditional
+        ? this.conditionalBoardingBound(destination, tripStopId)
+        : this.boardingBound(destination);
+      const time = conditional ? edge.arrival : boarding.readyAt;
+      if (
+        time <= this.state.maxArrivalTime &&
+        time < this.state.destinationBest &&
+        time < bound
+      ) {
+        if (conditional) {
+          this.retainConditionalBoarding(
+            destination,
+            tripStopId,
+            time,
+            boarding,
+          );
+        } else {
+          this.retainBoarding(destination, time, boarding);
+        }
       }
     }
   }
 
-  private board(
+  /** Inclusive ceiling shared by ordinary lookup and exceptional boardings. */
+  private maxBoardingDeparture(label: Boarding): Time {
+    return this.round === 1 && this.options.maxInitialWaitingTime !== undefined
+      ? Math.min(
+          this.state.maxArrivalTime,
+          label.edge.arrival + this.options.maxInitialWaitingTime,
+        )
+      : this.state.maxArrivalTime;
+  }
+
+  /** Attach routing predecessors to a timetable eligibility result. */
+  private createBoarding(
     label: Boarding,
     route: Route,
-    stop: StopRouteIndex,
+    stopIndex: StopRouteIndex,
     trip: TripRouteIndex,
-  ): BoardedTrip | undefined {
-    if (route.pickUpTypeFrom(stop, trip) === PickUpDropOffTypes.NOT_AVAILABLE) {
-      return undefined;
-    }
-    const departure = route.departureFrom(stop, trip);
-    const rule =
-      label.occurrence === undefined
-        ? undefined
-        : this.index.transfer(
-            label.occurrence,
-            this.index.occurrence({
-              routeId: route.id,
-              tripIndex: trip,
-              stopIndex: stop,
-            }),
-          );
-    const ready = rule
-      ? label.source!.arrival +
-        (rule.type === TransferTypes.GUARANTEED
-          ? 0
-          : (rule.minTransferTime ?? this.options.minTransferTime))
-      : label.ready;
-    if (
-      departure < ready ||
-      departure > this.state.maxArrivalTime ||
-      departure >= this.state.destinationBest ||
-      (this.round === 1 &&
-        this.options.maxInitialWaitingTime !== undefined &&
-        departure - label.edge.arrival > this.options.maxInitialWaitingTime)
-    ) {
-      return undefined;
-    }
+    resolved: ResolvedBoarding,
+    feeder?: VehicleEdge,
+  ): BoardedTrip {
     let predecessor = label.edge;
-    if (rule) {
-      const source = label.source!;
+    if (resolved.rule && feeder) {
+      const source = feeder;
       predecessor = {
-        arrival: ready,
+        arrival: resolved.ready,
         from: this.timetable
           .getRoute(source.routeId)!
           .stopId(source.hopOffStopIndex),
-        to: route.stopId(stop),
-        type: rule.type,
-        minTransferTime: rule.minTransferTime,
+        to: route.stopId(stopIndex),
+        type: resolved.rule.type,
+        minTransferTime: resolved.rule.minTransferTime,
         predecessor: source,
       };
     }
-    return { route, trip, stop, predecessor };
+    return {
+      route,
+      tripIndex: trip,
+      boardingStopIndex: stopIndex,
+      predecessor,
+    };
   }
 }

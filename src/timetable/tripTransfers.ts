@@ -4,53 +4,56 @@ import { Duration } from './time.js';
 import {
   TransferType,
   TransferTypes,
-  TripStop,
+  TripPosition,
   TripTransfers,
 } from './transfer.js';
-import { decode } from './tripStopId.js';
+import { decode } from './tripStopKey.js';
 
 /** Dense identities across the whole timetable, not route-local positions. */
 export type TripId = number;
-export type OccurrenceId = number;
+/** A timetable-wide identity for one stop position on one trip. */
+export type TripStopId = number;
 
 export type TripRule = {
-  source: OccurrenceId;
-  target: OccurrenceId;
+  source: TripStopId;
+  target: TripStopId;
   type: TransferType;
   minTransferTime?: Duration;
 };
 
-/** Dense trip/occurrence identities and sparse, sorted transfer adjacency. */
+const NO_RULES: readonly TripRule[] = [];
+
+/** Dense trip/trip stop identities and transfers grouped by source. */
 export class TripTransferIndex {
   readonly tripBases: Uint32Array;
-  readonly occurrenceBases: Uint32Array;
+  readonly tripStopBases: Uint32Array;
   readonly exceptionalTrips: TripRouteIndex[][] = [];
   private exceptional!: Uint8Array;
-  private sources!: Uint32Array;
-  private offsets!: Uint32Array;
-  private targets!: Uint32Array;
-  private kinds!: Uint8Array;
-  private minimums!: Int32Array;
+  private readonly rulesBySource = new Map<TripStopId, TripRule[]>();
 
+  /**
+   * Assign dense trip and trip stop bases in route order, rejecting IDs
+   * outside uint32 capacity.
+   */
   private constructor(private readonly routes: Route[]) {
     this.tripBases = new Uint32Array(routes.length + 1);
-    this.occurrenceBases = new Uint32Array(routes.length + 1);
+    this.tripStopBases = new Uint32Array(routes.length + 1);
     let trips = 0,
-      occurrences = 0;
+      tripStopCount = 0;
     for (const [routeId, route] of routes.entries()) {
       if (route.id !== routeId) {
         throw new Error('Route IDs must match their array positions');
       }
       this.tripBases[route.id] = trips;
-      this.occurrenceBases[route.id] = occurrences;
+      this.tripStopBases[route.id] = tripStopCount;
       trips += route.getNbTrips();
-      occurrences += route.getNbTrips() * route.getNbStops();
-      if (trips > 0xffffffff || occurrences > 0xffffffff) {
+      tripStopCount += route.getNbTrips() * route.getNbStops();
+      if (trips > 0xffffffff || tripStopCount > 0xffffffff) {
         throw new Error('Timetable exceeds uint32 identity capacity');
       }
     }
     this.tripBases[routes.length] = trips;
-    this.occurrenceBases[routes.length] = occurrences;
+    this.tripStopBases[routes.length] = tripStopCount;
     this.exceptional = new Uint8Array(trips);
   }
 
@@ -62,7 +65,7 @@ export class TripTransferIndex {
     transfers?: TripTransfers,
   ): TripTransferIndex {
     const index = new TripTransferIndex(routes);
-    const occurrences = index.occurrenceBases[routes.length]!;
+    const tripStopCount = index.tripStopBases[routes.length]!;
     const entries = [...rules];
     for (const [map, kind] of [
       [continuations, TransferTypes.IN_SEAT],
@@ -70,11 +73,11 @@ export class TripTransferIndex {
     ] as const) {
       for (const [key, destinations] of map ?? []) {
         const [stopIndex, routeId, tripIndex] = decode(key);
-        const source = index.occurrence({ stopIndex, routeId, tripIndex });
+        const source = index.tripStopId({ stopIndex, routeId, tripIndex });
         for (const destination of destinations) {
           entries.push({
             source,
-            target: index.occurrence(destination),
+            target: index.tripStopId(destination),
             type: destination.type ?? kind,
             minTransferTime: destination.minTransferTime,
           });
@@ -89,10 +92,10 @@ export class TripTransferIndex {
       if (
         !Number.isInteger(rule.source) ||
         rule.source < 0 ||
-        rule.source >= occurrences ||
+        rule.source >= tripStopCount ||
         !Number.isInteger(rule.target) ||
         rule.target < 0 ||
-        rule.target >= occurrences ||
+        rule.target >= tripStopCount ||
         !Object.values(TransferTypes).includes(rule.type) ||
         (rule.minTransferTime !== undefined &&
           (!Number.isInteger(rule.minTransferTime) ||
@@ -127,27 +130,23 @@ export class TripTransferIndex {
     return index;
   }
 
+  /**
+   * Copy canonical rules into source adjacency and index trips with outgoing
+   * rules; input must be sorted and unique.
+   */
   private initializeRules(rules: TripRule[]): void {
-    const sources: OccurrenceId[] = [];
-    const offsets: number[] = [];
-    this.targets = new Uint32Array(rules.length);
-    this.kinds = new Uint8Array(rules.length);
-    this.minimums = new Int32Array(rules.length).fill(-1);
     for (let routeId = 0; routeId < this.routes.length; routeId++) {
       this.exceptionalTrips.push([]);
     }
-
-    // Canonical source order also orders trips; append each exceptional trip once.
     let routeId: RouteId = 0;
-    for (const [ruleIndex, rule] of rules.entries()) {
-      if (sources[sources.length - 1] !== rule.source) {
-        sources.push(rule.source);
-        offsets.push(ruleIndex);
-        while (this.occurrenceBases[routeId + 1]! <= rule.source) {
-          routeId++;
-        }
+    for (const rule of rules) {
+      let outgoing = this.rulesBySource.get(rule.source);
+      if (!outgoing) {
+        outgoing = [];
+        this.rulesBySource.set(rule.source, outgoing);
+        while (this.tripStopBases[routeId + 1]! <= rule.source) routeId++;
         const tripIndex = Math.floor(
-          (rule.source - this.occurrenceBases[routeId]!) /
+          (rule.source - this.tripStopBases[routeId]!) /
             this.routes[routeId]!.getNbStops(),
         );
         const trips = this.exceptionalTrips[routeId]!;
@@ -156,24 +155,36 @@ export class TripTransferIndex {
           this.exceptional[this.tripId(routeId, tripIndex)] = 1;
         }
       }
-      this.targets[ruleIndex] = rule.target;
-      this.kinds[ruleIndex] = rule.type;
-      this.minimums[ruleIndex] = rule.minTransferTime ?? -1;
+      // Copy caller-owned records so later mutations cannot change the index.
+      outgoing.push({
+        source: rule.source,
+        target: rule.target,
+        type: rule.type,
+        ...(rule.minTransferTime !== undefined && {
+          minTransferTime: rule.minTransferTime,
+        }),
+      });
     }
-    offsets.push(rules.length);
-    this.sources = new Uint32Array(sources);
-    this.offsets = new Uint32Array(offsets);
   }
 
+  /**
+   * Return whether the trip has outgoing rules requiring a separate scan from
+   * ordinary trips.
+   */
   isExceptional(routeId: RouteId, tripIndex: TripRouteIndex): boolean {
     return this.exceptional[this.tripId(routeId, tripIndex)] === 1;
   }
 
+  /** Convert a valid route-local trip index into a timetable-wide dense trip ID. */
   tripId(routeId: RouteId, tripIndex: TripRouteIndex): TripId {
     return this.tripBases[routeId]! + tripIndex;
   }
 
-  tryOccurrence(position: TripStop): OccurrenceId | undefined {
+  /**
+   * Return the dense trip stop ID for a valid trip position, or undefined
+   * when it is outside the timetable.
+   */
+  findTripStopId(position: TripPosition): TripStopId | undefined {
     const route = this.routes[position.routeId];
     if (
       !route ||
@@ -187,33 +198,41 @@ export class TripTransferIndex {
       return undefined;
     }
     return (
-      this.occurrenceBases[position.routeId]! +
+      this.tripStopBases[position.routeId]! +
       position.tripIndex * route.getNbStops() +
       position.stopIndex
     );
   }
 
-  occurrence(position: TripStop): OccurrenceId {
-    const id = this.tryOccurrence(position);
+  /**
+   * Resolve a trip position to its dense trip stop ID, throwing when the
+   * position is invalid.
+   */
+  tripStopId(position: TripPosition): TripStopId {
+    const id = this.findTripStopId(position);
     if (id === undefined) {
-      throw new Error('Invalid trip occurrence');
+      throw new Error('Invalid trip stop');
     }
     return id;
   }
 
-  position(id: OccurrenceId): TripStop {
+  /**
+   * Decode a dense trip stop ID by locating its route base, rejecting IDs
+   * outside the timetable.
+   */
+  position(id: TripStopId): TripPosition {
     if (
       !Number.isInteger(id) ||
       id < 0 ||
-      id >= this.occurrenceBases[this.routes.length]!
+      id >= this.tripStopBases[this.routes.length]!
     ) {
-      throw new Error('Invalid trip occurrence ID');
+      throw new Error('Invalid trip stop ID');
     }
     let lo = 0,
       hi = this.routes.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
-      if (this.occurrenceBases[mid + 1]! <= id) {
+      if (this.tripStopBases[mid + 1]! <= id) {
         lo = mid + 1;
       } else {
         hi = mid;
@@ -221,9 +240,9 @@ export class TripTransferIndex {
     }
     const route = this.routes[lo];
     if (!route || id < 0) {
-      throw new Error('Invalid trip occurrence ID');
+      throw new Error('Invalid trip stop ID');
     }
-    const offset = id - this.occurrenceBases[lo]!;
+    const offset = id - this.tripStopBases[lo]!;
     return {
       routeId: lo,
       tripIndex: Math.floor(offset / route.getNbStops()),
@@ -231,69 +250,38 @@ export class TripTransferIndex {
     };
   }
 
-  private row(source: OccurrenceId): number {
-    let lo = 0,
-      hi = this.sources.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (this.sources[mid]! < source) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
-    return this.sources[lo] === source ? lo : -1;
+  /**
+   * Return a borrowed readonly rule list without allocating; callers must not
+   * mutate the stored records.
+   */
+  rulesFrom(source: TripStopId): readonly Readonly<TripRule>[] {
+    return this.rulesBySource.get(source) ?? NO_RULES;
   }
 
-  private rule(source: OccurrenceId, i: number): TripRule {
-    return {
-      source,
-      target: this.targets[i]!,
-      type: this.kinds[i]! as TransferType,
-      ...(this.minimums[i]! >= 0 && { minTransferTime: this.minimums[i]! }),
-    };
+  /**
+   * Yield copies of outgoing rules so callers can modify them without changing
+   * the index.
+   */
+  *outgoing(source: TripStopId): Generator<TripRule> {
+    for (const rule of this.rulesFrom(source)) yield { ...rule };
   }
 
-  *outgoing(source: OccurrenceId): Generator<TripRule> {
-    const row = this.row(source);
-    if (row < 0) {
-      return;
-    }
-    for (let i = this.offsets[row]!; i < this.offsets[row + 1]!; i++) {
-      yield this.rule(source, i);
-    }
+  /**
+   * Return a copy of the first non-continuation rule for this trip stop pair,
+   * if present.
+   */
+  transfer(source: TripStopId, target: TripStopId): TripRule | undefined {
+    const rule = this.rulesBySource
+      .get(source)
+      ?.find(
+        (rule) => rule.target === target && rule.type !== TransferTypes.IN_SEAT,
+      );
+    return rule && { ...rule };
   }
 
-  transfer(source: OccurrenceId, target: OccurrenceId): TripRule | undefined {
-    const row = this.row(source);
-    if (row < 0) {
-      return undefined;
-    }
-    let lo = this.offsets[row]!,
-      hi = this.offsets[row + 1]!;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (this.targets[mid]! < target) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
-    for (
-      let i = lo;
-      i < this.offsets[row + 1]! && this.targets[i] === target;
-      i++
-    ) {
-      if (this.kinds[i] !== TransferTypes.IN_SEAT) {
-        return this.rule(source, i);
-      }
-    }
-    return undefined;
-  }
-
+  /** Yield copies of every rule in canonical source order. */
   *all(): Generator<TripRule> {
-    for (const source of this.sources) {
+    for (const source of this.rulesBySource.keys())
       yield* this.outgoing(source);
-    }
   }
 }

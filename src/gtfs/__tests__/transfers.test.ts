@@ -5,7 +5,7 @@ import { describe, it } from 'node:test';
 import { Route } from '../../timetable/route.js';
 import { durationFromSeconds, timeFromHM } from '../../timetable/time.js';
 import { Timetable, TransferTypes } from '../../timetable/timetable.js';
-import { encode } from '../../timetable/tripStopId.js';
+import { encode } from '../../timetable/tripStopKey.js';
 import { GtfsStopsMap } from '../stops.js';
 import {
   addGeneratedTransfers,
@@ -1301,7 +1301,7 @@ describe('buildTripTransfers', () => {
     assert.strictEqual(result.size, 0);
   });
 
-  it('preserves every applicable occurrence when routes revisit stops', () => {
+  it('preserves every applicable trip stop when routes revisit stops', () => {
     const tripsMapping: TripsMapping = new Map([
       ['trip1', { routeId: 0, tripRouteIndex: 0 }],
       ['trip2', { routeId: 1, tripRouteIndex: 0 }],

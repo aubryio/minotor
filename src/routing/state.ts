@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
-import { Duration, Time } from '../timetable/time.js';
-import { TransferType, TripStop } from '../timetable/timetable.js';
+import { Duration, Time, UINT16_TIME_LIMIT } from '../timetable/time.js';
+import { TransferType, TripPosition } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
 import type { RoundNumber } from './frontier.js';
 import type { IRaptorState } from './raptor.js';
@@ -11,7 +11,7 @@ import type { IRaptorState } from './raptor.js';
  * Sentinel value used in the internal arrival-time array to mark stops not yet reached.
  * 0xFFFF = 65 535 minutes ≈ 45.5 days, safely beyond any realistic transit arrival time.
  */
-export const UNREACHED_TIME: Time = 0xffff;
+export const UNREACHED_TIME: Time = UINT16_TIME_LIMIT;
 
 export type OriginNode = { stopId: StopId; arrival: Time };
 
@@ -23,12 +23,12 @@ export type AccessEdge = {
 };
 
 /** A boarded transit trip that carries the passenger from one stop to another. */
-export type VehicleEdge = TripStop & {
+export type VehicleEdge = TripPosition & {
   arrival: Time;
   hopOffStopIndex: StopRouteIndex;
   /** modeling in-seat transfer */
   continuationOf?: VehicleEdge;
-  predecessor?: RoutingEdge;
+  predecessor: RoutingEdge;
 };
 
 /** A walking or guaranteed connection between two stops. */
@@ -37,7 +37,7 @@ export type TransferEdge = {
   from: StopId;
   to: StopId;
   type: TransferType;
-  predecessor?: RoutingEdge;
+  predecessor: RoutingEdge;
   minTransferTime?: Duration;
 };
 
@@ -120,6 +120,10 @@ export class RoutingState implements IRaptorState {
    */
   private readonly reachedStops: StopId[] = [];
 
+  /**
+   * Allocate per-run arrival labels and graph rounds, then seed access paths
+   * within the duration limit.
+   */
   constructor(
     departureTime: Time,
     destinations: StopId[],
@@ -154,7 +158,7 @@ export class RoutingState implements IRaptorState {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
       const arrival = depTime + access.duration;
-      if (arrival > this.maxArrivalTime) {
+      if (arrival >= UNREACHED_TIME || arrival > this.maxArrivalTime) {
         continue;
       }
       const edge: OriginNode | AccessEdge =

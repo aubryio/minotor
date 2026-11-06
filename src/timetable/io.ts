@@ -4,6 +4,7 @@ import {
   ServiceRoute as ProtoServiceRoute,
   StopAdjacency as ProtoStopAdjacency,
   TransferType as ProtoTransferType,
+  TripRule as ProtoTripRule,
 } from './proto/v1/timetable.js';
 import { Route } from './route.js';
 import {
@@ -16,6 +17,7 @@ import {
   TransferType,
   TransferTypes,
 } from './timetable.js';
+import type { TripRule } from './tripTransfers.js';
 
 export type SerializedRoute = {
   stopTimes: Uint16Array;
@@ -279,6 +281,7 @@ const parseTransferType = (type: ProtoTransferType): TransferType => {
   }
 };
 
+/** Convert a domain transfer type to its protobuf enum value. */
 export const serializeTransferType = (
   type: TransferType,
 ): ProtoTransferType => {
@@ -348,3 +351,30 @@ const serializeRouteType = (type: RouteType): ProtoRouteType => {
       return ProtoRouteType.ROUTE_TYPE_MONORAIL;
   }
 };
+
+/** Encode canonical rules in iteration order, preserving absent and zero minimums. */
+export const serializeTripRules = (
+  rules: Iterable<Readonly<TripRule>>,
+): ProtoTripRule[] =>
+  Array.from(rules, (rule) => ({
+    source: rule.source,
+    target: rule.target,
+    type: serializeTransferType(rule.type),
+    minTransferTime: rule.minTransferTime,
+  }));
+
+/**
+ * Convert wire enums without repeating canonical rule sorting or raw-input
+ * validation.
+ */
+export const deserializeTripRules = (
+  rules: readonly ProtoTripRule[],
+): TripRule[] =>
+  rules.map((rule) => ({
+    source: rule.source,
+    target: rule.target,
+    type: parseTransferType(rule.type),
+    ...(rule.minTransferTime !== undefined && {
+      minTransferTime: rule.minTransferTime,
+    }),
+  }));

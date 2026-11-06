@@ -1,7 +1,7 @@
 import type { StopId } from '../stops/stops.js';
 import type { RouteId, StopRouteIndex, TripRouteIndex } from './route.js';
 import type { Duration } from './time.js';
-import type { TripStopId } from './tripStopId.js';
+import type { TripStopKey } from './tripStopKey.js';
 
 export const TransferTypes = {
   RECOMMENDED: 1,
@@ -20,12 +20,32 @@ export type Transfer = {
   minTransferTime?: Duration;
 };
 
-export type TripStop = {
+export type TripPosition = {
   stopIndex: StopRouteIndex;
   routeId: RouteId;
   tripIndex: TripRouteIndex;
+};
+
+export type TripTransferDestination = TripPosition & {
   type?: TransferType;
   minTransferTime?: Duration;
 };
 
-export type TripTransfers = Map<TripStopId, TripStop[]>;
+/** Compatibility name for raw transfer destinations. */
+export type TripStop = TripTransferDestination;
+
+export type TripTransfers = Map<TripStopKey, TripStop[]>;
+
+/** Generic transfer duration: explicit minimums override type defaults. */
+export function transferDuration(
+  transfer: Transfer,
+  fallback: Duration,
+): Duration {
+  return (
+    transfer.minTransferTime ??
+    (transfer.type === TransferTypes.GUARANTEED ||
+    transfer.type === TransferTypes.IN_SEAT
+      ? 0
+      : fallback)
+  );
+}

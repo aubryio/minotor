@@ -1,18 +1,9 @@
 import { Timetable } from '../router.js';
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import { Route as TimetableRoute } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import { TransferTypes } from '../timetable/timetable.js';
 import { resultDestinations, resultGraph } from './resultInternals.js';
-import {
-  Access,
-  Leg,
-  Route,
-  ServiceRouteInfo,
-  Transfer,
-  VehicleLeg,
-} from './route.js';
+import { Access, Leg, Route, Transfer, VehicleLeg } from './route.js';
 import { Arrival, RoutingState, TransferEdge, VehicleEdge } from './router.js';
 import type { RoutingResult, StopArrival } from './routingResult.js';
 import { AccessEdge, RoutingEdge } from './state.js';
@@ -188,90 +179,18 @@ export class Result implements RoutingResult {
 
     const destinationEdge =
       this.#routingState.graph[fastestLegNumber]?.[fastestDestination];
-    if (destinationEdge && 'predecessor' in destinationEdge) {
-      return this.buildReferencedRoute(destinationEdge);
+    if (!destinationEdge && fastestLegNumber > 0) {
+      throw new Error(
+        `No edge arriving at stop ${fastestDestination} at round ${fastestLegNumber}`,
+      );
     }
-
-    // Reconstruct the path by walking backwards through the routing graph.
-    const route: Leg[] = [];
-    let currentStop = fastestDestination;
-    let round = fastestLegNumber;
-    let previousVehicleEdge: VehicleEdge | undefined;
-
-    while (round >= 0) {
-      const edge = this.#routingState.graph[round]?.[currentStop];
-      if (!edge) {
-        if (round === 0) break;
-        throw new Error(
-          `No edge arriving at stop ${currentStop} at round ${round}`,
-        );
-      }
-      let leg: Leg;
-      if ('routeId' in edge) {
-        // Walk the continuationOf chain to find the earliest (boarding) edge.
-        let boardingEdge: VehicleEdge;
-        let vehicleLeg: VehicleLeg;
-        if (!edge.continuationOf) {
-          boardingEdge = edge;
-          vehicleLeg = this.buildVehicleLeg([edge]);
-        } else {
-          let vehicleEdge: VehicleEdge = edge;
-          const chainedEdges: VehicleEdge[] = [vehicleEdge];
-          while (vehicleEdge.continuationOf) {
-            chainedEdges.push(vehicleEdge.continuationOf);
-            vehicleEdge = vehicleEdge.continuationOf;
-          }
-          boardingEdge = vehicleEdge;
-          vehicleLeg = this.buildVehicleLeg(chainedEdges);
-        }
-        leg = vehicleLeg;
-
-        // Insert a guaranteed transfer leg between consecutive vehicle legs if
-        // applicable. Because we are building the array in reverse, the
-        // guaranteed transfer is pushed after the alighting leg so that after
-        // the final reverse() it sits between the two vehicle legs.
-        if (
-          previousVehicleEdge &&
-          this.timetable.isTripTransferGuaranteed(
-            {
-              stopIndex: boardingEdge.hopOffStopIndex,
-              routeId: boardingEdge.routeId,
-              tripIndex: boardingEdge.tripIndex,
-            },
-            {
-              stopIndex: previousVehicleEdge.stopIndex,
-              routeId: previousVehicleEdge.routeId,
-              tripIndex: previousVehicleEdge.tripIndex,
-            },
-          )
-        ) {
-          route.push(
-            this.buildGuaranteedTransferLeg(boardingEdge, previousVehicleEdge),
-          );
-        }
-        previousVehicleEdge = boardingEdge;
-      } else if ('type' in edge) {
-        leg = this.buildTransferLeg(edge);
-        previousVehicleEdge = undefined;
-      } else if ('duration' in edge) {
-        leg = this.buildAccessLeg(edge);
-        previousVehicleEdge = undefined;
-      } else {
-        break;
-      }
-      route.push(leg);
-      currentStop = leg.from.id;
-      if ('routeId' in edge) {
-        round -= 1;
-      }
-    }
-    return new Route(route.reverse());
+    return this.buildRoute(destinationEdge);
   }
 
-  /** Immutable links preserve feeders that did not win their stop label. */
-  private buildReferencedRoute(destination: RoutingEdge): Route {
+  /** Follow explicit predecessor links, grouping in-seat continuations. */
+  private buildRoute(destination: RoutingEdge | undefined): Route {
     const legs: Leg[] = [];
-    let edge: RoutingEdge | undefined = destination;
+    let edge = destination;
     while (edge) {
       if ('routeId' in edge) {
         const chain: VehicleEdge[] = [edge];
@@ -280,7 +199,8 @@ export class Result implements RoutingResult {
           first = first.continuationOf;
           chain.push(first);
         }
-        legs.push(this.buildVehicleLeg(chain));
+        const leg = this.buildVehicleLeg(chain);
+        legs.push(leg);
         edge = first.predecessor;
       } else if ('type' in edge) {
         legs.push(this.buildTransferLeg(edge));
@@ -288,17 +208,11 @@ export class Result implements RoutingResult {
       } else if ('duration' in edge) {
         legs.push(this.buildAccessLeg(edge));
         break;
-      } else break;
+      } else {
+        break;
+      }
     }
     return new Route(legs.reverse());
-  }
-
-  private buildServiceRouteInfo(route: TimetableRoute): ServiceRouteInfo {
-    const serviceRouteInfo = this.timetable.getServiceRouteInfo(route);
-    return {
-      type: serviceRouteInfo.type,
-      name: serviceRouteInfo.name,
-    };
   }
 
   /**
@@ -332,20 +246,14 @@ export class Result implements RoutingResult {
         lastRoute.stopId(lastEdge.hopOffStopIndex),
       )!,
       // The route info comes from the first boarded route in case of continuous trips
-      route: this.buildServiceRouteInfo(firstRoute),
+      route: this.timetable.getServiceRouteInfo(firstRoute),
       departureTime: firstRoute.departureFrom(
         firstEdge.stopIndex,
         firstEdge.tripIndex,
       ),
       arrivalTime: lastEdge.arrival,
-      pickUpType: firstRoute.pickUpTypeFrom(
-        firstEdge.stopIndex,
-        firstEdge.tripIndex,
-      ),
-      dropOffType: lastRoute.dropOffTypeAt(
-        lastEdge.hopOffStopIndex,
-        lastEdge.tripIndex,
-      ),
+      pickUpType: firstRoute.pickUpTypeFrom(firstEdge.stopIndex),
+      dropOffType: lastRoute.dropOffTypeAt(lastEdge.hopOffStopIndex),
     };
   }
 
@@ -379,33 +287,6 @@ export class Result implements RoutingResult {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       to: this.stopsIndex.findStopById(edge.to)!,
       duration: edge.duration,
-    };
-  }
-
-  /**
-   * Builds a guaranteed transfer leg between two consecutive vehicle legs.
-   *
-   * @param fromEdge The vehicle edge we're alighting from
-   * @param toEdge The vehicle edge we're boarding
-   * @returns A transfer leg with type 'GUARANTEED'
-   */
-  private buildGuaranteedTransferLeg(
-    fromEdge: VehicleEdge,
-    toEdge: VehicleEdge,
-  ): Transfer {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const fromRoute = this.timetable.getRoute(fromEdge.routeId)!;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const toRoute = this.timetable.getRoute(toEdge.routeId)!;
-    const fromStopId = fromRoute.stopId(fromEdge.hopOffStopIndex);
-    const toStopId = toRoute.stopId(toEdge.stopIndex);
-
-    return {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      from: this.stopsIndex.findStopById(fromStopId)!,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      to: this.stopsIndex.findStopById(toStopId)!,
-      type: TransferTypes.GUARANTEED,
     };
   }
 

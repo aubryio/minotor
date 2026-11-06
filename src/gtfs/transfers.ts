@@ -1,7 +1,7 @@
 import log from 'loglevel';
 
 import { SourceStopId, StopId } from '../stops/stops.js';
-import { durationFromSeconds } from '../timetable/time.js';
+import { Duration, durationFromSeconds } from '../timetable/time.js';
 import {
   Timetable,
   Transfer,
@@ -10,7 +10,7 @@ import {
   TripStop,
   TripTransfers,
 } from '../timetable/timetable.js';
-import { encode } from '../timetable/tripStopId.js';
+import { encode } from '../timetable/tripStopKey.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTripId, TripsMapping } from './trips.js';
@@ -41,7 +41,7 @@ export type GtfsTripTransfer = {
   toStop: StopId;
   toTrip: GtfsTripId;
   type?: TransferType;
-  minTransferTime?: number;
+  minTransferTime?: Duration;
 };
 
 export type TransferEntry = {
@@ -200,6 +200,7 @@ const processStopToStopTransfer = (
  * @param transfersStream The readable stream containing the transfers data.
  * @param stopsMap The parsed GTFS stops indexed by their source IDs.
  * @param activeServiceIds The service IDs active for the requested date.
+ * @param tripRoutes Optional trip-to-service-route mapping used to check route constraints.
  * @returns Parsed stop transfers, trip continuations, and trip-specific transfers.
  */
 export const parseTransfers = async (
@@ -292,8 +293,7 @@ export const parseTransfers = async (
         break;
       case 2: // Trip-specific minimum or generic stop transfer
       case 1: // Guaranteed transfer
-        // If trip IDs are provided, treat as trip-to-trip guaranteed transfer
-        // Otherwise, treat as stop-to-stop guaranteed transfer
+        // Trip IDs scope guarantees and minimum times to a specific trip pair.
         if (
           transferEntry.from_trip_id &&
           transferEntry.from_trip_id !== '' &&
@@ -472,7 +472,7 @@ export const addGeneratedTransfers = (
 
 /**
  * Resolve GTFS trip references after route partitioning. A repeated stop ID
- * applies to every occurrence pair. Keep infeasible type-2 pairs as restrictions:
+ * applies to every trip stop pair. Keep infeasible type-2 pairs as restrictions:
  * dropping them would incorrectly allow the generic transfer as a fallback.
  */
 export const buildTripTransfers = (
@@ -481,17 +481,17 @@ export const buildTripTransfers = (
   timetable: Timetable,
   activeStopIds: Set<StopId>,
 ): TripTransfers => {
-  const continuations: TripTransfers = new Map();
+  const tripTransfers: TripTransfers = new Map();
 
-  for (const gtfsContinuation of gtfsTripTransfers) {
+  for (const gtfsTransfer of gtfsTripTransfers) {
     if (
-      !activeStopIds.has(gtfsContinuation.fromStop) ||
-      !activeStopIds.has(gtfsContinuation.toStop)
+      !activeStopIds.has(gtfsTransfer.fromStop) ||
+      !activeStopIds.has(gtfsTransfer.toStop)
     ) {
       continue;
     }
-    const fromTripMapping = tripsMapping.get(gtfsContinuation.fromTrip);
-    const toTripMapping = tripsMapping.get(gtfsContinuation.toTrip);
+    const fromTripMapping = tripsMapping.get(gtfsTransfer.fromTrip);
+    const toTripMapping = tripsMapping.get(gtfsTransfer.toTrip);
 
     if (!fromTripMapping || !toTripMapping) {
       continue;
@@ -505,11 +505,9 @@ export const buildTripTransfers = (
     }
 
     for (const fromStopIndex of fromRoute.stopRouteIndices(
-      gtfsContinuation.fromStop,
+      gtfsTransfer.fromStop,
     )) {
-      for (const toStopIndex of toRoute.stopRouteIndices(
-        gtfsContinuation.toStop,
-      )) {
+      for (const toStopIndex of toRoute.stopRouteIndices(gtfsTransfer.toStop)) {
         const sourceArrival = fromRoute.arrivalAt(
           fromStopIndex,
           fromTripMapping.tripRouteIndex,
@@ -519,34 +517,34 @@ export const buildTripTransfers = (
           toTripMapping.tripRouteIndex,
         );
         if (
-          gtfsContinuation.type !== TransferTypes.REQUIRES_MINIMAL_TIME &&
+          gtfsTransfer.type !== TransferTypes.REQUIRES_MINIMAL_TIME &&
           targetDeparture < sourceArrival
         )
           continue;
-        const tripStopId = encode(
+        const tripStopKey = encode(
           fromStopIndex,
           fromTripMapping.routeId,
           fromTripMapping.tripRouteIndex,
         );
-        const continuationBoarding: TripStop = {
+        const transferDestination: TripStop = {
           stopIndex: toStopIndex,
           routeId: toTripMapping.routeId,
           tripIndex: toTripMapping.tripRouteIndex,
-          ...(gtfsContinuation.type !== undefined && {
-            type: gtfsContinuation.type,
+          ...(gtfsTransfer.type !== undefined && {
+            type: gtfsTransfer.type,
           }),
-          ...(gtfsContinuation.minTransferTime !== undefined && {
-            minTransferTime: gtfsContinuation.minTransferTime,
+          ...(gtfsTransfer.minTransferTime !== undefined && {
+            minTransferTime: gtfsTransfer.minTransferTime,
           }),
         };
-        const existing = continuations.get(tripStopId) ?? [];
-        existing.push(continuationBoarding);
-        continuations.set(tripStopId, existing);
+        const existing = tripTransfers.get(tripStopKey) ?? [];
+        existing.push(transferDestination);
+        tripTransfers.set(tripStopKey, existing);
       }
     }
   }
 
-  return continuations;
+  return tripTransfers;
 };
 
 const parseGtfsTransferType = (

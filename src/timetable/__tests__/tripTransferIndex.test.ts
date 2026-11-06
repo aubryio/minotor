@@ -81,3 +81,91 @@ describe('canonical transfer index loading', () => {
     );
   });
 });
+
+it('exposes readonly adjacency equivalent to object iteration', () => {
+  const index = TripTransferIndex.fromRaw(routes, [first, second]);
+  assert.deepEqual(index.rulesFrom(0), []);
+  for (const source of [1, 3]) {
+    assert.deepEqual(index.rulesFrom(source), [...index.outgoing(source)]);
+  }
+});
+
+it('isolates stored rules from mutations to input and returned records', () => {
+  for (const canonical of [false, true]) {
+    const input = { ...second };
+    const index = canonical
+      ? TripTransferIndex.fromCanonical(routes, [input])
+      : TripTransferIndex.fromRaw(routes, [input]);
+    input.target = 0;
+    input.minTransferTime = 99;
+
+    const transfer = index.transfer(second.source, second.target);
+    assert.deepEqual(transfer, second);
+    assert.ok(transfer);
+    transfer.minTransferTime = 0;
+    for (const rule of index.outgoing(second.source)) rule.target = 0;
+    for (const rule of index.all()) rule.type = TransferTypes.IN_SEAT;
+
+    assert.deepEqual([...index.all()], [second]);
+    assert.deepEqual(index.transfer(second.source, second.target), second);
+  }
+});
+
+it('rejects format 2 rather than interpreting per-trip patterns as shared', async () => {
+  const { Timetable: WireTimetable } = await import('../proto/v1/timetable.js');
+  const binary = WireTimetable.encode(
+    WireTimetable.fromPartial({ formatVersion: 2 }),
+  ).finish();
+  assert.throws(() => Timetable.fromData(binary), /regenerate/);
+});
+
+it('round-trips every transfer type and preserves absent, zero, and positive minimums', () => {
+  for (const type of Object.values(TransferTypes)) {
+    for (const minTransferTime of [undefined, 0, 5]) {
+      if (
+        type === TransferTypes.REQUIRES_MINIMAL_TIME &&
+        minTransferTime === undefined
+      ) {
+        continue;
+      }
+      const rule: TripRule = {
+        source: 1,
+        target: 4,
+        type,
+        ...(minTransferTime !== undefined && { minTransferTime }),
+      };
+      const timetable = new Timetable(
+        [{ routes: [0, 1] }, { routes: [0, 1] }],
+        routes,
+        [{ name: 'test', type: RouteTypes.BUS, routes: [0, 1] }],
+        undefined,
+        undefined,
+        [rule],
+      );
+      const binary = timetable.serialize();
+      const loaded = Timetable.fromData(binary);
+      assert.deepEqual([...loaded.tripTransfers.all()], [rule]);
+      assert.deepEqual(loaded.serialize(), binary);
+    }
+  }
+});
+
+it('finds trip stop zero and keeps optional and throwing lookup contracts distinct', () => {
+  const index = TripTransferIndex.fromRaw(routes);
+  assert.equal(
+    index.findTripStopId({ routeId: 0, tripIndex: 0, stopIndex: 0 }),
+    0,
+  );
+  for (const position of [
+    { routeId: 2, tripIndex: 0, stopIndex: 0 },
+    { routeId: 0, tripIndex: -1, stopIndex: 0 },
+    { routeId: 0, tripIndex: 2, stopIndex: 0 },
+    { routeId: 0, tripIndex: 0.5, stopIndex: 0 },
+    { routeId: 0, tripIndex: 0, stopIndex: -1 },
+    { routeId: 0, tripIndex: 0, stopIndex: 2 },
+    { routeId: 0, tripIndex: 0, stopIndex: NaN },
+  ]) {
+    assert.equal(index.findTripStopId(position), undefined);
+    assert.throws(() => index.tripStopId(position), /Invalid trip stop/);
+  }
+});

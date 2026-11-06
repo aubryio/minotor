@@ -20,6 +20,7 @@ const stops: GtfsStopsMap = new Map(
     },
   ]),
 );
+/** Create a readable CSV stream from fixture rows, including the final newline. */
 const csv = (rows: string[]) => Readable.from([rows.join('\n') + '\n']);
 
 describe('transfer and route preprocessing invariants', () => {
@@ -49,10 +50,14 @@ describe('transfer and route preprocessing invariants', () => {
     );
   });
 
-  it('splits overtaking and pickup/drop-off patterns and retains non-public occurrences', async () => {
+  it('splits overtaking and pickup/drop-off patterns and retains non-public trip stops', async () => {
     const rows = [
       'trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type',
     ];
+    /**
+     * Append one trip’s stop-time rows, applying the supplied pickup/drop-off
+     * pattern at the middle stop.
+     */
     const add = (trip: string, times: string[], pickup = 0, dropoff = 0) => {
       times.forEach((time, i) =>
         rows.push(
@@ -83,22 +88,40 @@ describe('transfer and route preprocessing invariants', () => {
     );
     const nonPublic = result.routes[result.tripsMapping.get('f')!.routeId]!;
     assert.equal(nonPublic.getNbStops(), 3);
-    assert.equal(nonPublic.pickUpTypeFrom(1, 0), 1);
-    assert.equal(nonPublic.dropOffTypeAt(1, 0), 1);
+    assert.equal(nonPublic.pickUpTypeFrom(1), 1);
+    assert.equal(nonPublic.dropOffTypeAt(1), 1);
+    const expectedPatterns = [
+      ['a', 0, 0],
+      ['b', 0, 0],
+      ['c', 0, 0],
+      ['d', 0, 1],
+      ['e', 1, 0],
+      ['f', 1, 1],
+    ] as const;
+    for (const [tripId, pickup, dropoff] of expectedPatterns) {
+      const mappedRoute =
+        result.routes[result.tripsMapping.get(tripId)!.routeId]!;
+      for (
+        let stopIndex = 0;
+        stopIndex < mappedRoute.getNbStops();
+        stopIndex++
+      ) {
+        assert.equal(
+          mappedRoute.pickUpTypeFrom(stopIndex),
+          stopIndex === 1 ? pickup : 0,
+        );
+        assert.equal(
+          mappedRoute.dropOffTypeAt(stopIndex),
+          stopIndex === 1 ? dropoff : 0,
+        );
+      }
+    }
     for (const r of result.routes)
       for (let trip = 1; trip < r.getNbTrips(); trip++)
         for (let stop = 0; stop < r.getNbStops(); stop++) {
           assert(r.arrivalAt(stop, trip - 1) <= r.arrivalAt(stop, trip));
           assert(
             r.departureFrom(stop, trip - 1) <= r.departureFrom(stop, trip),
-          );
-          assert.equal(
-            r.pickUpTypeFrom(stop, trip - 1),
-            r.pickUpTypeFrom(stop, trip),
-          );
-          assert.equal(
-            r.dropOffTypeAt(stop, trip - 1),
-            r.dropOffTypeAt(stop, trip),
           );
         }
   });

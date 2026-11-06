@@ -2,8 +2,8 @@
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
-import { TripId } from '../timetable/tripTransfers.js';
-import { BoardingContext, RoundNumber } from './frontier.js';
+import { TripId, TripStopId } from '../timetable/tripTransfers.js';
+import { RoundNumber } from './frontier.js';
 import type { IRaptorState } from './raptor.js';
 import { RoutingEdge, RoutingState, UNREACHED_TIME } from './state.js';
 
@@ -44,7 +44,7 @@ export class RangeRaptorState implements IRaptorState {
    * Sparse change-tracking for `initRound`.
    *
    * `changedInRound[k]` is the list of stops whose round-k label was improved
-   * (via `tryImprove`) since the last call to `initRound(k + 1)`.  When
+   * (via `updateArrival`) since the last call to `initRound(k + 1)`.  When
    * `initRound(k + 1)` runs, it only visits these stops instead of scanning
    * all `nbStops` entries, reducing the work from O(nbStops × rounds ×
    * departureTimes) to O(changedStops × rounds × departureTimes).
@@ -55,40 +55,51 @@ export class RangeRaptorState implements IRaptorState {
   private readonly changedInRound: StopId[][];
 
   private currentRun!: RoutingState;
-  private readonly boardingLabels: Map<StopId, Map<BoardingContext, Time>>[];
-  private readonly tripLabels: Map<TripId, StopRouteIndex>[];
-  private readonly dirty: Uint8Array[];
-  private readonly defaultBoardingTimes: Uint16Array[];
+  private readonly conditionalArrivalTimes: Map<
+    StopId,
+    Map<TripStopId, Time>
+  >[];
+  private readonly firstCoveredArrivalIndices: Map<TripId, StopRouteIndex>[];
+  private readonly changedStopFlags: Uint8Array[];
+  private readonly ordinaryReadyTimes: Uint16Array[];
 
-  boardingBound(
-    round: RoundNumber,
-    stop: StopId,
-    context: BoardingContext,
-  ): Time {
-    return context === 0
-      ? this.defaultBoardingTimes[round]![stop]!
-      : (this.boardingLabels[round]!.get(stop)?.get(context) ?? Infinity);
+  /** Return the cross-run ordinary readiness bound. */
+  boardingBound(round: RoundNumber, stop: StopId): Time {
+    return this.ordinaryReadyTimes[round]![stop]!;
   }
 
-  updateBoardingBound(
+  /** Tighten ordinary readiness in this and all later rounds. */
+  updateBoardingBound(round: RoundNumber, stop: StopId, time: Time): void {
+    for (let k = round; k < this.ordinaryReadyTimes.length; k++) {
+      if (time < this.ordinaryReadyTimes[k]![stop]!) {
+        this.ordinaryReadyTimes[k]![stop] = time;
+      }
+    }
+  }
+
+  /** Return the cross-run arrival bound for matching conditional rights. */
+  conditionalBoardingBound(
     round: RoundNumber,
     stop: StopId,
-    context: BoardingContext,
+    context: TripStopId,
+  ): Time {
+    return (
+      this.conditionalArrivalTimes[round]!.get(stop)?.get(context) ?? Infinity
+    );
+  }
+
+  /** Tighten conditional arrival bounds in this and all later rounds. */
+  updateConditionalBoardingBound(
+    round: RoundNumber,
+    stop: StopId,
+    context: TripStopId,
     time: Time,
   ): void {
-    for (let k = round; k < this.boardingLabels.length; k++) {
-      if (context === 0) {
-        if (time < this.defaultBoardingTimes[k]![stop]!) {
-          this.defaultBoardingTimes[k]![stop] = time;
-        }
-        continue;
-      }
-      let labels = this.boardingLabels[k]!.get(stop);
+    for (let k = round; k < this.conditionalArrivalTimes.length; k++) {
+      let labels = this.conditionalArrivalTimes[k]!.get(stop);
       if (!labels) {
-        this.boardingLabels[k]!.set(
-          stop,
-          (labels = new Map<BoardingContext, Time>()),
-        );
+        labels = new Map<TripStopId, Time>();
+        this.conditionalArrivalTimes[k]!.set(stop, labels);
       }
       if (time < (labels.get(context) ?? Infinity)) {
         labels.set(context, time);
@@ -96,46 +107,59 @@ export class RangeRaptorState implements IRaptorState {
     }
   }
 
+  /**
+   * Return the first covered arrival index for a trip, or Infinity when no
+   * suffix is covered.
+   */
   tripBoardingBound(round: RoundNumber, trip: TripId): StopRouteIndex {
-    return this.tripLabels[round]!.get(trip) ?? Infinity;
+    return this.firstCoveredArrivalIndices[round]!.get(trip) ?? Infinity;
   }
 
+  /**
+   * Record trip suffix coverage in this and all later rounds without
+   * discarding an earlier covered index.
+   */
   updateTripBoardingBound(
     round: RoundNumber,
     trip: TripId,
     stopIndex: StopRouteIndex,
   ): void {
-    for (let k = round; k < this.tripLabels.length; k++) {
-      const labels = this.tripLabels[k]!;
+    for (let k = round; k < this.firstCoveredArrivalIndices.length; k++) {
+      const labels = this.firstCoveredArrivalIndices[k]!;
       if (stopIndex < (labels.get(trip) ?? Infinity)) {
         labels.set(trip, stopIndex);
       }
     }
   }
 
+  /** Queue an improved stop once per round for sparse propagation to the next round. */
   private markChanged(round: RoundNumber, stop: StopId): void {
-    if (this.dirty[round]![stop]) {
+    if (this.changedStopFlags[round]![stop]) {
       return;
     }
-    this.dirty[round]![stop] = 1;
+    this.changedStopFlags[round]![stop] = 1;
     this.changedInRound[round]!.push(stop);
   }
 
+  /**
+   * Allocate cross-run labels and sparse change tracking for access and
+   * transit rounds.
+   */
   constructor(maxRounds: RoundNumber, nbStops: number, latestDeparture: Time) {
     this.latestDeparture = latestDeparture;
-    this.boardingLabels = Array.from(
+    this.conditionalArrivalTimes = Array.from(
       { length: maxRounds + 2 },
-      () => new Map<StopId, Map<BoardingContext, Time>>(),
+      () => new Map<StopId, Map<TripStopId, Time>>(),
     );
-    this.tripLabels = Array.from(
+    this.firstCoveredArrivalIndices = Array.from(
       { length: maxRounds + 2 },
       () => new Map<TripId, StopRouteIndex>(),
     );
-    this.dirty = Array.from(
+    this.changedStopFlags = Array.from(
       { length: maxRounds + 2 },
       () => new Uint8Array(nbStops),
     );
-    this.defaultBoardingTimes = Array.from({ length: maxRounds + 2 }, () =>
+    this.ordinaryReadyTimes = Array.from({ length: maxRounds + 2 }, () =>
       new Uint16Array(nbStops).fill(UNREACHED_TIME),
     );
     // maxRounds + 2: index 0 = origin/walk legs, indices 1…maxRounds+1 = transit rounds
@@ -149,7 +173,7 @@ export class RangeRaptorState implements IRaptorState {
    * Swaps in a fresh {@link RoutingState} for the next departure-time iteration
    * and seeds the shared round-0 labels from its access arrivals.
    *
-   * Must be called before every `runRaptor` invocation.
+   * Must be called before every `Raptor.run` invocation.
    */
   setCurrentRun(routingState: RoutingState): void {
     this.currentRun = routingState;
@@ -201,7 +225,10 @@ export class RangeRaptorState implements IRaptorState {
     return this.currentRun.isDestination(stop);
   }
 
-  /** Updates the per-run aggregate best when improved, and always considers the cross-run shared label. */
+  /**
+   * Updates the per-run aggregate best when improved, and always considers the
+   * cross-run shared label.
+   */
   updateArrival(stop: StopId, time: Time, round: RoundNumber): void {
     const currentRunArrival = this.currentRun.getArrival(stop);
     const improvesCurrentRunAggregate =
@@ -241,7 +268,7 @@ export class RangeRaptorState implements IRaptorState {
     const curr = this.roundLabels[round]!;
     for (let i = 0; i < changed.length; i++) {
       const stop = changed[i]!;
-      this.dirty[round - 1]![stop] = 0;
+      this.changedStopFlags[round - 1]![stop] = 0;
       if (prev[stop]! < curr[stop]!) {
         curr[stop] = prev[stop]!;
         this.markChanged(round, stop);

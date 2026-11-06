@@ -12,6 +12,7 @@ import {
   StopAdjacency,
   TransferTypes,
 } from '../../timetable/timetable.js';
+import { RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
 import { RoutingState, TransferEdge, VehicleEdge } from '../router.js';
 
@@ -241,6 +242,7 @@ describe('Result', () => {
 
     it('should return route to closest destination when multiple destinations exist', () => {
       const vehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -277,7 +279,16 @@ describe('Result', () => {
     });
 
     it('should return route to fastest child stop when parent stop is queried', () => {
+      const feeder: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
+        arrival: timeFromHMS(9, 10, 0),
+        stopIndex: 0,
+        hopOffStopIndex: 2,
+        routeId: 0,
+        tripIndex: 0,
+      };
       const vehicleEdge: VehicleEdge = {
+        predecessor: feeder,
         arrival: timeFromHMS(10, 10, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -288,7 +299,7 @@ describe('Result', () => {
       const result = new Result(
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
-          origins: [2],
+          origins: [0],
           destinations: [4],
           arrivals: [
             [2, timeFromHMS(9, 10, 0), 1],
@@ -296,19 +307,8 @@ describe('Result', () => {
             [6, timeFromHMS(10, 30, 0), 2],
           ],
           graph: [
-            [[2, { stopId: 2, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
-            [
-              [
-                2,
-                {
-                  arrival: timeFromHMS(9, 10, 0),
-                  stopIndex: 0,
-                  hopOffStopIndex: 2,
-                  routeId: 0,
-                  tripIndex: 0,
-                },
-              ],
-            ], // round 1
+            [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
+            [[2, feeder]], // round 1
             [[5, vehicleEdge]], // round 2
           ],
         }),
@@ -326,6 +326,7 @@ describe('Result', () => {
 
     it('should handle simple single-leg route reconstruction', () => {
       const vehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -362,6 +363,7 @@ describe('Result', () => {
 
     it('should handle multi-leg route with transfer', () => {
       const firstVehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -370,6 +372,7 @@ describe('Result', () => {
       };
 
       const secondVehicleEdge: VehicleEdge = {
+        predecessor: firstVehicleEdge,
         arrival: timeFromHMS(9, 45, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -414,6 +417,7 @@ describe('Result', () => {
   describe('bestRouteToStopId', () => {
     it('should return route when given a single SourceStopId', () => {
       const vehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -450,6 +454,7 @@ describe('Result', () => {
 
     it('should return route to closest destination when given a Set of SourceStopIds', () => {
       const vehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -489,6 +494,7 @@ describe('Result', () => {
   describe('continuous trips', () => {
     it('should handle single continuous trip correctly', () => {
       const firstVehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(8, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -503,6 +509,7 @@ describe('Result', () => {
         routeId: 0,
         tripIndex: 0,
         continuationOf: firstVehicleEdge,
+        predecessor: firstVehicleEdge,
       };
 
       const result = new Result(
@@ -538,6 +545,7 @@ describe('Result', () => {
 
     it('should handle continuous trips with route change mid-journey', () => {
       const firstVehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(9, 0, 0),
         stopIndex: 0,
         hopOffStopIndex: 2,
@@ -552,6 +560,7 @@ describe('Result', () => {
         routeId: 1,
         tripIndex: 0,
         continuationOf: firstVehicleEdge,
+        predecessor: firstVehicleEdge,
       };
 
       const result = new Result(
@@ -583,6 +592,7 @@ describe('Result', () => {
 
     it('should handle route reconstruction with actual transfer edges', () => {
       const firstVehicleEdge: VehicleEdge = {
+        predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
         arrival: timeFromHMS(8, 30, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -590,6 +600,7 @@ describe('Result', () => {
         tripIndex: 0,
       };
       const transferEdge: TransferEdge = {
+        predecessor: firstVehicleEdge,
         arrival: timeFromHMS(8, 35, 0),
         from: 1,
         to: 2,
@@ -597,6 +608,7 @@ describe('Result', () => {
         minTransferTime: 5,
       };
       const secondVehicleEdge: VehicleEdge = {
+        predecessor: transferEdge,
         arrival: timeFromHMS(9, 15, 0),
         stopIndex: 0,
         hopOffStopIndex: 1,
@@ -660,6 +672,149 @@ describe('Result', () => {
       assert.strictEqual(state.getArrival(1)?.legNumber, 1);
       assert.strictEqual(state.getArrival(2)?.legNumber, 1);
       assert.strictEqual(state.getArrival(3)?.legNumber, 2);
+    });
+  });
+
+  describe('explicit predecessor chains', () => {
+    for (const type of [TransferTypes.RECOMMENDED, TransferTypes.GUARANTEED]) {
+      it(`retains access and transfer type ${type} after graph labels are replaced`, () => {
+        const access = { from: 3, to: 0, duration: 5, arrival: 480 };
+        const feeder: VehicleEdge = {
+          routeId: 0,
+          tripIndex: 0,
+          stopIndex: 0,
+          hopOffStopIndex: 1,
+          arrival: 510,
+          predecessor: access,
+        };
+        const transfer: TransferEdge = {
+          from: 1,
+          to: 2,
+          arrival: 515,
+          type,
+          minTransferTime: 5,
+          predecessor: feeder,
+        };
+        const destination: VehicleEdge = {
+          routeId: 1,
+          tripIndex: 0,
+          stopIndex: 0,
+          hopOffStopIndex: 1,
+          arrival: 585,
+          predecessor: transfer,
+        };
+        const state = RoutingState.fromTestData({
+          nbStops: NB_STOPS,
+          destinations: [3],
+          arrivals: [[3, 585, 2]],
+          graph: [
+            [[0, access]],
+            [
+              [1, feeder],
+              [2, transfer],
+            ],
+            [[3, destination]],
+          ],
+        });
+        const result = new Result(state, mockStopsIndex, mockTimetable);
+        const range = new RangeResult([{ departureTime: 475, result }]);
+        const before = result.bestRoute();
+        assert(before);
+        assert.strictEqual(before.legs.length, 4);
+        assert.deepStrictEqual(before.legs[0], {
+          from: stop4,
+          to: stop1,
+          duration: 5,
+        });
+        assert.deepStrictEqual(before.legs[2], {
+          from: stop2,
+          to: stop3,
+          type,
+          minTransferTime: 5,
+        });
+        // Replace every intermediate label; the destination still owns its original chain.
+        const [accessRound, transferRound] = state.graph;
+        assert(accessRound && transferRound);
+        accessRound[0] = { stopId: 0, arrival: 470 };
+        transferRound[1] = { ...feeder, stopIndex: 1, arrival: 500 };
+        transferRound[2] = { stopId: 2, arrival: 500 };
+        assert.deepStrictEqual(result.bestRoute(), before);
+        assert.deepStrictEqual(result.bestRoute(undefined, 1), before);
+        assert.deepStrictEqual(range.bestRoute(undefined, 1), before);
+        assert.deepStrictEqual(range.fastestRoute(undefined, 1), before);
+        assert.deepStrictEqual([...range.routes()], [before]);
+      });
+    }
+
+    it('terminates an origin-only journey without legs', () => {
+      const state = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        origins: [0],
+        destinations: [0],
+        arrivals: [[0, 480, 0]],
+        graph: [[[0, { stopId: 0, arrival: 480 }]]],
+      });
+      assert.deepStrictEqual(
+        new Result(state, mockStopsIndex, mockTimetable).bestRoute()?.legs,
+        [],
+      );
+    });
+
+    it('rejects a missing destination edge', () => {
+      const state = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        arrivals: [[2, 540, 1]],
+      });
+      assert.throws(
+        () => new Result(state, mockStopsIndex, mockTimetable).bestRoute(2),
+        /No edge arriving at stop 2 at round 1/,
+      );
+    });
+
+    it('groups a chain of three vehicle edges into one leg', () => {
+      const first: VehicleEdge = {
+        routeId: 0,
+        tripIndex: 0,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
+        arrival: 510,
+        predecessor: { stopId: 0, arrival: 480 },
+      };
+      const second: VehicleEdge = {
+        routeId: 0,
+        tripIndex: 0,
+        stopIndex: 1,
+        hopOffStopIndex: 2,
+        arrival: 540,
+        predecessor: first,
+        continuationOf: first,
+      };
+      const third: VehicleEdge = {
+        routeId: 1,
+        tripIndex: 0,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
+        arrival: 585,
+        predecessor: second,
+        continuationOf: second,
+      };
+      const state = RoutingState.fromTestData({
+        nbStops: NB_STOPS,
+        destinations: [3],
+        arrivals: [[3, 585, 1]],
+        graph: [[], [[3, third]]],
+      });
+      const journey = new Result(
+        state,
+        mockStopsIndex,
+        mockTimetable,
+      ).bestRoute(undefined, 0);
+      assert(journey);
+      assert.strictEqual(journey.legs.length, 1);
+      assert.strictEqual(journey.legs[0]?.from.id, 0);
+      assert.strictEqual(journey.legs[0].to.id, 3);
+      assert.strictEqual(journey.arrivalTime(), 585);
+      assert.strictEqual(journey.departureTime(), 485);
     });
   });
 
@@ -901,6 +1056,15 @@ describe('Result', () => {
         { type: RouteTypes.BUS, name: 'Line 3', routes: [TO_TRANSFER_ONLY] },
       ],
     );
+    const origin = { stopId: ORIGIN, arrival: departureTime };
+    const interchange: VehicleEdge = {
+      routeId: TO_INTERCHANGE,
+      arrival: departureTime + 5,
+      tripIndex: 0,
+      stopIndex: 0,
+      hopOffStopIndex: 1,
+      predecessor: origin,
+    };
     const result = new Result(
       RoutingState.fromTestData({
         nbStops: stops.length,
@@ -927,19 +1091,11 @@ describe('Result', () => {
             ],
           ],
           [
-            [
-              INTERCHANGE,
-              {
-                routeId: TO_INTERCHANGE,
-                arrival: departureTime + 5,
-                tripIndex: 0,
-                stopIndex: 0,
-                hopOffStopIndex: 1,
-              },
-            ],
+            [INTERCHANGE, interchange],
             [
               DESTINATION,
               {
+                predecessor: origin,
                 routeId: DIRECT,
                 arrival: directArrival,
                 tripIndex: 0,
@@ -952,6 +1108,7 @@ describe('Result', () => {
             [
               DESTINATION,
               {
+                predecessor: interchange,
                 routeId: FROM_INTERCHANGE,
                 arrival: viaArrival,
                 tripIndex: 0,
@@ -962,6 +1119,7 @@ describe('Result', () => {
             [
               TRANSFER_ONLY,
               {
+                predecessor: interchange,
                 routeId: TO_TRANSFER_ONLY,
                 arrival: viaArrival,
                 tripIndex: 0,

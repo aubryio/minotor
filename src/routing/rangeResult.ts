@@ -63,6 +63,7 @@ export class RangeResult implements RoutingResult {
     this._runs = runs;
   }
 
+  /** Copy explicit targets, or use the first retained run’s default destinations. */
   private normalizeTargets(to?: StopId | Set<StopId>): Set<StopId> {
     if (to instanceof Set) {
       return new Set(to);

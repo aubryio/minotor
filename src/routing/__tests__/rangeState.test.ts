@@ -10,6 +10,21 @@ const NB_STOPS = 4;
 const MAX_ROUNDS = 3;
 
 describe('RangeRaptorState', () => {
+  it('keeps ordinary and zero-context bounds independent across rounds', () => {
+    const state = new RangeRaptorState(MAX_ROUNDS, NB_STOPS, timeFromHM(12, 0));
+    state.updateBoardingBound(1, 2, 20);
+    state.updateConditionalBoardingBound(1, 2, 0, 10);
+    state.updateBoardingBound(1, 2, 30);
+    state.updateConditionalBoardingBound(1, 2, 0, 15);
+    assert.equal(state.boardingBound(0, 2), UNREACHED_TIME);
+    assert.equal(state.conditionalBoardingBound(0, 2, 0), Infinity);
+    for (let round = 1; round < MAX_ROUNDS + 2; round++) {
+      assert.equal(state.boardingBound(round, 2), 20);
+      assert.equal(state.conditionalBoardingBound(round, 2, 0), 10);
+      assert.equal(state.conditionalBoardingBound(round, 2, 1), Infinity);
+    }
+  });
+
   describe('constructor', () => {
     it('creates roundLabels of length maxRounds + 2', () => {
       const state = new RangeRaptorState(

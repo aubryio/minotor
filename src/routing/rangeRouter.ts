@@ -81,7 +81,10 @@ export class RangeRouter {
 
     let routingState: RoutingState | null = null;
 
-    if (query.rangeOptions.optimizeBeyondLatestDeparture) {
+    if (
+      query.rangeOptions.optimizeBeyondLatestDeparture &&
+      latest + 1 < UNREACHED_TIME
+    ) {
       routingState = new RoutingState(
         latest + 1,
         destinations,

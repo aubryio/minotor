@@ -171,6 +171,7 @@ describe('Plotter', () => {
               [
                 1,
                 {
+                  predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
                   stopIndex: 0,
                   hopOffStopIndex: 1,
                   arrival: timeFromHMS(8, 30, 0),
@@ -183,6 +184,7 @@ describe('Plotter', () => {
               [
                 1,
                 {
+                  predecessor: { stopId: 0, arrival: timeFromHMS(8, 40, 0) },
                   from: 0,
                   to: 1,
                   arrival: timeFromHMS(8, 45, 0),

@@ -9,13 +9,13 @@ message Route {
    */
   bytes stop_times = 1;
   /**
-   * PickUp and DropOff types represented as an 8 bit uint array.
+   * Format 3: one shared pickup/drop-off pattern per route, ceil(stops / 2) bytes.
    * Values:
    *   0: REGULAR
    *   1: NOT_AVAILABLE
    *   2: MUST_PHONE_AGENCY
    *   3: MUST_COORDINATE_WITH_DRIVER
-   * Format: [drop_off_1][pickup_1][drop_off_0][pickup_0]
+   * Format: [pickup_1][drop_off_1][pickup_0][drop_off_0]
    * 2 bits per value
    */
   bytes pickup_drop_off_types = 2;
@@ -66,8 +66,8 @@ message ServiceRoute {
   repeated uint32 routes = 3;
 }
 
-// Occurrence IDs enumerate routes in wire order, then trips, then stops.
-// Both total trip count and total occurrence count must fit uint32.
+// Trip stop IDs enumerate routes in wire order, then trips, then stops.
+// Both total trip count and total trip stop count must fit uint32.
 message TripRule {
   uint32 source = 1;
   uint32 target = 2;

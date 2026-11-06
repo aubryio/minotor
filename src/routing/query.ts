@@ -1,5 +1,10 @@
 import { StopId } from '../stops/stops.js';
-import { Duration, durationFromSeconds, Time } from '../timetable/time.js';
+import {
+  Duration,
+  durationFromSeconds,
+  normalizeMinutes,
+  Time,
+} from '../timetable/time.js';
 import { ALL_TRANSPORT_MODES, RouteType } from '../timetable/timetable.js';
 
 export type QueryOptions = {
@@ -41,8 +46,18 @@ export class Query {
   constructor(builder: typeof Query.Builder.prototype) {
     this.from = builder.fromValue;
     this.to = builder.toValue;
-    this.departureTime = builder.departureTimeValue;
-    this.options = builder.optionsValue;
+    this.departureTime = normalizeMinutes(builder.departureTimeValue);
+    const options = builder.optionsValue;
+    this.options = {
+      ...options,
+      minTransferTime: normalizeMinutes(options.minTransferTime),
+      ...(options.maxDuration !== undefined && {
+        maxDuration: normalizeMinutes(options.maxDuration),
+      }),
+      ...(options.maxInitialWaitingTime !== undefined && {
+        maxInitialWaitingTime: normalizeMinutes(options.maxInitialWaitingTime),
+      }),
+    };
   }
 
   static Builder = class {
@@ -181,7 +196,7 @@ export class RangeQuery extends Query {
 
   constructor(builder: typeof RangeQuery.Builder.prototype) {
     super(builder);
-    this.lastDepartureTime = builder.lastDepartureTimeValue;
+    this.lastDepartureTime = normalizeMinutes(builder.lastDepartureTimeValue);
     this.rangeOptions = builder.rangeOptionsValue;
   }
 
