@@ -271,12 +271,20 @@ export class TripTransferIndex {
    * if present.
    */
   transfer(source: TripStopId, target: TripStopId): TripRule | undefined {
-    const rule = this.rulesBySource
+    const rule = this.findTransfer(source, target);
+    return rule && { ...rule };
+  }
+
+  /** Borrow a rule for routing without allocating a defensive copy. */
+  findTransfer(
+    source: TripStopId,
+    target: TripStopId,
+  ): Readonly<TripRule> | undefined {
+    return this.rulesBySource
       .get(source)
       ?.find(
         (rule) => rule.target === target && rule.type !== TransferTypes.IN_SEAT,
       );
-    return rule && { ...rule };
   }
 
   /** Yield copies of every rule in canonical source order. */

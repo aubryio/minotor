@@ -105,7 +105,10 @@ const runA: ParetoRun = {
         [0, timeFromHM(9, 0), 0],
         [DEST, timeFromHM(9, 30), 1],
       ],
-      graph: [[[0, { stopId: 0, arrival: timeFromHM(9, 0) }]], [[DEST, edgeA]]],
+      parents: [
+        [[0, { stopId: 0, arrival: timeFromHM(9, 0) }]],
+        [[DEST, edgeA]],
+      ],
     }),
     stopsIndex,
     timetable,
@@ -132,7 +135,7 @@ const runB: ParetoRun = {
         [0, timeFromHM(8, 30), 0],
         [DEST, timeFromHM(9, 10), 1],
       ],
-      graph: [
+      parents: [
         [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
         [[DEST, edgeB]],
       ],
@@ -226,7 +229,7 @@ describe('RangeResult', () => {
           origins: [0],
           destinations: [DEST],
           arrivals: [[DEST, timeFromHM(9, 2), 0]],
-          graph: [
+          parents: [
             [
               [0, { stopId: 0, arrival: timeFromHM(9, 0) }],
               [
@@ -381,7 +384,7 @@ describe('RangeResult', () => {
             [0, timeFromHM(9, 0), 0],
             [DEST, timeFromHM(9, 30), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHM(9, 0) }]],
             [[DEST, edgeA]],
           ],
@@ -402,7 +405,7 @@ describe('RangeResult', () => {
             [0, timeFromHM(8, 30), 0],
             [DEST, timeFromHM(9, 10), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
             [[DEST, edgeB]],
           ],
@@ -497,7 +500,7 @@ describe('RangeResult', () => {
     ];
     const stopsIndex = new StopsIndex(stops);
 
-    /** Build a predecessor-linked graph with a transfer for result aggregation tests. */
+    /** Build a predecessor-linked parents with a transfer for result aggregation tests. */
     function transferGraph(
       departure: number,
       interchangeArrival: number,
@@ -570,7 +573,7 @@ describe('RangeResult', () => {
             [DESTINATION, timeFromHM(8, 40), 2],
             [TRANSFER_ONLY, timeFromHM(8, 40), 2],
           ],
-          graph: transferGraph(
+          parents: transferGraph(
             timeFromHM(8, 0),
             timeFromHM(8, 5),
             timeFromHM(8, 40),
@@ -697,7 +700,7 @@ describe('RangeResult', () => {
             [DESTINATION, timeFromHM(8, 50), 2],
             [TRANSFER_ONLY, timeFromHM(8, 50), 2],
           ],
-          graph: transferGraph(
+          parents: transferGraph(
             timeFromHM(8, 15),
             timeFromHM(8, 20),
             timeFromHM(8, 50),
@@ -848,7 +851,7 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 50), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 50), 2],
               ],
-              graph: transferGraph(
+              parents: transferGraph(
                 timeFromHM(8, 15),
                 timeFromHM(8, 20),
                 timeFromHM(8, 50),
@@ -1037,7 +1040,7 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 40), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 40), 2],
               ],
-              graph: transferGraph(
+              parents: transferGraph(
                 timeFromHM(8, 10),
                 timeFromHM(8, 15),
                 timeFromHM(8, 40),
@@ -1170,7 +1173,7 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 30), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 30), 2],
               ],
-              graph: transferGraph(
+              parents: transferGraph(
                 timeFromHM(8, 0),
                 timeFromHM(8, 5),
                 timeFromHM(8, 30),
@@ -1309,7 +1312,7 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 40), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 40), 2],
               ],
-              graph: transferGraph(
+              parents: transferGraph(
                 timeFromHM(8, 10),
                 timeFromHM(8, 15),
                 timeFromHM(8, 40),
@@ -1442,7 +1445,7 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 30), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 30), 2],
               ],
-              graph: transferGraph(
+              parents: transferGraph(
                 timeFromHM(8, 0),
                 timeFromHM(8, 5),
                 timeFromHM(8, 30),

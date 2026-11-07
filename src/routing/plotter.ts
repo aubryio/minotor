@@ -242,7 +242,7 @@ export class Plotter {
     isOrigin: boolean;
     isDestination: boolean;
   } {
-    const { graph, destinations } = this.result[resultGraph]();
+    const { parents: graph, destinations } = this.result[resultGraph]();
     const isOrigin = graph[0]?.[stopId] !== undefined;
     const isDestination = destinations.includes(stopId);
     return { isOrigin, isDestination };
@@ -438,7 +438,7 @@ export class Plotter {
     const edges: string[] = [];
     const seen = new Set<RoutingEdge>();
     const pending: { edge: RoutingEdge; round: number }[] = [];
-    const graph = this.result[resultGraph]().graph;
+    const graph = this.result[resultGraph]().parents;
     for (let round = 0; round < graph.length; round++) {
       for (const edge of graph[round] ?? [])
         if (edge) pending.push({ edge, round });

@@ -83,25 +83,25 @@ describe('RoutingState reuse', () => {
     const state = new RoutingState(100, [2], access, 4, 3, 60);
     state.updateArrival(0, 99, 1);
     state.updateArrival(1, 120, 1);
-    state.graph[1]![1] = { stopId: 1, arrival: 120 };
+    state.parents[1]![1] = { stopId: 1, arrival: 120 };
     state.updateArrival(1, 110, 2);
-    state.graph[2]![1] = { stopId: 1, arrival: 110 };
+    state.parents[2]![1] = { stopId: 1, arrival: 110 };
     state.updateArrival(2, 130, 3);
-    state.graph[3]![2] = { stopId: 2, arrival: 130 };
+    state.parents[3]![2] = { stopId: 2, arrival: 130 };
     for (const departure of [90, 80]) {
       state.resetFor(departure, access);
       const fresh = new RoutingState(departure, [2], access, 4, 3, 60);
       assert.deepStrictEqual([...state.arrivals()], [...fresh.arrivals()]);
       assert.strictEqual(state.destinationBest, fresh.destinationBest);
       assert.strictEqual(state.maxArrivalTime, fresh.maxArrivalTime);
-      for (let round = 0; round < state.graph.length; round++) {
+      for (let round = 0; round < state.parents.length; round++) {
         assert.deepStrictEqual(
-          Array.from(state.graph[round]!),
-          Array.from(fresh.graph[round]!),
+          Array.from(state.parents[round]!),
+          Array.from(fresh.parents[round]!),
         );
       }
       state.updateArrival(1, departure + 10, 1);
-      state.graph[1]![1] = { stopId: 1, arrival: departure + 10 };
+      state.parents[1]![1] = { stopId: 1, arrival: departure + 10 };
     }
   });
 });

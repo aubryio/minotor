@@ -428,7 +428,7 @@ export class Timetable {
     let ready = genericReady;
     let rule: TripRule | undefined;
     if (source) {
-      rule = this.tripTransfers.transfer(
+      rule = this.tripTransfers.findTransfer(
         source.tripStopId,
         this.tripTransfers.tripStopId({
           routeId: route.id,

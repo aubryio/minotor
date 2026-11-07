@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 
-import { Frontier } from '../frontier.js';
+import { RoundLabels } from '../roundLabels.js';
 
 it('keeps ordinary and zero-context labels independent and clears both', () => {
-  const frontier = new Frontier(2);
+  const frontier = new RoundLabels(2);
   const ordinary = { readyAt: 20, edge: { stopId: 1, arrival: 20 } };
   const conditional = {
     readyAt: 10,
@@ -21,9 +21,9 @@ it('keeps ordinary and zero-context labels independent and clears both', () => {
   frontier.setConditional(1, 0, conditional);
   assert.equal(frontier.ordinary[1], ordinary);
   assert.equal(frontier.conditional.get(1)?.get(0), conditional);
-  assert.deepEqual([...frontier.stops], [1]);
+  assert.deepEqual([...frontier.markedStops], [1]);
   frontier.clear();
   assert.equal(frontier.ordinary[1], undefined);
   assert.equal(frontier.conditional.size, 0);
-  assert.equal(frontier.stops.size, 0);
+  assert.equal(frontier.markedStops.size, 0);
 });

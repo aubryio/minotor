@@ -3,8 +3,8 @@ import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
 import { Time } from '../timetable/time.js';
 import { TripId, TripStopId } from '../timetable/tripTransfers.js';
-import { RoundNumber } from './frontier.js';
 import type { IRaptorState } from './raptor.js';
+import { RoundNumber } from './roundLabels.js';
 import { RoutingEdge, RoutingState, UNREACHED_TIME } from './state.js';
 
 /**
@@ -20,6 +20,9 @@ import { RoutingEdge, RoutingState, UNREACHED_TIME } from './state.js';
  * @see https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf
  */
 export class RangeRaptorState implements IRaptorState {
+  get rangeBounds(): this {
+    return this;
+  }
   /**
    * `roundLabels[k]` is a flat `Uint16Array` of size `nbStops`.
    * `roundLabels[k][p]` = best arrival time (minutes from midnight) at stop `p`
@@ -179,7 +182,7 @@ export class RangeRaptorState implements IRaptorState {
     this.currentRun = routingState;
     // Propagate round-0 access arrivals into the shared labels so that
     // initRound(1) can tighten round-1 pruning bounds correctly.
-    const round0 = routingState.graph[0]!;
+    const round0 = routingState.parents[0]!;
     for (const stop of routingState.origins) {
       const edge = round0[stop];
       if (!edge) {
@@ -193,8 +196,8 @@ export class RangeRaptorState implements IRaptorState {
     return this.currentRun.origins;
   }
 
-  get graph(): (RoutingEdge | undefined)[][] {
-    return this.currentRun.graph;
+  get parents(): (RoutingEdge | undefined)[][] {
+    return this.currentRun.parents;
   }
 
   arrivalTime(stop: StopId): Time {
@@ -229,6 +232,11 @@ export class RangeRaptorState implements IRaptorState {
    * Updates the per-run aggregate best when improved, and always considers the
    * cross-run shared label.
    */
+  publishArrival(stop: StopId, edge: RoutingEdge, round: RoundNumber): void {
+    this.parents[round]![stop] = edge;
+    this.updateArrival(stop, edge.arrival, round);
+  }
+
   updateArrival(stop: StopId, time: Time, round: RoundNumber): void {
     const currentRunArrival = this.currentRun.getArrival(stop);
     const improvesCurrentRunAggregate =

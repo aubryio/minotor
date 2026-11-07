@@ -129,7 +129,7 @@ export class RangeRouter {
       const arrival = routingState.destinationBest;
       const isParetoOptimal =
         noDestinations || arrival < bestDestinationArrival;
-      const accessGraph = routingState.graph[0];
+      const accessGraph = routingState.parents[0];
       const reachedByAccess = destinations.some(
         (stop) =>
           trivialDestinations.has(stop) &&

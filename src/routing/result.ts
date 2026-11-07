@@ -31,10 +31,10 @@ export class Result implements RoutingResult {
     return this.#routingState.destinations;
   }
 
-  /** @internal Routing graph and destination metadata for the graph plotter. */
-  [resultGraph](): Pick<RoutingState, 'graph' | 'destinations'> {
+  /** @internal Routing parents and destination metadata for the parents plotter. */
+  [resultGraph](): Pick<RoutingState, 'parents' | 'destinations'> {
     return {
-      graph: this.#routingState.graph,
+      parents: this.#routingState.parents,
       destinations: this.#routingState.destinations,
     };
   }
@@ -72,10 +72,10 @@ export class Result implements RoutingResult {
     let earliest: Arrival | undefined;
     const lastRound = Math.min(
       maxTransfers + 1,
-      this.#routingState.graph.length - 1,
+      this.#routingState.parents.length - 1,
     );
     for (let round = lastRound; round >= 0; round--) {
-      const edge = this.#routingState.graph[round]?.[stop];
+      const edge = this.#routingState.parents[round]?.[stop];
       if (
         edge !== undefined &&
         (earliest === undefined || edge.arrival < earliest.arrival)
@@ -178,7 +178,7 @@ export class Result implements RoutingResult {
     }
 
     const destinationEdge =
-      this.#routingState.graph[fastestLegNumber]?.[fastestDestination];
+      this.#routingState.parents[fastestLegNumber]?.[fastestDestination];
     if (!destinationEdge && fastestLegNumber > 0) {
       throw new Error(
         `No edge arriving at stop ${fastestDestination} at round ${fastestLegNumber}`,

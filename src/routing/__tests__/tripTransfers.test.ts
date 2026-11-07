@@ -256,7 +256,7 @@ function exhaustive(
 /** Check predecessor timing and boarding counts for every retained stop arrival. */
 function validateLinks(timetable: Timetable, state: RoutingState): void {
   for (const { stop, legNumber } of state.arrivals()) {
-    let edge: RoutingEdge | undefined = state.graph[legNumber]![stop];
+    let edge: RoutingEdge | undefined = state.parents[legNumber]![stop];
     let boardings = 0;
     const seen = new Set<RoutingEdge>();
     while (edge) {
@@ -313,7 +313,7 @@ describe('transfer-aware trip scans', () => {
     );
     const state = runRaptor(timetable);
     assert.equal(state.arrivalTime(2), 20);
-    const target = state.graph[2]![2]!;
+    const target = state.parents[2]![2]!;
     assert('routeId' in target && 'type' in target.predecessor);
     const feeder = target.predecessor.predecessor;
     assert('routeId' in feeder && feeder.tripIndex === 1);
@@ -955,7 +955,7 @@ it('keeps arrival publication and boarding retention independent across range ru
     const raptor = new Raptor(timetable);
     raptor.run({ ...options, maxTransfers: 0 }, shared);
     assert.equal(
-      current.graph[1]![2]?.arrival,
+      current.parents[1]![2]?.arrival,
       outcome === 'publish' ? 12 : undefined,
     );
     assert.equal(shared.boardingBound(1, 2), 12);
@@ -984,7 +984,7 @@ it('retains a boarding decided before walking arrival tightens the destination b
   const raptor = new Raptor(timetable);
   raptor.run({ ...options, maxTransfers: 0 }, state);
   assert.equal(state.destinationBest, 12);
-  assert.equal(state.graph[1]![2]?.arrival, 12);
+  assert.equal(state.parents[1]![2]?.arrival, 12);
   assert.equal(raptor.statistics.retainedContexts, 1);
 });
 
@@ -1011,7 +1011,7 @@ it('tries ordinary boarding first and falls back to conditional rights', () => {
     );
     const raptor = new Raptor(timetable);
     raptor.run({ ...options, maxTransfers: 1 }, state);
-    const edge = state.graph[2]![2];
+    const edge = state.parents[2]![2];
     assert.ok(edge && 'routeId' in edge);
     assert.equal(edge.routeId, 2);
     assert.equal(edge.arrival, 20);

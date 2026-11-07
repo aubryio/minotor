@@ -230,7 +230,7 @@ describe('Result', () => {
           origins: [0],
           destinations: [2, 3],
           arrivals: [[1, timeFromHMS(8, 30, 0), 0]],
-          graph: [[[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]]],
+          parents: [[[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]]],
         }),
         mockStopsIndex,
         mockTimetable,
@@ -260,7 +260,7 @@ describe('Result', () => {
             [2, timeFromHMS(9, 0, 0), 1],
             [3, timeFromHMS(9, 30, 0), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[2, vehicleEdge]], // round 1
           ],
@@ -306,7 +306,7 @@ describe('Result', () => {
             [5, timeFromHMS(10, 10, 0), 2],
             [6, timeFromHMS(10, 30, 0), 2],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[2, feeder]], // round 1
             [[5, vehicleEdge]], // round 2
@@ -343,7 +343,7 @@ describe('Result', () => {
             [0, timeFromHMS(8, 0, 0), 0],
             [2, timeFromHMS(9, 0, 0), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[2, vehicleEdge]], // round 1
           ],
@@ -390,7 +390,7 @@ describe('Result', () => {
             [2, timeFromHMS(9, 0, 0), 1],
             [3, timeFromHMS(9, 45, 0), 2],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[2, firstVehicleEdge]], // round 1
             [[3, secondVehicleEdge]], // round 2
@@ -434,7 +434,7 @@ describe('Result', () => {
             [0, timeFromHMS(8, 0, 0), 0],
             [2, timeFromHMS(9, 0, 0), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[2, vehicleEdge]], // round 1
           ],
@@ -472,7 +472,7 @@ describe('Result', () => {
             [2, timeFromHMS(9, 0, 0), 1],
             [3, timeFromHMS(9, 45, 0), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[2, vehicleEdge]], // round 1
           ],
@@ -522,7 +522,7 @@ describe('Result', () => {
             [1, timeFromHMS(8, 30, 0), 1],
             [2, timeFromHMS(9, 0, 0), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [
               [1, firstVehicleEdge],
@@ -572,7 +572,7 @@ describe('Result', () => {
             [0, timeFromHMS(8, 0, 0), 0],
             [3, timeFromHMS(9, 45, 0), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [[3, continuousVehicleEdge]], // round 1
           ],
@@ -626,7 +626,7 @@ describe('Result', () => {
           [2, timeFromHMS(8, 35, 0), 1],
           [3, timeFromHMS(9, 15, 0), 2],
         ],
-        graph: [
+        parents: [
           [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
           [
             [1, firstVehicleEdge],
@@ -677,7 +677,7 @@ describe('Result', () => {
 
   describe('explicit predecessor chains', () => {
     for (const type of [TransferTypes.RECOMMENDED, TransferTypes.GUARANTEED]) {
-      it(`retains access and transfer type ${type} after graph labels are replaced`, () => {
+      it(`retains access and transfer type ${type} after parents labels are replaced`, () => {
         const access = { from: 3, to: 0, duration: 5, arrival: 480 };
         const feeder: VehicleEdge = {
           routeId: 0,
@@ -707,7 +707,7 @@ describe('Result', () => {
           nbStops: NB_STOPS,
           destinations: [3],
           arrivals: [[3, 585, 2]],
-          graph: [
+          parents: [
             [[0, access]],
             [
               [1, feeder],
@@ -733,7 +733,7 @@ describe('Result', () => {
           minTransferTime: 5,
         });
         // Replace every intermediate label; the destination still owns its original chain.
-        const [accessRound, transferRound] = state.graph;
+        const [accessRound, transferRound] = state.parents;
         assert(accessRound && transferRound);
         accessRound[0] = { stopId: 0, arrival: 470 };
         transferRound[1] = { ...feeder, stopIndex: 1, arrival: 500 };
@@ -752,7 +752,7 @@ describe('Result', () => {
         origins: [0],
         destinations: [0],
         arrivals: [[0, 480, 0]],
-        graph: [[[0, { stopId: 0, arrival: 480 }]]],
+        parents: [[[0, { stopId: 0, arrival: 480 }]]],
       });
       assert.deepStrictEqual(
         new Result(state, mockStopsIndex, mockTimetable).bestRoute()?.legs,
@@ -802,7 +802,7 @@ describe('Result', () => {
         nbStops: NB_STOPS,
         destinations: [3],
         arrivals: [[3, 585, 1]],
-        graph: [[], [[3, third]]],
+        parents: [[], [[3, third]]],
       });
       const journey = new Result(
         state,
@@ -1077,7 +1077,7 @@ describe('Result', () => {
           [TRANSFER_ONLY, viaArrival, 2],
           [WALK_ONLY, departureTime + 2, 0],
         ],
-        graph: [
+        parents: [
           [
             [ORIGIN, { stopId: ORIGIN, arrival: departureTime }],
             [

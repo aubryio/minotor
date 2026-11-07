@@ -66,7 +66,7 @@ describe('RangeRaptorState', () => {
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [1],
-          graph: [[[1, { stopId: 1, arrival: timeFromHM(9, 0) }]]],
+          parents: [[[1, { stopId: 1, arrival: timeFromHM(9, 0) }]]],
         }),
       );
       assert.strictEqual(state.roundLabels[0]![1], timeFromHM(9, 0));
@@ -82,13 +82,13 @@ describe('RangeRaptorState', () => {
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [1],
-          graph: [[]],
+          parents: [[]],
         }),
       );
       assert.strictEqual(state.roundLabels[0]![1], UNREACHED_TIME);
     });
 
-    it('delegates origins and graph getters to the active run', () => {
+    it('delegates origins and parents getters to the active run', () => {
       const state = new RangeRaptorState(
         MAX_ROUNDS,
         NB_STOPS,
@@ -97,11 +97,11 @@ describe('RangeRaptorState', () => {
       const run = RoutingState.fromTestData({
         nbStops: NB_STOPS,
         origins: [0, 2],
-        graph: [[]],
+        parents: [[]],
       });
       state.setCurrentRun(run);
       assert.deepStrictEqual(state.origins, [0, 2]);
-      assert.strictEqual(state.graph, run.graph);
+      assert.strictEqual(state.parents, run.parents);
     });
   });
 

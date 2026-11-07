@@ -137,11 +137,11 @@ describe('integer minute routing', () => {
     );
     const range = new RangeRaptorState(2, 3, 65534);
     range.setCurrentRun(state);
-    assert.equal(state.graph[0]?.[1]?.arrival, 13);
+    assert.equal(state.parents[0]?.[1]?.arrival, 13);
     assert.equal(state.arrivalTime(1), 13);
     assert.equal(range.destinationBest, 13);
     state.resetFor(21, [{ fromStopId: 0, toStopId: 1, duration: 1 }]);
-    assert.equal(state.graph[0][1].arrival, 22);
+    assert.equal(state.parents[0][1].arrival, 22);
     assert.equal(state.arrivalTime(1), 22);
   });
 
@@ -175,7 +175,7 @@ describe('integer minute routing', () => {
       );
       raptor.run(options, state);
       assert.equal(state.arrivalTime(2), 21);
-      assert.equal(state.graph[1]?.[2]?.arrival, 21);
+      assert.equal(state.parents[1]?.[2]?.arrival, 21);
     }
   });
 
