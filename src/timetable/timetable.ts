@@ -6,11 +6,11 @@ import {
   deserializeRoutesAdjacency,
   deserializeServiceRoutesMap,
   deserializeStopsAdjacency,
-  deserializeTripTransfers,
+  deserializeTripRules,
   serializeRoutesAdjacency,
   serializeServiceRoutesMap,
   serializeStopsAdjacency,
-  serializeTripTransfers,
+  serializeTripRules,
 } from './io.js';
 import { Timetable as ProtoTimetable } from './proto/v1/timetable.js';
 import {
@@ -20,38 +20,56 @@ import {
   StopRouteIndex,
   TripRouteIndex,
 } from './route.js';
-import { Duration, DURATION_ZERO, Time, TIME_ORIGIN } from './time.js';
-import { encode, TripStopId } from './tripStopId.js';
+import { Duration, Time } from './time.js';
+import {
+  Transfer,
+  TransferType,
+  TransferTypes,
+  TransferTypeString,
+  TripStop,
+  TripTransfers,
+} from './transfer.js';
+import { TripRule, TripStopId, TripTransferIndex } from './tripTransfers.js';
 
-export const TransferTypes = {
-  RECOMMENDED: 1,
-  GUARANTEED: 2,
-  REQUIRES_MINIMAL_TIME: 3,
-  IN_SEAT: 4,
-} as const;
+export type {
+  Transfer,
+  TransferType,
+  TransferTypeString,
+  TripPosition,
+  TripStop,
+  TripTransferDestination,
+  TripTransfers,
+} from './transfer.js';
+export { TransferTypes } from './transfer.js';
 
-export type TransferType = (typeof TransferTypes)[keyof typeof TransferTypes];
-
-export type TransferTypeString = keyof typeof TransferTypes;
-
-export type Transfer = {
-  destination: StopId;
-  type: TransferType;
-  minTransferTime?: Duration;
+/** Feeder identity and actual arrival, independent of routing graph labels. */
+export type BoardingSource = {
+  tripStopId: TripStopId;
+  arrival: Time;
 };
 
-export type TripStop = {
-  stopIndex: StopRouteIndex;
-  routeId: RouteId;
-  tripIndex: TripRouteIndex;
+export type ResolvedBoarding = {
+  ready: Time;
+  rule?: TripRule;
+};
+
+/** Timetable lookup constraints, independent of routing labels and rounds. */
+export type BoardingSearch = {
+  genericReady: Time;
+  fallbackTransferDuration: Duration;
+  source?: BoardingSource;
+  /** Exclusive trip index bound; omitted means all trips. */
+  beforeTrip?: TripRouteIndex;
+  /** Inclusive departure ceiling; omitted means unrestricted. */
+  maxDeparture?: Time;
+  /** Exclusive departure ceiling; omitted means unrestricted. */
+  beforeDeparture?: Time;
 };
 
 export type StopAdjacency = {
   transfers?: Transfer[];
   routes: RouteId[];
 };
-
-export type TripTransfers = Map<TripStopId, TripStop[]>;
 
 export type ServiceRouteId = number;
 
@@ -86,8 +104,6 @@ export const ALL_TRANSPORT_MODES: Set<RouteType> = new Set(
   Object.values(RouteTypes),
 );
 
-const EMPTY_TRIP_BOARDINGS: TripStop[] = [];
-
 /**
  * The internal transit timetable format.
  */
@@ -95,22 +111,33 @@ export class Timetable {
   private readonly stopsAdjacency: StopAdjacency[];
   private readonly routesAdjacency: Route[];
   private readonly serviceRoutes: ServiceRoute[];
-  private readonly tripContinuations?: TripTransfers;
-  private readonly guaranteedTripTransfers?: TripTransfers;
+  readonly tripTransfers: TripTransferIndex;
   private readonly activeStops: Set<StopId>;
 
+  /**
+   * Build timetable adjacency and transfer storage; raw rules are normalized
+   * while a supplied index is reused.
+   */
   constructor(
     stopsAdjacency: StopAdjacency[],
     routesAdjacency: Route[],
     routes: ServiceRoute[],
     tripContinuations?: TripTransfers,
-    guaranteedTripTransfers?: TripTransfers,
+    tripTransfers?: TripTransfers,
+    rules: TripRule[] | TripTransferIndex = [],
   ) {
     this.stopsAdjacency = stopsAdjacency;
     this.routesAdjacency = routesAdjacency;
     this.serviceRoutes = routes;
-    this.tripContinuations = tripContinuations;
-    this.guaranteedTripTransfers = guaranteedTripTransfers;
+    this.tripTransfers =
+      rules instanceof TripTransferIndex
+        ? rules
+        : TripTransferIndex.fromRaw(
+            routesAdjacency,
+            rules,
+            tripContinuations,
+            tripTransfers,
+          );
     this.activeStops = new Set<StopId>();
     for (let i = 0; i < stopsAdjacency.length; i++) {
       const stop = stopsAdjacency[i]!;
@@ -133,12 +160,8 @@ export class Timetable {
       stopsAdjacency: serializeStopsAdjacency(this.stopsAdjacency),
       routesAdjacency: serializeRoutesAdjacency(this.routesAdjacency),
       serviceRoutes: serializeServiceRoutesMap(this.serviceRoutes),
-      tripContinuations: serializeTripTransfers(
-        this.tripContinuations || new Map<TripStopId, TripStop[]>(),
-      ),
-      guaranteedTripTransfers: serializeTripTransfers(
-        this.guaranteedTripTransfers || new Map<TripStopId, TripStop[]>(),
-      ),
+      formatVersion: 3,
+      tripRules: serializeTripRules(this.tripTransfers.all()),
     };
     const writer = new BinaryWriter();
     ProtoTimetable.encode(protoTimetable, writer);
@@ -146,7 +169,8 @@ export class Timetable {
   }
 
   /**
-   * Deserializes a binary protobuf into a Timetable object.
+   * Loads a binary produced by a compatible Minotor serializer.
+   * Transfer rules must already be canonical; raw-input validation is not repeated.
    *
    * @param data - The binary data to deserialize.
    * @returns The deserialized Timetable object.
@@ -154,12 +178,22 @@ export class Timetable {
   static fromData(data: Uint8Array): Timetable {
     const reader = new BinaryReader(data);
     const protoTimetable = ProtoTimetable.decode(reader);
+    if (protoTimetable.formatVersion !== 3) {
+      throw new Error(
+        'Unsupported timetable format; regenerate the dataset with this version of minotor.',
+      );
+    }
+    const routes = deserializeRoutesAdjacency(protoTimetable.routesAdjacency);
     return new Timetable(
       deserializeStopsAdjacency(protoTimetable.stopsAdjacency),
-      deserializeRoutesAdjacency(protoTimetable.routesAdjacency),
+      routes,
       deserializeServiceRoutesMap(protoTimetable.serviceRoutes),
-      deserializeTripTransfers(protoTimetable.tripContinuations),
-      deserializeTripTransfers(protoTimetable.guaranteedTripTransfers),
+      undefined,
+      undefined,
+      TripTransferIndex.fromCanonical(
+        routes,
+        deserializeTripRules(protoTimetable.tripRules),
+      ),
     );
   }
 
@@ -220,23 +254,31 @@ export class Timetable {
     routeId: RouteId,
     tripIndex: TripRouteIndex,
   ): TripStop[] {
-    const tripContinuations = this.tripContinuations?.get(
-      encode(stopIndex, routeId, tripIndex),
-    );
-    if (!tripContinuations) {
-      return EMPTY_TRIP_BOARDINGS;
+    const source = this.tripTransfers.findTripStopId({
+      stopIndex,
+      routeId,
+      tripIndex,
+    });
+    if (source === undefined) {
+      return [];
     }
-    return tripContinuations;
+    return [...this.tripTransfers.outgoing(source)]
+      .filter((rule) => rule.type === TransferTypes.IN_SEAT)
+      .map((rule) => this.tripTransfers.position(rule.target));
   }
 
-  /**
-   * Retrieves the service route associated with the given route.
-   * A service route refers to a collection of trips that are displayed
-   * to riders as a single service.
-   *
-   * @param route - The route for which the service route is to be retrieved.
-   * @returns The service route corresponding to the provided route.
-   */
+  /** Scalar mode lookup for scans, without allocating display metadata. */
+  getServiceRouteType(route: Route): RouteType {
+    const serviceRoute = this.serviceRoutes[route.serviceRoute()];
+    if (!serviceRoute) {
+      throw new Error(
+        `Service route not found for route ID: ${route.serviceRoute()}`,
+      );
+    }
+    return serviceRoute.type;
+  }
+
+  /** Display metadata for reconstructed journeys. */
   getServiceRouteInfo(route: Route): ServiceRouteInfo {
     const serviceRoute = this.serviceRoutes[route.serviceRoute()];
     if (!serviceRoute) {
@@ -289,15 +331,21 @@ export class Timetable {
 
     for (const originStop of fromStops) {
       const stopData = this.stopsAdjacency[originStop];
-      if (!stopData) continue;
+      if (!stopData) {
+        continue;
+      }
 
       for (let i = 0; i < stopData.routes.length; i++) {
         const route = this.routesAdjacency[stopData.routes[i]!];
-        if (!route) continue;
+        if (!route) {
+          continue;
+        }
 
         if (filterByMode) {
           const serviceRoute = this.serviceRoutes[route.serviceRoute()];
-          if (!serviceRoute || !transportModes.has(serviceRoute.type)) continue;
+          if (!serviceRoute || !transportModes.has(serviceRoute.type)) {
+            continue;
+          }
         }
 
         const originStopIndex = route.firstStopRouteIndex(originStop)!;
@@ -315,89 +363,88 @@ export class Timetable {
   }
 
   /**
-   * Checks if a trip transfer is guaranteed for a given trip boarding.
-   *
-   * @param fromTripStop - The trip stop for the trip transfer origin.
-   * @param toTripStop - The trip stop to check if it's guaranteed.
-   * @returns True if the trip transfer is guaranteed, false otherwise.
+   * Find the first eligible trip without outgoing trip-specific rules.
+   * The caller supplies departure bounds; no routing state is retained.
    */
-  isTripTransferGuaranteed(
-    fromTripStop: TripStop,
-    toTripStop: TripStop,
-  ): boolean {
-    const tripBoardingId = encode(
-      fromTripStop.stopIndex,
-      fromTripStop.routeId,
-      fromTripStop.tripIndex,
+  findFirstOrdinaryBoarding(
+    route: Route,
+    stopIndex: StopRouteIndex,
+    search: BoardingSearch,
+  ): (ResolvedBoarding & { trip: TripRouteIndex }) | undefined {
+    if (route.pickUpTypeFrom(stopIndex) === PickUpDropOffTypes.NOT_AVAILABLE)
+      return undefined;
+    // A pair-specific minimum can permit boarding before generic readiness.
+    const earliest = route.findEarliestTrip(
+      stopIndex,
+      search.source?.arrival ?? search.genericReady,
+      search.beforeTrip,
     );
-    const guaranteedTransfers =
-      this.guaranteedTripTransfers?.get(tripBoardingId);
-    if (!guaranteedTransfers) {
-      return false;
+    if (earliest === undefined) return undefined;
+
+    const beforeTrip = Math.min(
+      search.beforeTrip ?? route.getNbTrips(),
+      route.getNbTrips(),
+    );
+    const maxDeparture = search.maxDeparture ?? Infinity;
+    const beforeDeparture = search.beforeDeparture ?? Infinity;
+    for (let trip = earliest; trip < beforeTrip; trip++) {
+      const departure = route.departureFrom(stopIndex, trip);
+      // Departures are ordered, so no later candidate can meet these bounds.
+      if (departure > maxDeparture || departure >= beforeDeparture) break;
+      if (this.tripTransfers.isExceptional(route.id, trip)) continue;
+      const resolved = this.resolveBoarding(
+        route,
+        stopIndex,
+        trip,
+        departure,
+        search.genericReady,
+        search.fallbackTransferDuration,
+        search.source,
+      );
+      if (resolved) return { trip, ...resolved };
     }
-    for (let i = 0; i < guaranteedTransfers.length; i++) {
-      const transfer = guaranteedTransfers[i]!;
-      if (
-        transfer.stopIndex === toTripStop.stopIndex &&
-        transfer.routeId === toTripStop.routeId &&
-        transfer.tripIndex === toTripStop.tripIndex
-      ) {
-        return true;
-      }
-    }
-    return false;
+    return undefined;
   }
 
   /**
-   * Finds the first trip on `route` at `stopIndex` that can be boarded, starting
-   * from `earliestTrip` and respecting pickup availability, transfer guarantees,
-   * and minimum transfer times.
-   *
-   * @param stopIndex     Stop at which boarding is attempted.
-   * @param route         The route to search.
-   * @param earliestTrip  First trip index to consider.
-   * @param after         Earliest time after which boarding is allowed.
-   * @param beforeTrip    Exclusive upper bound on the trip index (omit to search all).
-   * @param fromTripStop  The alighted trip stop when transferring from another trip;
-   *                      `undefined` when boarding from a walk or origin.
-   * @param transferTime  Minimum transfer time required between trips.
-   * @returns The index of the first boardable trip, or `undefined` if none found.
+   * Resolve pickup and departure eligibility using the departure already read by
+   * the scan. Without a matching pair rule, generic readiness is unchanged.
+   * Pair guarantees use feeder arrival directly; other pair rules add their
+   * explicit minimum or the fallback to that arrival. Only feeder-based
+   * boardings need trip stop lookup. Query bounds remain the caller's concern.
    */
-  findFirstBoardableTrip(
-    stopIndex: StopRouteIndex,
+  resolveBoarding(
     route: Route,
-    earliestTrip: TripRouteIndex,
-    after: Time = TIME_ORIGIN,
-    beforeTrip?: TripRouteIndex,
-    fromTripStop?: TripStop,
-    transferTime: Duration = DURATION_ZERO,
-  ): TripRouteIndex | undefined {
-    const nbTrips = route.getNbTrips();
-
-    for (let t = earliestTrip; t < (beforeTrip ?? nbTrips); t++) {
-      const pickup = route.pickUpTypeFrom(stopIndex, t);
-      if (pickup === PickUpDropOffTypes.NOT_AVAILABLE) {
-        continue;
-      }
-      if (fromTripStop === undefined) {
-        return t;
-      }
-
-      const isGuaranteed = this.isTripTransferGuaranteed(fromTripStop, {
-        stopIndex,
-        routeId: route.id,
-        tripIndex: t,
-      });
-      if (isGuaranteed) {
-        return t;
-      }
-      const departure = route.departureFrom(stopIndex, t);
-      const requiredTime = after + transferTime;
-      if (departure >= requiredTime) {
-        return t;
+    stopIndex: StopRouteIndex,
+    tripIndex: TripRouteIndex,
+    departure: Time,
+    genericReady: Time,
+    fallbackTransferDuration: Duration,
+    source?: BoardingSource,
+  ): ResolvedBoarding | undefined {
+    if (route.pickUpTypeFrom(stopIndex) === PickUpDropOffTypes.NOT_AVAILABLE) {
+      return undefined;
+    }
+    let ready = genericReady;
+    let rule: TripRule | undefined;
+    if (source) {
+      rule = this.tripTransfers.findTransfer(
+        source.tripStopId,
+        this.tripTransfers.tripStopId({
+          routeId: route.id,
+          stopIndex,
+          tripIndex,
+        }),
+      );
+      if (rule) {
+        ready =
+          source.arrival +
+          (rule.type === TransferTypes.GUARANTEED
+            ? 0
+            : (rule.minTransferTime ?? fallbackTransferDuration));
       }
     }
-    return undefined;
+    return departure >= ready ? { ready, rule } : undefined;
   }
 
   /**
@@ -413,13 +460,17 @@ export class Timetable {
     routeId: RouteId,
     tripIndex: TripRouteIndex,
   ): TripStop[] {
-    const guaranteedTripTransfers = this.guaranteedTripTransfers?.get(
-      encode(stopIndex, routeId, tripIndex),
-    );
-    if (!guaranteedTripTransfers) {
-      return EMPTY_TRIP_BOARDINGS;
+    const source = this.tripTransfers.findTripStopId({
+      stopIndex,
+      routeId,
+      tripIndex,
+    });
+    if (source === undefined) {
+      return [];
     }
-    return guaranteedTripTransfers;
+    return [...this.tripTransfers.outgoing(source)]
+      .filter((rule) => rule.type === TransferTypes.GUARANTEED)
+      .map((rule) => this.tripTransfers.position(rule.target));
   }
 }
 

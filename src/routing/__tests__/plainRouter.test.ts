@@ -13,7 +13,7 @@ import {
   TransferTypes,
   TripTransfers,
 } from '../../timetable/timetable.js';
-import { encode } from '../../timetable/tripStopId.js';
+import { encode } from '../../timetable/tripStopKey.js';
 import { AccessFinder } from '../access.js';
 import { PlainRouter } from '../plainRouter.js';
 import { Query } from '../query.js';

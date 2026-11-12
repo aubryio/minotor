@@ -1,6 +1,4 @@
-import { StopId } from '../stops/stops.js';
 import { StopsIndex } from '../stops/stopsIndex.js';
-import { Time } from '../timetable/time.js';
 import { Timetable } from '../timetable/timetable.js';
 import { AccessFinder } from './access.js';
 import { RangeQuery } from './query.js';
@@ -32,8 +30,9 @@ export class RangeRouter {
    * Range RAPTOR: finds all Pareto-optimal journeys within the departure-time
    * window `[query.departureTime, query.lastDepartureTime]`.
    *
-   * A journey is Pareto-optimal iff no journey departing no earlier arrives no
-   * later. Runs are ordered latest-departure-first in the returned result.
+   * Destinations are alternatives. An earlier departure must arrive earlier to remain
+   * on the departure/arrival frontier; transfer count is only a query constraint.
+   * Runs are ordered latest-departure-first. Access-only answers are retained once.
    *
    * @param query A {@link RangeQuery} with both `departureTime` and `lastDepartureTime` set.
    * @returns A {@link RangeResult} exposing the full Pareto frontier.
@@ -41,9 +40,9 @@ export class RangeRouter {
   rangeRoute(query: RangeQuery): RangeResult {
     const { departureTime: earliest, lastDepartureTime: latest } = query;
 
-    const destinations = Array.from(query.to)
-      .flatMap((destination) => this.stopsIndex.equivalentStops(destination))
-      .map((destination) => destination.id);
+    const destinations = Array.from(query.to).flatMap((destination) =>
+      this.stopsIndex.equivalentStops(destination).map((stop) => stop.id),
+    );
 
     const noDestinations = destinations.length === 0;
 
@@ -71,21 +70,21 @@ export class RangeRouter {
 
     const paretoRuns: ParetoRun[] = [];
 
-    const paretoDestBest = new Map<StopId, Time>();
-    for (const dest of destinations) {
-      paretoDestBest.set(dest, UNREACHED_TIME);
-    }
-
-    const trivialDests = new Set(
+    // Later departures are processed first; an earlier run must arrive sooner.
+    let bestDestinationArrival = UNREACHED_TIME;
+    let retainedAccessJourney = false;
+    const trivialDestinations = new Set(
       accessLegs
         .map((leg) => leg.toStopId)
-        .filter((id) => destinations.includes(id)),
+        .filter((stop) => destinations.includes(stop)),
     );
-    const trivialDestCovered = new Set<StopId>();
 
     let routingState: RoutingState | null = null;
 
-    if (query.rangeOptions.optimizeBeyondLatestDeparture) {
+    if (
+      query.rangeOptions.optimizeBeyondLatestDeparture &&
+      latest + 1 < UNREACHED_TIME
+    ) {
       routingState = new RoutingState(
         latest + 1,
         destinations,
@@ -102,20 +101,10 @@ export class RangeRouter {
         },
         rangeState,
       );
-      if (!noDestinations) {
-        for (const dest of destinations) {
-          const t = routingState.arrivalTime(dest);
-          if (t < (paretoDestBest.get(dest) ?? UNREACHED_TIME))
-            paretoDestBest.set(dest, t);
-        }
-      }
+      bestDestinationArrival = routingState.destinationBest;
     }
 
     for (const { depTime, legs } of departureSlots) {
-      if (!noDestinations && trivialDestCovered.size === destinations.length) {
-        break;
-      }
-
       if (routingState === null) {
         routingState = new RoutingState(
           depTime,
@@ -137,33 +126,28 @@ export class RangeRouter {
         rangeState,
       );
 
-      let isParetoOptimal = noDestinations;
-      if (!noDestinations) {
-        for (const dest of destinations) {
-          const arrival = routingState.arrivalTime(dest);
-          if (arrival >= (paretoDestBest.get(dest) ?? UNREACHED_TIME)) {
-            continue;
-          }
+      const arrival = routingState.destinationBest;
+      const isParetoOptimal =
+        noDestinations || arrival < bestDestinationArrival;
+      const accessGraph = routingState.parents[0];
+      const reachedByAccess = destinations.some(
+        (stop) =>
+          trivialDestinations.has(stop) &&
+          accessGraph?.[stop]?.arrival === arrival,
+      );
+      bestDestinationArrival = Math.min(bestDestinationArrival, arrival);
 
-          if (trivialDests.has(dest) && trivialDestCovered.has(dest)) {
-            paretoDestBest.set(dest, arrival);
-            continue;
-          }
-
-          paretoDestBest.set(dest, arrival);
-          if (trivialDests.has(dest)) {
-            trivialDestCovered.add(dest);
-          }
-          isParetoOptimal = true;
-        }
-      }
-
-      if (isParetoOptimal) {
+      if (isParetoOptimal && (!reachedByAccess || !retainedAccessJourney)) {
         paretoRuns.push({
           departureTime: depTime,
           result: new Result(routingState, this.stopsIndex, this.timetable),
         });
         routingState = null;
+        // Represent access-only answers once, but keep looking for faster transit.
+        retainedAccessJourney ||= reachedByAccess;
+        if (reachedByAccess && arrival === depTime) {
+          break;
+        }
       }
     }
 

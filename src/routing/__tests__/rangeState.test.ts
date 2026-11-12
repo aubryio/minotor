@@ -10,6 +10,21 @@ const NB_STOPS = 4;
 const MAX_ROUNDS = 3;
 
 describe('RangeRaptorState', () => {
+  it('keeps ordinary and zero-context bounds independent across rounds', () => {
+    const state = new RangeRaptorState(MAX_ROUNDS, NB_STOPS, timeFromHM(12, 0));
+    state.updateBoardingBound(1, 2, 20);
+    state.updateConditionalBoardingBound(1, 2, 0, 10);
+    state.updateBoardingBound(1, 2, 30);
+    state.updateConditionalBoardingBound(1, 2, 0, 15);
+    assert.equal(state.boardingBound(0, 2), UNREACHED_TIME);
+    assert.equal(state.conditionalBoardingBound(0, 2, 0), Infinity);
+    for (let round = 1; round < MAX_ROUNDS + 2; round++) {
+      assert.equal(state.boardingBound(round, 2), 20);
+      assert.equal(state.conditionalBoardingBound(round, 2, 0), 10);
+      assert.equal(state.conditionalBoardingBound(round, 2, 1), Infinity);
+    }
+  });
+
   describe('constructor', () => {
     it('creates roundLabels of length maxRounds + 2', () => {
       const state = new RangeRaptorState(
@@ -51,7 +66,7 @@ describe('RangeRaptorState', () => {
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [1],
-          graph: [[[1, { stopId: 1, arrival: timeFromHM(9, 0) }]]],
+          parents: [[[1, { stopId: 1, arrival: timeFromHM(9, 0) }]]],
         }),
       );
       assert.strictEqual(state.roundLabels[0]![1], timeFromHM(9, 0));
@@ -67,13 +82,13 @@ describe('RangeRaptorState', () => {
         RoutingState.fromTestData({
           nbStops: NB_STOPS,
           origins: [1],
-          graph: [[]],
+          parents: [[]],
         }),
       );
       assert.strictEqual(state.roundLabels[0]![1], UNREACHED_TIME);
     });
 
-    it('delegates origins and graph getters to the active run', () => {
+    it('delegates origins and parents getters to the active run', () => {
       const state = new RangeRaptorState(
         MAX_ROUNDS,
         NB_STOPS,
@@ -82,11 +97,11 @@ describe('RangeRaptorState', () => {
       const run = RoutingState.fromTestData({
         nbStops: NB_STOPS,
         origins: [0, 2],
-        graph: [[]],
+        parents: [[]],
       });
       state.setCurrentRun(run);
       assert.deepStrictEqual(state.origins, [0, 2]);
-      assert.strictEqual(state.graph, run.graph);
+      assert.strictEqual(state.parents, run.parents);
     });
   });
 
@@ -215,7 +230,7 @@ describe('RangeRaptorState', () => {
       }
     });
 
-    it('clears the changed-stop list so a subsequent call propagates nothing new', () => {
+    it('propagates inherited improvements into subsequent rounds', () => {
       const state = new RangeRaptorState(
         MAX_ROUNDS,
         NB_STOPS,
@@ -225,7 +240,7 @@ describe('RangeRaptorState', () => {
       state.updateArrival(2, timeFromHM(9, 0), 0);
       state.initRound(1);
       state.initRound(2);
-      assert.strictEqual(state.roundLabels[2]![2], UNREACHED_TIME);
+      assert.strictEqual(state.roundLabels[2]![2], timeFromHM(9, 0));
     });
   });
 

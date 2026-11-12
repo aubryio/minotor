@@ -15,6 +15,19 @@ import {
 } from '../time.js';
 
 describe('time utilities', () => {
+  it('normalizes conversion results and rejects invalid or overflowing inputs', () => {
+    assert.equal(timeFromHM(0, 1.5), 2);
+    assert.equal(timeFromHMS(25, 0, 30), 1501);
+    assert.equal(durationFromSeconds(65534 * 60), 65534);
+    for (const value of [NaN, Infinity, -Infinity, -1, 65535]) {
+      assert.throws(() => timeFromHM(value, 0), RangeError);
+      assert.throws(() => timeFromHMS(value, 0, 0), RangeError);
+      assert.throws(() => durationFromSeconds(value * 60), RangeError);
+    }
+    assert.throws(() => durationFromSeconds(65534.5 * 60), RangeError);
+    assert.throws(() => timeFromDate(new Date(NaN)), RangeError);
+  });
+
   describe('constants', () => {
     it('should expose time and duration constants', () => {
       assert.strictEqual(TIME_ORIGIN, 0);

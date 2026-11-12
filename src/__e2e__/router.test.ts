@@ -196,18 +196,11 @@ const pointRoutes: {
     at: '16:50',
     legs: [
       {
-        from: { name: 'Basel SBB', platform: '33' },
-        to: { name: 'Saint-Louis (Haut-Rhin)' },
-        departure: '17:08',
-        arrival: '17:16',
-        route: { type: RouteTypes.RAIL, name: 'TER' },
-      },
-      {
-        from: { name: 'Saint-Louis (Haut-Rhin)' },
+        from: { name: 'Basel SBB', platform: '31' },
         to: { name: 'Strasbourg' },
-        departure: '17:30',
+        departure: '17:21',
         arrival: '18:39',
-        route: { type: RouteTypes.RAIL, name: 'K200' },
+        route: { type: RouteTypes.RAIL, name: 'TER' },
       },
     ],
   },

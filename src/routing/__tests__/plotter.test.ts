@@ -72,7 +72,7 @@ describe('Plotter', () => {
   const mockTimetable = new Timetable(stopsAdjacency, routesAdjacency, routes);
 
   describe('plotDotGraph', () => {
-    it('should generate valid DOT graph structure', () => {
+    it('should generate valid DOT parents structure', () => {
       const result = new Result(
         RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
@@ -94,7 +94,7 @@ describe('Plotter', () => {
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [0],
-          graph: [[[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]]],
+          parents: [[[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]]],
         }),
         mockStopsIndex,
         mockTimetable,
@@ -108,7 +108,7 @@ describe('Plotter', () => {
       assert(dotGraph.includes('shape=box'));
     });
 
-    it('should handle empty graph gracefully', () => {
+    it('should handle empty parents gracefully', () => {
       const result = new Result(
         RoutingState.fromTestData({ nbStops: NB_STOPS }),
         mockStopsIndex,
@@ -141,7 +141,7 @@ describe('Plotter', () => {
           nbStops: NB_STOPS,
           origins: [2],
           destinations: [2],
-          graph: [[[2, { stopId: 2, arrival: timeFromHMS(8, 0, 0) }]]],
+          parents: [[[2, { stopId: 2, arrival: timeFromHMS(8, 0, 0) }]]],
         }),
         specialStopsIndex,
         mockTimetable,
@@ -165,12 +165,13 @@ describe('Plotter', () => {
           nbStops: NB_STOPS,
           origins: [0],
           destinations: [1],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHMS(8, 0, 0) }]], // round 0 – origins
             [
               [
                 1,
                 {
+                  predecessor: { stopId: 0, arrival: timeFromHMS(8, 0, 0) },
                   stopIndex: 0,
                   hopOffStopIndex: 1,
                   arrival: timeFromHMS(8, 30, 0),
@@ -183,6 +184,7 @@ describe('Plotter', () => {
               [
                 1,
                 {
+                  predecessor: { stopId: 0, arrival: timeFromHMS(8, 40, 0) },
                   from: 0,
                   to: 1,
                   arrival: timeFromHMS(8, 45, 0),

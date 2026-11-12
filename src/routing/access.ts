@@ -3,6 +3,7 @@ import { StopsIndex } from '../stops/stopsIndex.js';
 import { PickUpDropOffTypes } from '../timetable/route.js';
 import { Duration, Time } from '../timetable/time.js';
 import { Timetable, TransferTypes } from '../timetable/timetable.js';
+import { transferDuration } from '../timetable/transfer.js';
 
 /**
  * An access path from the query origin to an initial boarding stop.
@@ -59,7 +60,7 @@ export class AccessFinder {
       }
       for (const transfer of this.timetable.getTransfers(origin)) {
         if (transfer.type === TransferTypes.REQUIRES_MINIMAL_TIME) {
-          const duration = transfer.minTransferTime ?? fallbackMinTransferTime;
+          const duration = transferDuration(transfer, fallbackMinTransferTime);
           const existingAccess = accessPaths.get(transfer.destination);
           // Keep the shortest walk to maximize the set of reachable trips.
           if (
@@ -118,7 +119,7 @@ export class AccessFinder {
             const dep = route.departureFrom(stopIndex, tripIndex);
             if (dep > searchTo) break;
             if (
-              route.pickUpTypeFrom(stopIndex, tripIndex) !==
+              route.pickUpTypeFrom(stopIndex) !==
               PickUpDropOffTypes.NOT_AVAILABLE
             ) {
               const t = dep - path.duration;

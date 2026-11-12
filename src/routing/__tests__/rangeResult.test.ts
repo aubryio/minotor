@@ -14,6 +14,7 @@ import {
 import { ParetoRun, RangeResult } from '../rangeResult.js';
 import { Result } from '../result.js';
 import { RoutingState, VehicleEdge } from '../router.js';
+import { RoutingEdge } from '../state.js';
 
 // Two-stop timetable with two trips on a single route:
 //   trip 0: stop 0 departs 09:00, stop 1 arrives 09:30
@@ -86,6 +87,7 @@ const DEST = 1;
 
 // Run A — later departure (09:00→09:30, 30-minute duration)
 const edgeA: VehicleEdge = {
+  predecessor: { stopId: 0, arrival: timeFromHM(9, 0) },
   arrival: timeFromHM(9, 30),
   stopIndex: 0,
   hopOffStopIndex: 1,
@@ -103,7 +105,10 @@ const runA: ParetoRun = {
         [0, timeFromHM(9, 0), 0],
         [DEST, timeFromHM(9, 30), 1],
       ],
-      graph: [[[0, { stopId: 0, arrival: timeFromHM(9, 0) }]], [[DEST, edgeA]]],
+      parents: [
+        [[0, { stopId: 0, arrival: timeFromHM(9, 0) }]],
+        [[DEST, edgeA]],
+      ],
     }),
     stopsIndex,
     timetable,
@@ -112,6 +117,7 @@ const runA: ParetoRun = {
 
 // Run B — earlier departure (08:30→09:10, 40-minute duration)
 const edgeB: VehicleEdge = {
+  predecessor: { stopId: 0, arrival: timeFromHM(8, 30) },
   arrival: timeFromHM(9, 10),
   stopIndex: 0,
   hopOffStopIndex: 1,
@@ -129,7 +135,7 @@ const runB: ParetoRun = {
         [0, timeFromHM(8, 30), 0],
         [DEST, timeFromHM(9, 10), 1],
       ],
-      graph: [
+      parents: [
         [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
         [[DEST, edgeB]],
       ],
@@ -223,7 +229,7 @@ describe('RangeResult', () => {
           origins: [0],
           destinations: [DEST],
           arrivals: [[DEST, timeFromHM(9, 2), 0]],
-          graph: [
+          parents: [
             [
               [0, { stopId: 0, arrival: timeFromHM(9, 0) }],
               [
@@ -378,7 +384,7 @@ describe('RangeResult', () => {
             [0, timeFromHM(9, 0), 0],
             [DEST, timeFromHM(9, 30), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHM(9, 0) }]],
             [[DEST, edgeA]],
           ],
@@ -399,7 +405,7 @@ describe('RangeResult', () => {
             [0, timeFromHM(8, 30), 0],
             [DEST, timeFromHM(9, 10), 1],
           ],
-          graph: [
+          parents: [
             [[0, { stopId: 0, arrival: timeFromHM(8, 30) }]],
             [[DEST, edgeB]],
           ],
@@ -494,6 +500,66 @@ describe('RangeResult', () => {
     ];
     const stopsIndex = new StopsIndex(stops);
 
+    /** Build a predecessor-linked parents with a transfer for result aggregation tests. */
+    function transferGraph(
+      departure: number,
+      interchangeArrival: number,
+      viaArrival: number,
+      directArrival?: number,
+    ): [number, RoutingEdge][][] {
+      const origin = { stopId: ORIGIN, arrival: departure };
+      const interchange: VehicleEdge = {
+        routeId: TO_INTERCHANGE,
+        arrival: interchangeArrival,
+        tripIndex: 0,
+        stopIndex: 0,
+        hopOffStopIndex: 1,
+        predecessor: origin,
+      };
+      const firstRound: [number, RoutingEdge][] = [[INTERCHANGE, interchange]];
+      if (directArrival !== undefined) {
+        firstRound.push([
+          DESTINATION,
+          {
+            routeId: DIRECT,
+            arrival: directArrival,
+            tripIndex: 0,
+            stopIndex: 0,
+            hopOffStopIndex: 1,
+            predecessor: origin,
+          },
+        ]);
+      }
+      return [
+        [[ORIGIN, origin]],
+        firstRound,
+        [
+          [
+            DESTINATION,
+            {
+              routeId: FROM_INTERCHANGE,
+              arrival: viaArrival,
+              tripIndex: 0,
+              stopIndex: 0,
+              hopOffStopIndex: 1,
+              predecessor: interchange,
+            },
+          ],
+          [
+            TRANSFER_ONLY,
+            {
+              routeId: TO_TRANSFER_ONLY,
+              arrival: viaArrival,
+              tripIndex: 0,
+              stopIndex: 0,
+              hopOffStopIndex: 1,
+              predecessor: interchange,
+            },
+          ],
+        ],
+      ];
+    }
+
     const early: ParetoRun = {
       departureTime: timeFromHM(8, 0),
       result: new Result(
@@ -507,53 +573,12 @@ describe('RangeResult', () => {
             [DESTINATION, timeFromHM(8, 40), 2],
             [TRANSFER_ONLY, timeFromHM(8, 40), 2],
           ],
-          graph: [
-            [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 0) }]],
-            [
-              [
-                INTERCHANGE,
-                {
-                  routeId: TO_INTERCHANGE,
-                  arrival: timeFromHM(8, 5),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-              [
-                DESTINATION,
-                {
-                  routeId: DIRECT,
-                  arrival: timeFromHM(9, 10),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-            ],
-            [
-              [
-                DESTINATION,
-                {
-                  routeId: FROM_INTERCHANGE,
-                  arrival: timeFromHM(8, 40),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-              [
-                TRANSFER_ONLY,
-                {
-                  routeId: TO_TRANSFER_ONLY,
-                  arrival: timeFromHM(8, 40),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-            ],
-          ],
+          parents: transferGraph(
+            timeFromHM(8, 0),
+            timeFromHM(8, 5),
+            timeFromHM(8, 40),
+            timeFromHM(9, 10),
+          ),
         }),
         stopsIndex,
         new Timetable(
@@ -675,53 +700,12 @@ describe('RangeResult', () => {
             [DESTINATION, timeFromHM(8, 50), 2],
             [TRANSFER_ONLY, timeFromHM(8, 50), 2],
           ],
-          graph: [
-            [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 15) }]],
-            [
-              [
-                INTERCHANGE,
-                {
-                  routeId: TO_INTERCHANGE,
-                  arrival: timeFromHM(8, 20),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-              [
-                DESTINATION,
-                {
-                  routeId: DIRECT,
-                  arrival: timeFromHM(9, 0),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-            ],
-            [
-              [
-                DESTINATION,
-                {
-                  routeId: FROM_INTERCHANGE,
-                  arrival: timeFromHM(8, 50),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-              [
-                TRANSFER_ONLY,
-                {
-                  routeId: TO_TRANSFER_ONLY,
-                  arrival: timeFromHM(8, 50),
-                  tripIndex: 0,
-                  stopIndex: 0,
-                  hopOffStopIndex: 1,
-                },
-              ],
-            ],
-          ],
+          parents: transferGraph(
+            timeFromHM(8, 15),
+            timeFromHM(8, 20),
+            timeFromHM(8, 50),
+            timeFromHM(9, 0),
+          ),
         }),
         stopsIndex,
         new Timetable(
@@ -867,43 +851,12 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 50), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 50), 2],
               ],
-              graph: [
-                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 15) }]],
-                [
-                  [
-                    INTERCHANGE,
-                    {
-                      routeId: TO_INTERCHANGE,
-                      arrival: timeFromHM(8, 20),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-                [
-                  [
-                    DESTINATION,
-                    {
-                      routeId: FROM_INTERCHANGE,
-                      arrival: timeFromHM(8, 50),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    TRANSFER_ONLY,
-                    {
-                      routeId: TO_TRANSFER_ONLY,
-                      arrival: timeFromHM(8, 50),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-              ],
+              parents: transferGraph(
+                timeFromHM(8, 15),
+                timeFromHM(8, 20),
+                timeFromHM(8, 50),
+                undefined,
+              ),
             }),
             stopsIndex,
             new Timetable(
@@ -1087,53 +1040,12 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 40), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 40), 2],
               ],
-              graph: [
-                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 10) }]],
-                [
-                  [
-                    INTERCHANGE,
-                    {
-                      routeId: TO_INTERCHANGE,
-                      arrival: timeFromHM(8, 15),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    DESTINATION,
-                    {
-                      routeId: DIRECT,
-                      arrival: timeFromHM(9, 0),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-                [
-                  [
-                    DESTINATION,
-                    {
-                      routeId: FROM_INTERCHANGE,
-                      arrival: timeFromHM(8, 40),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    TRANSFER_ONLY,
-                    {
-                      routeId: TO_TRANSFER_ONLY,
-                      arrival: timeFromHM(8, 40),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-              ],
+              parents: transferGraph(
+                timeFromHM(8, 10),
+                timeFromHM(8, 15),
+                timeFromHM(8, 40),
+                timeFromHM(9, 0),
+              ),
             }),
             stopsIndex,
             new Timetable(
@@ -1261,53 +1173,12 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 30), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 30), 2],
               ],
-              graph: [
-                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 0) }]],
-                [
-                  [
-                    INTERCHANGE,
-                    {
-                      routeId: TO_INTERCHANGE,
-                      arrival: timeFromHM(8, 5),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    DESTINATION,
-                    {
-                      routeId: DIRECT,
-                      arrival: timeFromHM(9, 0),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-                [
-                  [
-                    DESTINATION,
-                    {
-                      routeId: FROM_INTERCHANGE,
-                      arrival: timeFromHM(8, 30),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    TRANSFER_ONLY,
-                    {
-                      routeId: TO_TRANSFER_ONLY,
-                      arrival: timeFromHM(8, 30),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-              ],
+              parents: transferGraph(
+                timeFromHM(8, 0),
+                timeFromHM(8, 5),
+                timeFromHM(8, 30),
+                timeFromHM(9, 0),
+              ),
             }),
             stopsIndex,
             new Timetable(
@@ -1441,53 +1312,12 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 40), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 40), 2],
               ],
-              graph: [
-                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 10) }]],
-                [
-                  [
-                    INTERCHANGE,
-                    {
-                      routeId: TO_INTERCHANGE,
-                      arrival: timeFromHM(8, 15),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    DESTINATION,
-                    {
-                      routeId: DIRECT,
-                      arrival: timeFromHM(9, 10),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-                [
-                  [
-                    DESTINATION,
-                    {
-                      routeId: FROM_INTERCHANGE,
-                      arrival: timeFromHM(8, 40),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    TRANSFER_ONLY,
-                    {
-                      routeId: TO_TRANSFER_ONLY,
-                      arrival: timeFromHM(8, 40),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-              ],
+              parents: transferGraph(
+                timeFromHM(8, 10),
+                timeFromHM(8, 15),
+                timeFromHM(8, 40),
+                timeFromHM(9, 10),
+              ),
             }),
             stopsIndex,
             new Timetable(
@@ -1615,53 +1445,12 @@ describe('RangeResult', () => {
                 [DESTINATION, timeFromHM(8, 30), 2],
                 [TRANSFER_ONLY, timeFromHM(8, 30), 2],
               ],
-              graph: [
-                [[ORIGIN, { stopId: ORIGIN, arrival: timeFromHM(8, 0) }]],
-                [
-                  [
-                    INTERCHANGE,
-                    {
-                      routeId: TO_INTERCHANGE,
-                      arrival: timeFromHM(8, 5),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    DESTINATION,
-                    {
-                      routeId: DIRECT,
-                      arrival: timeFromHM(9, 0),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-                [
-                  [
-                    DESTINATION,
-                    {
-                      routeId: FROM_INTERCHANGE,
-                      arrival: timeFromHM(8, 30),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                  [
-                    TRANSFER_ONLY,
-                    {
-                      routeId: TO_TRANSFER_ONLY,
-                      arrival: timeFromHM(8, 30),
-                      tripIndex: 0,
-                      stopIndex: 0,
-                      hopOffStopIndex: 1,
-                    },
-                  ],
-                ],
-              ],
+              parents: transferGraph(
+                timeFromHM(8, 0),
+                timeFromHM(8, 5),
+                timeFromHM(8, 30),
+                timeFromHM(9, 0),
+              ),
             }),
             stopsIndex,
             new Timetable(

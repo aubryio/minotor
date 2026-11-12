@@ -133,7 +133,7 @@ export class GtfsParser {
     let transfers: TransfersMap = new Map();
     let forbiddenTransfers: ForbiddenTransfersMap = new Map();
     let tripContinuationsList: GtfsTripTransfer[] = [];
-    let guaranteedTripTransfersList: GtfsTripTransfer[] = [];
+    let tripTransfersList: GtfsTripTransfer[] = [];
     if (entries[TRANSFERS_FILE]) {
       log.info(`Parsing ${TRANSFERS_FILE}`);
       const transfersStart = performance.now();
@@ -142,15 +142,20 @@ export class GtfsParser {
         transfers: parsedTransfers,
         forbiddenTransfers: parsedForbiddenTransfers,
         tripContinuations: parsedTripContinuations,
-        guaranteedTripTransfers: parsedGuaranteedTripTransfers,
-      } = await parseTransfers(transfersStream, parsedStops, activeServiceIds);
+        tripTransfers: parsedTripTransfers,
+      } = await parseTransfers(
+        transfersStream,
+        parsedStops,
+        activeServiceIds,
+        trips,
+      );
       transfers = parsedTransfers;
       forbiddenTransfers = parsedForbiddenTransfers;
       tripContinuationsList = parsedTripContinuations;
-      guaranteedTripTransfersList = parsedGuaranteedTripTransfers;
+      tripTransfersList = parsedTripTransfers;
       const transfersEnd = performance.now();
       log.info(
-        `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${guaranteedTripTransfersList.length} guaranteed trip transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
+        `${transfers.size} valid transfers and ${tripContinuationsList.length} trip continuations and ${tripTransfersList.length} trip-specific transfers. (${(transfersEnd - transfersStart).toFixed(2)}ms)`,
       );
     }
 
@@ -259,17 +264,17 @@ export class GtfsParser {
       `${tripContinuations.size} in-seat trip continuations origins created. (${(tripContinuationsEnd - tripContinuationsStart).toFixed(2)}ms)`,
     );
     log.info('Parsing complete.');
-    log.info('Building guaranteed trip transfers');
-    const guaranteedTripTransfersStart = performance.now();
-    const guaranteedTripTransfers = buildTripTransfers(
+    log.info('Building trip-specific transfers');
+    const tripTransfersStart = performance.now();
+    const tripTransfers = buildTripTransfers(
       tripsMapping,
-      guaranteedTripTransfersList,
+      tripTransfersList,
       timetable,
       activeStopIds,
     );
-    const guaranteedTripTransfersEnd = performance.now();
+    const tripTransfersEnd = performance.now();
     log.info(
-      `${guaranteedTripTransfers.size} guaranteed trip transfers origins created. (${(guaranteedTripTransfersEnd - guaranteedTripTransfersStart).toFixed(2)}ms)`,
+      `${tripTransfers.size} trip-specific transfers origins created. (${(tripTransfersEnd - tripTransfersStart).toFixed(2)}ms)`,
     );
     log.info('Parsing complete.');
 
@@ -278,7 +283,7 @@ export class GtfsParser {
       routes,
       serviceRoutes,
       tripContinuations,
-      guaranteedTripTransfers,
+      tripTransfers,
     );
   }
 

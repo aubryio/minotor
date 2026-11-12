@@ -13,6 +13,10 @@ import {
 } from '../timetable/timetable.js';
 import { plotGraphToDotFile } from './utils.js';
 
+/**
+ * Load the stop index and timetable, then register interactive routing and
+ * inspection commands.
+ */
 export const startRepl = (stopsPath: string, timetablePath: string) => {
   const stopsIndex = StopsIndex.fromData(fs.readFileSync(stopsPath));
   const timetable = Timetable.fromData(fs.readFileSync(timetablePath));
@@ -319,6 +323,10 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
   replServer.defineCommand('inspect', {
     help: 'Inspect a route or stop using .inspect route <routeId> or .inspect stop <stopId>',
+    /**
+     * Inspect a route or stop selected by the command arguments and restore
+     * the REPL prompt.
+     */
     action(inspectQuery: string) {
       this.clearBufferedCommand();
 
@@ -340,6 +348,10 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
         return;
       }
 
+      /**
+       * Print trips, times, and the shared pickup/drop-off pattern for a
+       * numeric route ID.
+       */
       const inspectRoute = (routeIdStr: string) => {
         const routeId = parseInt(routeIdStr.trim());
         if (isNaN(routeId)) {
@@ -384,8 +396,8 @@ export const startRepl = (stopsPath: string, timetablePath: string) => {
 
             const departure = route.departureFrom(stopIndex, tripIndex);
             const arrival = route.arrivalAt(stopIndex, tripIndex);
-            const pickupType = route.pickUpTypeFrom(stopIndex, tripIndex);
-            const dropOffType = route.dropOffTypeAt(stopIndex, tripIndex);
+            const pickupType = route.pickUpTypeFrom(stopIndex);
+            const dropOffType = route.dropOffTypeAt(stopIndex);
 
             const pickupStr = formatPickupDropoffType(pickupType);
             const dropOffStr = formatPickupDropoffType(dropOffType);

@@ -1,16 +1,17 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { StopId } from '../stops/stops.js';
 import { StopRouteIndex } from '../timetable/route.js';
-import { Duration, Time } from '../timetable/time.js';
-import { TransferType, TripStop } from '../timetable/timetable.js';
+import { Duration, Time, UINT16_TIME_LIMIT } from '../timetable/time.js';
+import { TransferType, TripPosition } from '../timetable/timetable.js';
 import { AccessPoint } from './access.js';
 import type { IRaptorState } from './raptor.js';
+import type { RoundNumber } from './roundLabels.js';
 
 /**
  * Sentinel value used in the internal arrival-time array to mark stops not yet reached.
  * 0xFFFF = 65 535 minutes ≈ 45.5 days, safely beyond any realistic transit arrival time.
  */
-export const UNREACHED_TIME: Time = 0xffff;
+export const UNREACHED_TIME: Time = UINT16_TIME_LIMIT;
 
 export type OriginNode = { stopId: StopId; arrival: Time };
 
@@ -22,11 +23,12 @@ export type AccessEdge = {
 };
 
 /** A boarded transit trip that carries the passenger from one stop to another. */
-export type VehicleEdge = TripStop & {
+export type VehicleEdge = TripPosition & {
   arrival: Time;
   hopOffStopIndex: StopRouteIndex;
   /** modeling in-seat transfer */
   continuationOf?: VehicleEdge;
+  predecessor: RoutingEdge;
 };
 
 /** A walking or guaranteed connection between two stops. */
@@ -35,6 +37,7 @@ export type TransferEdge = {
   from: StopId;
   to: StopId;
   type: TransferType;
+  predecessor: RoutingEdge;
   minTransferTime?: Duration;
 };
 
@@ -43,7 +46,7 @@ export type RoutingEdge = OriginNode | AccessEdge | VehicleEdge | TransferEdge;
 /** The earliest arrival at a stop together with how many legs were needed to reach it. */
 export type Arrival = {
   arrival: Time;
-  legNumber: number;
+  legNumber: RoundNumber;
 };
 
 /**
@@ -57,13 +60,13 @@ export class RoutingState implements IRaptorState {
   readonly destinations: StopId[];
 
   /**
-   * Routing graph: the best edge used to reach each stop, per round.
-   * Indexed as graph[round][stopId]. Entries are undefined for stops not
+   * Routing parents: the best edge used to reach each stop, per round.
+   * Indexed as parents[round][stopId]. Entries are undefined for stops not
    * reached in that particular round.
    */
   // TODO do not expose
-  readonly graph: (RoutingEdge | undefined)[][];
-  // TODO Can use typed arrays to represent the graph
+  readonly parents: (RoutingEdge | undefined)[][];
+  // TODO Can use typed arrays to represent the parents
   // Uint32 [(alightStopId -> ? =index/to), boardingStopId (stopIndex,from),
   // RouteId/TransferId, TripId (if not transfer), (previous_round, previous_stop
   // -> allows to reconstruct transfers incl. continuous]
@@ -117,12 +120,16 @@ export class RoutingState implements IRaptorState {
    */
   private readonly reachedStops: StopId[] = [];
 
+  /**
+   * Allocate per-run arrival labels and parents rounds, then seed access paths
+   * within the duration limit.
+   */
   constructor(
     departureTime: Time,
     destinations: StopId[],
     accessPaths: AccessPoint[],
     nbStops: number,
-    maxRounds: number = 0,
+    maxRounds: RoundNumber = 0,
     maxDuration?: Duration,
   ) {
     this.destinations = destinations;
@@ -133,9 +140,9 @@ export class RoutingState implements IRaptorState {
     this.earliestArrivalTimes = new Uint16Array(nbStops).fill(UNREACHED_TIME);
     this.earliestArrivalLegs = new Uint8Array(nbStops);
     this.origins = []; // overwritten by seedAccessPaths below
-    this.graph = [new Array<RoutingEdge | undefined>(nbStops)];
+    this.parents = [new Array<RoutingEdge | undefined>(nbStops)];
     for (let r = 1; r <= maxRounds; r++) {
-      this.graph.push(new Array<RoutingEdge | undefined>(nbStops));
+      this.parents.push(new Array<RoutingEdge | undefined>(nbStops));
     }
     this.seedAccessPaths(departureTime, accessPaths);
   }
@@ -143,7 +150,7 @@ export class RoutingState implements IRaptorState {
   /**
    * Seeds round-0 arrivals and {@link origins} from a set of access paths.
    * Called by the constructor and by {@link resetFor}.
-   * Assumes {@link earliestArrivalTimes} and {@link graph}[0] are already
+   * Assumes {@link earliestArrivalTimes} and {@link parents}[0] are already
    * allocated and in their "cleared" state (all entries at UNREACHED_TIME /
    * undefined) before this method runs.
    */
@@ -151,7 +158,9 @@ export class RoutingState implements IRaptorState {
     const seededOrigins = new Set<StopId>();
     for (const access of accessPaths) {
       const arrival = depTime + access.duration;
-      if (arrival > this.maxArrivalTime) continue;
+      if (arrival >= UNREACHED_TIME || arrival > this.maxArrivalTime) {
+        continue;
+      }
       const edge: OriginNode | AccessEdge =
         access.duration === 0
           ? { stopId: access.fromStopId, arrival: depTime }
@@ -164,7 +173,7 @@ export class RoutingState implements IRaptorState {
       const stop = access.toStopId;
       if (arrival < this.earliestArrivalTimes[stop]!) {
         this.earliestArrivalTimes[stop] = arrival;
-        this.graph[0]![stop] = edge;
+        this.parents[0]![stop] = edge;
       }
       seededOrigins.add(stop);
     }
@@ -174,7 +183,9 @@ export class RoutingState implements IRaptorState {
     this.origins = Array.from(seededOrigins);
     for (let i = 0; i < this.destinations.length; i++) {
       const t = this.earliestArrivalTimes[this.destinations[i]!]!;
-      if (t < this._destinationBest) this._destinationBest = t;
+      if (t < this._destinationBest) {
+        this._destinationBest = t;
+      }
     }
   }
 
@@ -203,13 +214,13 @@ export class RoutingState implements IRaptorState {
    * In standard RAPTOR the improvement bound is simply the per-run earliest
    * arrival; the `round` argument is ignored.
    */
-  improvementBound(_round: number, stop: StopId): Time {
+  improvementBound(_round: RoundNumber, stop: StopId): Time {
     return this.arrivalTime(stop);
   }
 
   /** No-op in standard RAPTOR — there are no shared cross-run labels to propagate. */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  initRound(_round: number): void {}
+  initRound(_round: RoundNumber): void {}
 
   /**
    * Records a new earliest arrival at a stop.
@@ -218,7 +229,12 @@ export class RoutingState implements IRaptorState {
    * @param time The arrival time in minutes from midnight.
    * @param leg  The round number (number of transit legs taken so far).
    */
-  updateArrival(stop: StopId, time: Time, leg: number): void {
+  publishArrival(stop: StopId, edge: RoutingEdge, round: RoundNumber): void {
+    this.parents[round]![stop] = edge;
+    this.updateArrival(stop, edge.arrival, round);
+  }
+
+  updateArrival(stop: StopId, time: Time, leg: RoundNumber): void {
     if (this.earliestArrivalTimes[stop] === UNREACHED_TIME) {
       this.reachedStops.push(stop);
     }
@@ -246,8 +262,8 @@ export class RoutingState implements IRaptorState {
     for (const stop of this.reachedStops) {
       this.earliestArrivalTimes[stop] = UNREACHED_TIME;
       this.earliestArrivalLegs[stop] = 0;
-      for (let r = 0; r < this.graph.length; r++) {
-        this.graph[r]![stop] = undefined;
+      for (let r = 0; r < this.parents.length; r++) {
+        this.parents[r]![stop] = undefined;
       }
     }
     this.reachedStops.length = 0;
@@ -272,7 +288,11 @@ export class RoutingState implements IRaptorState {
    * }
    * ```
    */
-  *arrivals(): Generator<{ stop: StopId; arrival: Time; legNumber: number }> {
+  *arrivals(): Generator<{
+    stop: StopId;
+    arrival: Time;
+    legNumber: RoundNumber;
+  }> {
     for (let stop = 0; stop < this.earliestArrivalTimes.length; stop++) {
       const time = this.earliestArrivalTimes[stop]!;
       if (time < UNREACHED_TIME) {
@@ -301,7 +321,9 @@ export class RoutingState implements IRaptorState {
    */
   getArrival(stop: StopId): Arrival | undefined {
     const time = this.earliestArrivalTimes[stop]!;
-    if (time >= UNREACHED_TIME) return undefined;
+    if (time >= UNREACHED_TIME) {
+      return undefined;
+    }
     return { arrival: time, legNumber: this.earliestArrivalLegs[stop]! };
   }
 
@@ -324,7 +346,7 @@ export class RoutingState implements IRaptorState {
    * @param destinations  Destination stop IDs.
    * @param arrivals  Each entry is `[stop, time, leg]` — the earliest arrival
    *                  time in minutes and the round number for one stop.
-   * @param graph  One element per round. Each round is a sparse list of
+   * @param parents  One element per round. Each round is a sparse list of
    *               `[stop, edge]` pairs; stops absent from the list are
    *               left as `undefined` in the dense output array.
    *
@@ -335,13 +357,13 @@ export class RoutingState implements IRaptorState {
     origins = [],
     destinations = [],
     arrivals = [],
-    graph = [],
+    parents = [],
   }: {
     nbStops: number;
     origins?: StopId[];
     destinations?: StopId[];
-    arrivals?: [stop: StopId, time: Time, leg: number][];
-    graph?: [stop: StopId, edge: RoutingEdge][][];
+    arrivals?: [stop: StopId, time: Time, leg: RoundNumber][];
+    parents?: [stop: StopId, edge: RoutingEdge][][];
   }): RoutingState {
     const state = new RoutingState(
       0,
@@ -370,24 +392,27 @@ export class RoutingState implements IRaptorState {
     state._destinationBest = UNREACHED_TIME;
     for (const dest of destinations) {
       const t = earliestArrivalTimes[dest];
-      if (t !== undefined && t < state._destinationBest)
+      if (t !== undefined && t < state._destinationBest) {
         state._destinationBest = t;
+      }
     }
 
     // Convert the sparse per-round representation to dense arrays and replace
-    // the graph in-place.
-    const denseRounds = graph.map((round) => {
+    // the parents in-place.
+    const denseRounds = parents.map((round) => {
       const arr = new Array<RoutingEdge | undefined>(nbStops);
       for (const [stop, edge] of round) {
         arr[stop] = edge;
       }
       return arr;
     });
-    state.graph.splice(0, state.graph.length, ...denseRounds);
+    state.parents.splice(0, state.parents.length, ...denseRounds);
     state.reachedStops.length = 0;
     const touched = new Set(arrivals.map(([stop]) => stop));
-    for (const round of graph) {
-      for (const [stop] of round) touched.add(stop);
+    for (const round of parents) {
+      for (const [stop] of round) {
+        touched.add(stop);
+      }
     }
     state.reachedStops.push(...touched);
 

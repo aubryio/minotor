@@ -143,6 +143,20 @@ class DotBuilder {
  */
 export class Plotter {
   private result: Result;
+  private readonly edgeIds = new Map<RoutingEdge, number>();
+
+  /**
+   * Assign a stable node ID by edge identity within one plot, including
+   * non-winning predecessors.
+   */
+  private edgeId(edge: RoutingEdge): string {
+    let id = this.edgeIds.get(edge);
+    if (id === undefined) {
+      id = this.edgeIds.size;
+      this.edgeIds.set(edge, id);
+    }
+    return `edge_${id}`;
+  }
 
   constructor(result: Result) {
     this.result = result;
@@ -156,44 +170,10 @@ export class Plotter {
   }
 
   /**
-   * Generates a unique node ID for a vehicle edge oval.
-   */
-  private vehicleEdgeNodeId(
-    fromStopId: StopId,
-    toStopId: StopId,
-    routeId: number,
-    round: number,
-  ): string {
-    return `e_${fromStopId}_${toStopId}_${routeId}_${round}`;
-  }
-
-  /**
-   * Generates a unique node ID for a transfer edge oval.
-   */
-  private transferEdgeNodeId(
-    fromStopId: StopId,
-    toStopId: StopId,
-    round: number,
-  ): string {
-    return `e_${fromStopId}_${toStopId}_${round}`;
-  }
-
-  /**
    * Generates a unique node ID for a walking access edge oval.
    */
   private accessEdgeNodeId(fromStopId: StopId, toStopId: StopId): string {
     return `access_${fromStopId}_${toStopId}`;
-  }
-
-  /**
-   * Generates a unique node ID for a continuation edge oval.
-   */
-  private continuationNodeId(
-    fromStopId: StopId,
-    toStopId: StopId,
-    round: number,
-  ): string {
-    return `continuation_${fromStopId}_${toStopId}_${round}`;
   }
 
   /**
@@ -262,7 +242,7 @@ export class Plotter {
     isOrigin: boolean;
     isDestination: boolean;
   } {
-    const { graph, destinations } = this.result[resultGraph]();
+    const { parents: graph, destinations } = this.result[resultGraph]();
     const isOrigin = graph[0]?.[stopId] !== undefined;
     const isDestination = destinations.includes(stopId);
     return { isOrigin, isDestination };
@@ -319,12 +299,7 @@ export class Plotter {
     const fromNodeId = this.stationNodeId(fromStopId);
     const toNodeId = this.stationNodeId(toStopId);
     const roundColor = this.getRoundColor(round);
-    const routeOvalId = this.vehicleEdgeNodeId(
-      fromStopId,
-      toStopId,
-      edge.routeId,
-      round,
-    );
+    const routeOvalId = this.edgeId(edge);
 
     const serviceRouteInfo = this.result.timetable.getServiceRouteInfo(route);
     const routeName = serviceRouteInfo.name;
@@ -372,7 +347,7 @@ export class Plotter {
     const fromNodeId = this.stationNodeId(edge.from);
     const toNodeId = this.stationNodeId(edge.to);
     const roundColor = this.getRoundColor(round);
-    const transferOvalId = this.transferEdgeNodeId(edge.from, edge.to, round);
+    const transferOvalId = this.edgeId(edge);
 
     const transferTime =
       edge.minTransferTime !== undefined
@@ -398,18 +373,14 @@ export class Plotter {
   ): string[] {
     const fromStopId = this.getVehicleEdgeToStopId(fromEdge);
     const toStopId = this.getVehicleEdgeFromStopId(toEdge);
-    if (!fromStopId || !toStopId) {
+    if (fromStopId === undefined || toStopId === undefined) {
       return [];
     }
 
     const fromStationId = this.stationNodeId(fromStopId);
     const toStationId = this.stationNodeId(toStopId);
     const roundColor = this.getRoundColor(round);
-    const continuationOvalId = this.continuationNodeId(
-      fromStopId,
-      toStopId,
-      round,
-    );
+    const continuationOvalId = `continuation_${this.edgeId(toEdge)}`;
 
     const fromRoute = this.result.timetable.getRoute(fromEdge.routeId);
     const toRoute = this.result.timetable.getRoute(toEdge.routeId);
@@ -460,97 +431,51 @@ export class Plotter {
   }
 
   /**
-   * Collects all stations that appear in the routing graph.
+   * Collects stations and rendered edges, following predecessors that may not win a stop label.
    */
-  private collectStations(): Set<StopId> {
+  private collectGraph(): { stations: Set<StopId>; edges: string[] } {
     const stations = new Set<StopId>();
-    const graph = this.result[resultGraph]().graph;
-
-    for (const roundEdges of graph) {
-      for (let stopId = 0; stopId < roundEdges.length; stopId++) {
-        const edge = roundEdges[stopId];
-        if (edge === undefined) continue;
-        stations.add(stopId);
-        if (isVehicleEdge(edge)) {
-          const fromStopId = this.getVehicleEdgeFromStopId(edge);
-          const toStopId = this.getVehicleEdgeToStopId(edge);
-          if (fromStopId) stations.add(fromStopId);
-          if (toStopId) stations.add(toStopId);
-        } else if (isAccessEdge(edge)) {
-          // Ensure the query origin (edge.from) is always collected even when
-          // its own OriginNode hasn't been processed yet in this iteration.
-          stations.add(edge.from);
-          stations.add(edge.to);
-        }
-      }
-    }
-
-    return stations;
-  }
-
-  /**
-   * Collects all continuation edges from a vehicle edge chain.
-   */
-  private collectContinuationChain(edge: VehicleEdge, round: number): string[] {
-    const continuationEdges: string[] = [];
-    let currentEdge = edge;
-    let previousEdge = edge.continuationOf;
-
-    while (previousEdge) {
-      const edgeParts = this.createContinuationEdge(
-        previousEdge,
-        currentEdge,
-        round,
-      );
-      continuationEdges.push(...edgeParts);
-
-      currentEdge = previousEdge;
-      previousEdge = previousEdge.continuationOf;
-    }
-
-    return continuationEdges;
-  }
-
-  /**
-   * Collects all edges for the routing graph.
-   */
-  private collectEdges(): string[] {
     const edges: string[] = [];
-    const continuationEdges: string[] = [];
-    const graph = this.result[resultGraph]().graph;
-
+    const seen = new Set<RoutingEdge>();
+    const pending: { edge: RoutingEdge; round: number }[] = [];
+    const graph = this.result[resultGraph]().parents;
     for (let round = 0; round < graph.length; round++) {
-      const roundEdges = graph[round];
-      if (!roundEdges) continue;
-
-      for (let stopId = 0; stopId < roundEdges.length; stopId++) {
-        const edge = roundEdges[stopId];
-        if (edge === undefined) continue;
-
-        if (round === 0) {
-          // Round 0 holds OriginNodes (no edge to draw) and AccessEdges
-          // (walking legs from the query origin to the first boarding stop).
-          if (isAccessEdge(edge)) {
-            edges.push(...this.createAccessEdge(edge));
-          }
-          continue;
-        }
-
-        if (isVehicleEdge(edge)) {
-          edges.push(...this.createVehicleEdge(edge, round));
-
-          if (edge.continuationOf) {
-            continuationEdges.push(
-              ...this.collectContinuationChain(edge, round),
-            );
-          }
-        } else if (isTransferEdge(edge)) {
-          edges.push(...this.createTransferEdge(edge, round));
-        }
+      for (const edge of graph[round] ?? [])
+        if (edge) pending.push({ edge, round });
+    }
+    for (let i = 0; i < pending.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const { edge, round } = pending[i]!;
+      if (seen.has(edge)) continue;
+      seen.add(edge);
+      if (isVehicleEdge(edge)) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const route = this.result.timetable.getRoute(edge.routeId)!;
+        stations.add(route.stopId(edge.stopIndex));
+        stations.add(route.stopId(edge.hopOffStopIndex));
+        edges.push(...this.createVehicleEdge(edge, round));
+        if (edge.continuationOf)
+          edges.push(
+            ...this.createContinuationEdge(edge.continuationOf, edge, round),
+          );
+        pending.push({
+          edge: edge.predecessor,
+          round: edge.continuationOf ? round : round - 1,
+        });
+      } else if (isTransferEdge(edge)) {
+        stations.add(edge.from);
+        stations.add(edge.to);
+        edges.push(...this.createTransferEdge(edge, round));
+        pending.push({ edge: edge.predecessor, round });
+      } else if (isAccessEdge(edge)) {
+        stations.add(edge.from);
+        stations.add(edge.to);
+        edges.push(...this.createAccessEdge(edge));
+      } else {
+        stations.add(edge.stopId);
       }
     }
-
-    return [...edges, ...continuationEdges];
+    return { stations, edges };
   }
 
   /**
@@ -559,8 +484,8 @@ export class Plotter {
    * @returns A string containing the DOT graph representation.
    */
   plotDotGraph(): string {
-    const stations = this.collectStations();
-    const edges = this.collectEdges();
+    this.edgeIds.clear();
+    const { stations, edges } = this.collectGraph();
 
     const builder = new DotBuilder();
     builder.addHeader();

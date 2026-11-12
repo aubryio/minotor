@@ -25,28 +25,8 @@ describe('Route', () => {
   ]);
 
   const pickupDropOffTypes = encodePickUpDropOffTypes(
-    [
-      // Trip 0
-      PickUpDropOffTypes.REGULAR,
-      PickUpDropOffTypes.NOT_AVAILABLE,
-      // Trip 1
-      PickUpDropOffTypes.REGULAR,
-      PickUpDropOffTypes.REGULAR,
-      // Trip 2
-      PickUpDropOffTypes.MUST_PHONE_AGENCY,
-      PickUpDropOffTypes.MUST_COORDINATE_WITH_DRIVER,
-    ],
-    [
-      // Trip 0
-      PickUpDropOffTypes.REGULAR,
-      PickUpDropOffTypes.REGULAR,
-      // Trip 1
-      PickUpDropOffTypes.REGULAR,
-      PickUpDropOffTypes.REGULAR,
-      // Trip 2
-      PickUpDropOffTypes.REGULAR,
-      PickUpDropOffTypes.REGULAR,
-    ],
+    [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.NOT_AVAILABLE],
+    [PickUpDropOffTypes.REGULAR, PickUpDropOffTypes.REGULAR],
   );
 
   const stops = new Uint32Array([1001, 1002]);
@@ -152,57 +132,43 @@ describe('Route', () => {
 
   describe('pickUpTypeFrom', () => {
     it('should return REGULAR pickup type for trip 0 at stop index 0', () => {
-      const pickUpType = route.pickUpTypeFrom(0, 0);
+      const pickUpType = route.pickUpTypeFrom(0);
       assert.strictEqual(pickUpType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should return NOT_AVAILABLE pickup type for trip 0 at stop index 1', () => {
-      const pickUpType = route.pickUpTypeFrom(1, 0);
+      const pickUpType = route.pickUpTypeFrom(1);
       assert.strictEqual(pickUpType, PickUpDropOffTypes.NOT_AVAILABLE);
     });
 
-    it('should return MUST_PHONE_AGENCY pickup type for trip 2 at stop index 0', () => {
-      const pickUpType = route.pickUpTypeFrom(0, 2);
-      assert.strictEqual(pickUpType, PickUpDropOffTypes.MUST_PHONE_AGENCY);
+    it('shares the pickup pattern across all trips', () => {
+      const pickUpType = route.pickUpTypeFrom(0);
+      assert.strictEqual(pickUpType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.pickUpTypeFrom(999, 0),
+        () => route.pickUpTypeFrom(999),
         /StopId for stop at index 999 not found/,
-      );
-    });
-
-    it('should throw error for invalid trip index', () => {
-      assert.throws(
-        () => route.pickUpTypeFrom(0, 999),
-        /Pick up type not found/,
       );
     });
   });
 
   describe('dropOffTypeAt', () => {
     it('should return REGULAR drop off type for trip 0 at stop index 0', () => {
-      const dropOffType = route.dropOffTypeAt(0, 0);
+      const dropOffType = route.dropOffTypeAt(0);
       assert.strictEqual(dropOffType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should return REGULAR drop off type for trip 1 at stop index 1', () => {
-      const dropOffType = route.dropOffTypeAt(1, 1);
+      const dropOffType = route.dropOffTypeAt(1);
       assert.strictEqual(dropOffType, PickUpDropOffTypes.REGULAR);
     });
 
     it('should throw error for invalid stop index', () => {
       assert.throws(
-        () => route.dropOffTypeAt(999, 0),
+        () => route.dropOffTypeAt(999),
         /StopId for stop at index 999 not found/,
-      );
-    });
-
-    it('should throw error for invalid trip index', () => {
-      assert.throws(
-        () => route.dropOffTypeAt(0, 999),
-        /Drop off type not found/,
       );
     });
   });
@@ -308,4 +274,41 @@ it('keeps first-index lookup and stable arrays consistent for unique and repeate
   assert.strictEqual(route.stopRouteIndices(5), repeated);
   repeated.shift();
   assert.strictEqual(route.firstStopRouteIndex(5), 2);
+});
+
+it('packs one shared pattern for odd and even stop counts and rejects mixed trips', () => {
+  for (const count of [3, 4]) {
+    const stops = Array.from({ length: count }, (_, id) => ({
+      id,
+      arrivalTime: id,
+      departureTime: id,
+      pickUpType: id % 4,
+      dropOffType: (3 - id) % 4,
+    }));
+    const shared = Route.of({
+      id: 0,
+      serviceRouteId: 0,
+      trips: [{ stops }, { stops }],
+    });
+    assert.equal(
+      shared.serialize().pickupDropOffTypes.length,
+      Math.ceil(count / 2),
+    );
+    for (const stop of stops) {
+      assert.equal(shared.pickUpTypeFrom(stop.id), stop.pickUpType);
+      assert.equal(shared.dropOffTypeAt(stop.id), stop.dropOffType);
+    }
+    assert.throws(
+      () =>
+        Route.of({
+          id: 0,
+          serviceRouteId: 0,
+          trips: [
+            { stops },
+            { stops: stops.map((stop) => ({ ...stop, pickUpType: 1 })) },
+          ],
+        }),
+      /share pickup\/drop-off patterns/,
+    );
+  }
 });
