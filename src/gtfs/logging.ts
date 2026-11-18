@@ -8,8 +8,7 @@ parserLog.setLevel('warn', false);
 
 /**
  * Set logging for all GTFS parser instances in this module.
- * Applies to stops and timetable parsing; defaults to warn.
- * Does not change application logging or suppress thrown errors.
+ * Defaults to warn.
  */
 export function setParserLogLevel(level: ParserLogLevel): void {
   parserLog.setLevel(level, false);

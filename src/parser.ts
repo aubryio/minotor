@@ -1,5 +1,5 @@
-export type { ParserLogLevel } from './gtfs/logging.js';
-export { setParserLogLevel } from './gtfs/logging.js';
+import type { ParserLogLevel } from './gtfs/logging.js';
+import { setParserLogLevel } from './gtfs/logging.js';
 import type { GtfsProfile } from './gtfs/parser.js';
 import { GtfsParser } from './gtfs/parser.js';
 import { extendedGtfsProfile } from './gtfs/profiles/extended.js';
@@ -15,6 +15,7 @@ import { StraightLineTransferGenerator } from './transfers/straightLineTransferG
 export {
   extendedGtfsProfile,
   GtfsParser,
+  ParserLogLevel,
   standardGtfsProfile,
   StraightLineTransferGenerator,
   TransferTypes,
@@ -22,6 +23,7 @@ export {
 export type {
   GeneratedTransfers,
   GtfsProfile,
+  setParserLogLevel,
   StraightLineTransferGeneratorOptions,
   TransferGenerator,
 };
