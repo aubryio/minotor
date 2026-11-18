@@ -15,7 +15,7 @@ import { StraightLineTransferGenerator } from './transfers/straightLineTransferG
 export {
   extendedGtfsProfile,
   GtfsParser,
-  ParserLogLevel,
+  setParserLogLevel,
   standardGtfsProfile,
   StraightLineTransferGenerator,
   TransferTypes,
@@ -23,7 +23,7 @@ export {
 export type {
   GeneratedTransfers,
   GtfsProfile,
-  setParserLogLevel,
+  ParserLogLevel,
   StraightLineTransferGeneratorOptions,
   TransferGenerator,
 };
