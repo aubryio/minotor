@@ -1,5 +1,3 @@
-import log from 'loglevel';
-
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { SerializedRoute } from '../timetable/io.js';
 import type { RouteId, TripRouteIndex } from '../timetable/route.js';
@@ -10,6 +8,7 @@ import {
   StopAdjacency,
 } from '../timetable/timetable.js';
 import { FrequenciesMap } from './frequencies.js';
+import { parserLog as log } from './logging.js';
 import { GtfsRouteId, GtfsRoutesMap } from './routes.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';

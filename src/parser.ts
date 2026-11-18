@@ -1,3 +1,5 @@
+export type { ParserLogLevel } from './gtfs/logging.js';
+export { setParserLogLevel } from './gtfs/logging.js';
 import type { GtfsProfile } from './gtfs/parser.js';
 import { GtfsParser } from './gtfs/parser.js';
 import { extendedGtfsProfile } from './gtfs/profiles/extended.js';

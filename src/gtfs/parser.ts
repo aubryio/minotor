@@ -1,4 +1,3 @@
-import log from 'loglevel';
 import { DateTime } from 'luxon';
 import StreamZip from 'node-stream-zip';
 
@@ -7,6 +6,7 @@ import { StopsIndex } from '../stops/stopsIndex.js';
 import { RouteType, Timetable } from '../timetable/timetable.js';
 import { TransferGenerator } from '../transfers/generator.js';
 import { FrequenciesMap, parseFrequencies } from './frequencies.js';
+import { parserLog as log } from './logging.js';
 import { standardGtfsProfile } from './profiles/standard.js';
 import { indexRoutes, parseRoutes } from './routes.js';
 import { parseCalendar, parseCalendarDates, ServiceIds } from './services.js';
@@ -69,7 +69,6 @@ export class GtfsParser {
    * @returns The parsed timetable.
    */
   async parseTimetable(date: Date): Promise<Timetable> {
-    log.setLevel('INFO');
     const zip = new StreamZip.async({ file: this.path });
     const entries = await zip.entries();
     const datetime = DateTime.fromJSDate(date);

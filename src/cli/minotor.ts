@@ -1,12 +1,12 @@
 import { Command } from 'commander';
 import fs from 'fs';
-import log from 'loglevel';
 import { DateTime } from 'luxon';
 
 import {
   extendedGtfsProfile,
   GtfsParser,
   GtfsProfile,
+  setParserLogLevel,
   standardGtfsProfile,
   StraightLineTransferGenerator,
 } from '../parser.js';
@@ -82,11 +82,7 @@ program
         verbose: boolean;
       },
     ) => {
-      if (options.verbose) {
-        log.setDefaultLevel(log.levels.INFO);
-      } else {
-        log.setDefaultLevel(log.levels.ERROR);
-      }
+      setParserLogLevel(options.verbose ? 'info' : 'error');
       const radiusMeters =
         options.virtualTransfersRadius !== undefined
           ? parseInt(options.virtualTransfersRadius, 10)
@@ -125,11 +121,7 @@ program
         verbose: boolean;
       },
     ) => {
-      if (options.verbose) {
-        log.setDefaultLevel(log.levels.INFO);
-      } else {
-        log.setDefaultLevel(log.levels.ERROR);
-      }
+      setParserLogLevel(options.verbose ? 'info' : 'error');
       const parser = new GtfsParser(gtfsPath, profiles[options.profileName]);
       const stopsIndex = await parser.parseStops();
       fs.writeFileSync(options.stopsOutputPath, stopsIndex.serialize());

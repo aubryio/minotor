@@ -1,5 +1,3 @@
-import log from 'loglevel';
-
 import { SourceStopId, StopId } from '../stops/stops.js';
 import { Route } from '../timetable/route.js';
 import { durationFromSeconds } from '../timetable/time.js';
@@ -13,6 +11,7 @@ import {
   TripTransfers as TripTransfers,
 } from '../timetable/timetable.js';
 import { encode } from '../timetable/tripStopId.js';
+import { parserLog as log } from './logging.js';
 import { ServiceId, ServiceIds } from './services.js';
 import { GtfsStopsMap } from './stops.js';
 import { GtfsTripId, TripsMapping } from './trips.js';
