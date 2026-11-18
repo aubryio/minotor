@@ -1,5 +1,3 @@
-import log from 'loglevel';
-
 import {
   Latitude,
   LocationType,
@@ -8,6 +6,7 @@ import {
   SourceStopId,
   Stop,
 } from '../stops/stops.js';
+import { parserLog as log } from './logging.js';
 import { parseCsv } from './utils.js';
 
 export type GtfsLocationType =

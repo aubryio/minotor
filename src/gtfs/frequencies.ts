@@ -1,6 +1,5 @@
-import log from 'loglevel';
-
 import { durationFromSeconds } from '../timetable/time.js';
+import { parserLog as log } from './logging.js';
 import { GtfsTime, toTime } from './time.js';
 import { parseCsv } from './utils.js';
 
